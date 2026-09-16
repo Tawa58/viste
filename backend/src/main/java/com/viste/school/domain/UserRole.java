@@ -1,0 +1,16 @@
+package com.viste.school.domain;
+
+public enum UserRole {
+  SUPER_ADMIN,
+  SCHOOL_ADMIN,
+  PRINCIPAL,
+  TEACHER,
+  ACCOUNTANT,
+  FINANCE_OFFICER,
+  REGISTRAR,
+  RECEPTIONIST,
+  STUDENT,
+  PARENT,
+  LIBRARIAN,
+  TRANSPORT_MANAGER
+}
