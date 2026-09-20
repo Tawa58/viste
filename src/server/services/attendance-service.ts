@@ -126,13 +126,14 @@ export async function upsertAttendance(
   session: SessionContext,
   input: z.infer<typeof attendanceUpsertSchema>,
   requestId?: string,
+  options?: { bypassDailyLock?: boolean },
 ): Promise<AttendanceDto> {
   requirePermission(session, 'attendance.create')
   await assertCanAccessStudent(session, input.studentId)
   await assertTeacherOwnsClass(session, input.classId)
 
   const kind = input.kind ?? (input.subjectId ? 'PERIOD' : 'DAILY')
-  if (kind === 'DAILY') {
+  if (kind === 'DAILY' && !options?.bypassDailyLock) {
     const existingSession = await getDoc<AttendanceSession>(
       'attendanceSessions',
       sessionId(input.date, input.classId),
@@ -230,6 +231,7 @@ export async function submitDailyRegister(
         kind: 'DAILY',
       },
       requestId,
+      { bypassDailyLock: true },
     )
     records.push(row)
   }
