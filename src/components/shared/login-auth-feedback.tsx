@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { Check, X } from 'lucide-react'
 import { VisteLoader } from '@/components/shared/loader'
 import { cn } from '@/lib/utils'
@@ -5,9 +6,8 @@ import { cn } from '@/lib/utils'
 export type LoginAuthStatus = 'idle' | 'loading' | 'success' | 'error'
 
 /**
- * Centered auth feedback over the login view:
- * loading spinner → green check + message, or red X + message.
- * Light transparent scrim — page stays visible behind it.
+ * Centered auth feedback over the login view (portaled to body so it cannot be
+ * clipped by overflow/transform ancestors): loading → green check, or red X.
  */
 export function LoginAuthFeedback({
   status,
@@ -16,30 +16,33 @@ export function LoginAuthFeedback({
   status: Exclude<LoginAuthStatus, 'idle'>
   className?: string
 }) {
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <div
       className={cn(
-        'pointer-events-none fixed inset-0 z-[70] flex items-center justify-center px-4',
-        'bg-background/25 backdrop-blur-[1px] animate-fade-in',
+        'pointer-events-none fixed inset-0 z-[200] flex items-center justify-center px-4',
+        'bg-background/55 backdrop-blur-[2px] animate-fade-in',
         className,
       )}
       role="status"
       aria-live="polite"
       aria-busy={status === 'loading'}
+      data-login-auth-feedback={status}
     >
       <div
         className={cn(
-          'auth-feedback-pop flex min-h-[8.5rem] w-[13rem] flex-col items-center justify-center gap-3',
-          'rounded-2xl border border-border/50 bg-card/80 px-4 py-5 shadow-elevated backdrop-blur-md',
+          'auth-feedback-pop flex min-h-[9.5rem] w-[14.5rem] flex-col items-center justify-center gap-3',
+          'rounded-2xl border border-border bg-card px-5 py-6 shadow-elevated',
         )}
       >
         {status === 'loading' ? (
           <div className="flex flex-col items-center gap-3">
             <div className="relative flex h-14 w-14 items-center justify-center">
-              <span className="auth-loader-halo absolute inset-0 rounded-full bg-accent/15" />
+              <span className="auth-loader-halo absolute inset-0 rounded-full bg-accent/20" />
               <VisteLoader size="xl" label="Signing in" className="relative text-accent" />
             </div>
-            <p className="text-xs font-medium text-muted-foreground">Signing you in…</p>
+            <p className="text-sm font-medium text-foreground">Signing you in…</p>
           </div>
         ) : null}
 
@@ -71,6 +74,7 @@ export function LoginAuthFeedback({
           </div>
         ) : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

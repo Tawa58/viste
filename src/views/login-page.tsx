@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { flushSync } from 'react-dom'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -29,6 +30,10 @@ const loginSchema = z.object({
 
 type LoginValues = z.infer<typeof loginSchema>
 
+const MIN_LOADING_MS = 900
+const SUCCESS_HOLD_MS = 1400
+const ERROR_HOLD_MS = 1800
+
 function wait(ms: number) {
   return new Promise<void>((resolve) => {
     window.setTimeout(resolve, ms)
@@ -56,15 +61,28 @@ export function LoginPage() {
   if (user && authStatus === 'idle') return <Navigate to="/dashboard" replace />
 
   async function onSubmit(values: LoginValues) {
-    setAuthStatus('loading')
+    const startedAt = Date.now()
+    // Force a paint before the auth call so the loader is never skipped
+    flushSync(() => {
+      setAuthStatus('loading')
+    })
+
     try {
       await login(values.email.trim(), values.password, values.remember)
-      setAuthStatus('success')
-      await wait(1250)
+      const remaining = MIN_LOADING_MS - (Date.now() - startedAt)
+      if (remaining > 0) await wait(remaining)
+      flushSync(() => {
+        setAuthStatus('success')
+      })
+      await wait(SUCCESS_HOLD_MS)
       navigate('/dashboard', { replace: true })
     } catch {
-      setAuthStatus('error')
-      await wait(1500)
+      const remaining = MIN_LOADING_MS - (Date.now() - startedAt)
+      if (remaining > 0) await wait(remaining)
+      flushSync(() => {
+        setAuthStatus('error')
+      })
+      await wait(ERROR_HOLD_MS)
       setAuthStatus('idle')
     }
   }
