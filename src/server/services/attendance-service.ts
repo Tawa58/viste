@@ -285,6 +285,18 @@ export async function submitDailyRegister(
   }
   await setDoc('attendanceSessions', sid, { ...sessionRow })
 
+  try {
+    const { notifyRegisterSubmitted } = await import('@/server/services/notifications-service')
+    await notifyRegisterSubmitted({
+      date: input.date,
+      classId: input.classId,
+      className: cls.name,
+      teacherName: session.profile.name || 'Teacher',
+    })
+  } catch (err) {
+    console.error('notifyRegisterSubmitted failed', err)
+  }
+
   await writeAuditLog({
     actorId: session.uid,
     actorRole: session.role,

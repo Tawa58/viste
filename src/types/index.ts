@@ -299,6 +299,40 @@ export interface AttendanceSession {
   totalCount: number
 }
 
+export type AppNotificationType =
+  | 'REGISTER_SUBMITTED'
+  | 'REGISTER_SUBMITTED_DIGEST'
+  | 'REGISTER_MISSING'
+
+export interface AppNotificationClassContact {
+  classId: string
+  className: string
+  teacherName?: string
+  teacherPhone?: string
+  teacherEmail?: string
+}
+
+/** In-app notification (admin bell + list). */
+export interface AppNotification {
+  id: string
+  audience: 'ADMIN'
+  type: AppNotificationType
+  title: string
+  body: string
+  createdAt: string
+  read: boolean
+  /** Attendance calendar date (YYYY-MM-DD) when relevant. */
+  date?: string
+  href?: string
+  meta?: {
+    classId?: string
+    className?: string
+    teacherName?: string
+    count?: number
+    classes?: AppNotificationClassContact[]
+  }
+}
+
 export interface Examination {
   id: string
   name: string

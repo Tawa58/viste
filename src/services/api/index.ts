@@ -509,6 +509,18 @@ const mockCatalogService = {
   getInvoices: (): Promise<Invoice[]> => mockRequest(invoices),
   getPayments: (): Promise<Payment[]> => mockRequest(payments),
   getAnnouncements: (): Promise<Announcement[]> => mockRequest(announcements),
+  getNotifications: async () => mockRequest([] as import('@/types').AppNotification[]),
+  markNotificationRead: async (id: string) =>
+    mockRequest({
+      id,
+      audience: 'ADMIN' as const,
+      type: 'REGISTER_SUBMITTED' as const,
+      title: 'Marked read',
+      body: '',
+      createdAt: new Date().toISOString(),
+      read: true,
+    }),
+  markAllNotificationsRead: async () => mockRequest({ marked: 0 }),
   getBooks: (): Promise<LibraryBook[]> => mockRequest(libraryBooks),
   getLoans: (): Promise<LibraryLoan[]> => mockRequest(libraryLoans),
   getInventory: (): Promise<InventoryItem[]> => mockRequest(inventoryItems),

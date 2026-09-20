@@ -299,6 +299,18 @@ export const firestoreCatalogService = {
   async getAnnouncements() {
     return []
   },
+  async getNotifications() {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.getNotifications()
+  },
+  async markNotificationRead(id: string) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.markNotificationRead(id)
+  },
+  async markAllNotificationsRead() {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.markAllNotificationsRead()
+  },
   async getBooks() {
     return []
   },

@@ -52,11 +52,17 @@ export function AttendancePage() {
   const [session, setSession] = useState<AttendanceSession | null>(null)
   const [sessions, setSessions] = useState<AttendanceSession[]>([])
   const [adminDate, setAdminDate] = useState(todayIso())
+  const [showAllSessions, setShowAllSessions] = useState(false)
   const [viewingSession, setViewingSession] = useState<{
     session: AttendanceSession
     records: AttendanceRecord[]
     students: Student[]
   } | null>(null)
+
+  const SESSIONS_PREVIEW = 5
+  const visibleSessions = showAllSessions
+    ? sessions
+    : sessions.slice(0, SESSIONS_PREVIEW)
 
   async function loadBase() {
     const [stu, cls] = await Promise.all([studentService.list(), classService.list()])
@@ -98,6 +104,7 @@ export function AttendancePage() {
     try {
       const list = await catalogService.getAttendanceSessions({ date: forDate })
       setSessions(list)
+      setShowAllSessions(false)
     } catch (err) {
       console.error(err)
       setSessions([])
@@ -487,7 +494,7 @@ export function AttendancePage() {
                   </tr>
                 </DataTableHead>
                 <DataTableBody>
-                  {sessions.map((sess) => (
+                  {visibleSessions.map((sess) => (
                     <DataTableRow key={sess.id}>
                       <DataTableCell className="font-medium">
                         {sess.className ?? sess.classId}
@@ -529,6 +536,27 @@ export function AttendancePage() {
             </DataTableShell>
           )}
 
+          {sessions.length > SESSIONS_PREVIEW && !showAllSessions ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => setShowAllSessions(true)}
+            >
+              Show more submitted registers ({sessions.length - SESSIONS_PREVIEW} more)
+            </Button>
+          ) : null}
+
+          {showAllSessions && sessions.length > SESSIONS_PREVIEW ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAllSessions(false)}
+            >
+              Show fewer
+            </Button>
+          ) : null}
           {viewingSession ? (
             <Card>
               <CardContent className="space-y-4 p-4">

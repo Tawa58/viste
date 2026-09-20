@@ -32,7 +32,18 @@ import {
 import { useAuth } from '@/contexts/auth-context'
 import { getMainNavForRole, getNavGroupsForRole, type NavGroup } from '@/lib/navigation'
 import { canAccessPath } from '@/lib/roles'
+import { catalogService } from '@/services/api'
 import { cn } from '@/lib/utils'
+import type { AppNotification } from '@/types'
+
+function isAdminNotificationsRole(role: string | undefined) {
+  return (
+    role === 'SUPER_ADMIN' ||
+    role === 'SCHOOL_ADMIN' ||
+    role === 'PRINCIPAL' ||
+    role === 'REGISTRAR'
+  )
+}
 
 function SidebarNav({ collapsed, groups }: { collapsed: boolean; groups: NavGroup[] }) {
   return (
@@ -95,6 +106,9 @@ export function AppShell() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [logoutOpen, setLogoutOpen] = useState(false)
+  const [notifications, setNotifications] = useState<AppNotification[]>([])
+  const canSeeAdminNotifications = isAdminNotificationsRole(user?.role)
+  const unreadCount = notifications.filter((n) => !n.read).length
 
   const roleNav = useMemo(
     () => (user ? getNavGroupsForRole(user.role, permissions) : []),
@@ -108,6 +122,51 @@ export function AppShell() {
   useEffect(() => {
     setMobileOpen(false)
   }, [location.pathname])
+
+  useEffect(() => {
+    if (!canSeeAdminNotifications) {
+      setNotifications([])
+      return
+    }
+    let cancelled = false
+    async function load() {
+      try {
+        const list = await catalogService.getNotifications()
+        if (!cancelled) setNotifications(list)
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    void load()
+    const timer = window.setInterval(() => void load(), 60_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [canSeeAdminNotifications, location.pathname])
+
+  async function handleNotificationClick(item: AppNotification) {
+    try {
+      if (!item.read) {
+        await catalogService.markNotificationRead(item.id)
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === item.id ? { ...n, read: true } : n)),
+        )
+      }
+    } catch (err) {
+      console.error(err)
+    }
+    navigate(item.href || '/attendance')
+  }
+
+  async function handleMarkAllRead() {
+    try {
+      await catalogService.markAllNotificationsRead()
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+    } catch (err) {
+      console.error(err)
+    }
+  }
 
   const pageTitle = useMemo(() => {
     const match = roleMainNav.find(
@@ -290,15 +349,55 @@ export function AppShell() {
                     className="relative"
                   >
                     <Bell />
-                    <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-accent" />
+                    {canSeeAdminNotifications && unreadCount > 0 ? (
+                      <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-accent-foreground">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    ) : null}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-80">
-                  <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+                <DropdownMenuContent align="end" className="max-h-[70vh] w-96 overflow-y-auto">
+                  <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                    <DropdownMenuLabel className="p-0">Notifications</DropdownMenuLabel>
+                    {canSeeAdminNotifications && unreadCount > 0 ? (
+                      <button
+                        type="button"
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => void handleMarkAllRead()}
+                      >
+                        Mark all read
+                      </button>
+                    ) : null}
+                  </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>Fee reminder · 12 accounts</DropdownMenuItem>
-                  <DropdownMenuItem>Science CAT submitted</DropdownMenuItem>
-                  <DropdownMenuItem>Library Week published</DropdownMenuItem>
+                  {!canSeeAdminNotifications ? (
+                    <p className="px-3 py-4 text-sm text-muted-foreground">
+                      No notifications for this account.
+                    </p>
+                  ) : notifications.length === 0 ? (
+                    <p className="px-3 py-4 text-sm text-muted-foreground">
+                      No register alerts yet.
+                    </p>
+                  ) : (
+                    notifications.map((item) => (
+                      <DropdownMenuItem
+                        key={item.id}
+                        className={cn(
+                          'flex cursor-pointer flex-col items-start gap-1 whitespace-normal py-2.5',
+                          !item.read && 'bg-accent/10',
+                        )}
+                        onClick={() => void handleNotificationClick(item)}
+                      >
+                        <span className="text-sm font-medium leading-snug">{item.title}</span>
+                        <span className="whitespace-pre-line text-xs text-muted-foreground">
+                          {item.body}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {new Date(item.createdAt).toLocaleString()}
+                        </span>
+                      </DropdownMenuItem>
+                    ))
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
 

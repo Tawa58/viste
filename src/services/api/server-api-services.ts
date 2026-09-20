@@ -375,6 +375,17 @@ export const apiCatalogService = {
   getInvoices: () => apiFetch<Invoice[]>('/api/v1/invoices'),
   getPayments: () => apiFetch<Payment[]>('/api/v1/payments'),
   getAnnouncements: () => apiFetch<Announcement[]>('/api/v1/announcements'),
+  getNotifications: () => apiFetch<import('@/types').AppNotification[]>('/api/v1/notifications'),
+  markNotificationRead: (id: string) =>
+    apiFetch<import('@/types').AppNotification | null>('/api/v1/notifications', {
+      method: 'PATCH',
+      body: JSON.stringify({ id }),
+    }),
+  markAllNotificationsRead: () =>
+    apiFetch<{ marked: number }>('/api/v1/notifications', {
+      method: 'PATCH',
+      body: JSON.stringify({ markAllRead: true }),
+    }),
   getBooks: async (): Promise<LibraryBook[]> => [],
   getLoans: async (): Promise<LibraryLoan[]> => [],
   getInventory: async (): Promise<InventoryItem[]> => [],
