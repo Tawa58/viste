@@ -78,6 +78,15 @@ export const firestoreCatalogService = {
     await firestoreSchool.ensureSchoolCatalog()
     return firestoreSchool.listSubjects()
   },
+  async getSports() {
+    return [] as import('@/types').Sport[]
+  },
+  async getClubs() {
+    return [] as import('@/types').ClubActivity[]
+  },
+  async getHouses() {
+    return [] as import('@/types').House[]
+  },
   async getStaff() {
     await firestoreSchool.ensureSchoolCatalog()
     return firestoreSchool.listStaff()

@@ -9,15 +9,20 @@ import type {
   AcademicYear,
   Announcement,
   AuditLog,
+  ClubActivity,
   DashboardStats,
+  House,
   Invoice,
   Payment,
   SchoolClass,
+  Sport,
   Stream,
   Subject,
   Term,
   Assessment,
 } from '@/types'
+import { listClasses as listClassesManaged } from '@/server/services/classes-service'
+import { listSubjects as listSubjectsManaged } from '@/server/services/extracurricular-service'
 
 export type ClassDto = SchoolClass
 export type StreamDto = Stream
@@ -26,8 +31,7 @@ export type AcademicYearDto = AcademicYear
 export type TermDto = Term
 
 export async function listClasses(session: SessionContext): Promise<ClassDto[]> {
-  requirePermission(session, 'classes.read')
-  return queryCollection<SchoolClass>('classes', { limit: 100, orderBy: 'name' })
+  return listClassesManaged(session)
 }
 
 export async function listStreams(session: SessionContext): Promise<StreamDto[]> {
@@ -36,8 +40,7 @@ export async function listStreams(session: SessionContext): Promise<StreamDto[]>
 }
 
 export async function listSubjects(session: SessionContext): Promise<SubjectDto[]> {
-  requirePermission(session, 'subjects.read')
-  return queryCollection<Subject>('subjects', { limit: 100, orderBy: 'code' })
+  return listSubjectsManaged(session)
 }
 
 export async function listAcademicYears(session: SessionContext): Promise<AcademicYearDto[]> {
@@ -54,14 +57,27 @@ export async function getCatalogSnapshot(session: SessionContext) {
   requirePermission(session, 'classes.read')
   const { remember, sessionCacheKey } = await import('@/server/http/memo')
   return remember(sessionCacheKey(session, 'catalog'), 30_000, async () => {
-    const [classes, streams, subjects, academicYears, terms] = await Promise.all([
-      queryCollection<SchoolClass>('classes', { limit: 100 }),
-      queryCollection<Stream>('streams', { limit: 100 }),
-      queryCollection<Subject>('subjects', { limit: 100 }),
-      queryCollection<AcademicYear>('academicYears', { limit: 100 }),
-      queryCollection<Term>('terms', { limit: 100 }),
-    ])
-    return { classes, streams, subjects, academicYears, terms }
+    const [classes, streams, subjects, academicYears, terms, sports, clubs, houses] =
+      await Promise.all([
+        queryCollection<SchoolClass>('classes', { limit: 100 }),
+        queryCollection<Stream>('streams', { limit: 100 }),
+        queryCollection<Subject>('subjects', { limit: 100 }),
+        queryCollection<AcademicYear>('academicYears', { limit: 100 }),
+        queryCollection<Term>('terms', { limit: 100 }),
+        queryCollection<Sport>('sports', { limit: 100 }).catch(() => [] as Sport[]),
+        queryCollection<ClubActivity>('clubs', { limit: 100 }).catch(() => [] as ClubActivity[]),
+        queryCollection<House>('houses', { limit: 100 }).catch(() => [] as House[]),
+      ])
+    return {
+      classes,
+      streams,
+      subjects,
+      academicYears,
+      terms,
+      sports,
+      clubs,
+      houses,
+    }
   })
 }
 

@@ -39,9 +39,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { catalogService, studentService } from '@/services/api'
+import { catalogService, classService, studentService } from '@/services/api'
 import { cn, fullName } from '@/lib/utils'
-import type { Guardian, SchoolClass, Stream, Student, Subject } from '@/types'
+import { EDUCATION_LEVELS, educationLevelName } from '@/lib/education-levels'
+import type {
+  ClubActivity,
+  Guardian,
+  House,
+  SchoolClass,
+  Sport,
+  Stream,
+  Student,
+  Subject,
+} from '@/types'
 
 const PAGE_SIZE = 8
 
@@ -53,11 +63,17 @@ export function StudentsPage() {
   const [classes, setClasses] = useState<SchoolClass[]>([])
   const [streams, setStreams] = useState<Stream[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
+  const [sports, setSports] = useState<Sport[]>([])
+  const [clubs, setClubs] = useState<ClubActivity[]>([])
+  const [houses, setHouses] = useState<House[]>([])
   const [guardians, setGuardians] = useState<Guardian[]>([])
   const [search, setSearch] = useState('')
   const [classFilter, setClassFilter] = useState('all')
-  const [streamFilter, setStreamFilter] = useState('all')
+  const [levelFilter, setLevelFilter] = useState('all')
+  const [genderFilter, setGenderFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [subjectFilter, setSubjectFilter] = useState('all')
+  const [sportFilter, setSportFilter] = useState('all')
   const [sort, setSort] = useState<'name' | 'number'>('name')
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<string[]>([])
@@ -73,14 +89,21 @@ export function StudentsPage() {
       catalogService.getClasses(),
       catalogService.getStreams(),
       catalogService.getSubjects(),
+      catalogService.getSports?.() ?? Promise.resolve([]),
+      catalogService.getClubs?.() ?? Promise.resolve([]),
+      catalogService.getHouses?.() ?? Promise.resolve([]),
       catalogService.getGuardians(),
+      classService.getStats().catch(() => null),
     ])
-      .then(([s, c, st, sub, g]) => {
+      .then(([s, c, st, sub, sp, cl, ho, g]) => {
         if (!mounted) return
         setStudents(s)
         setClasses(c)
         setStreams(st)
         setSubjects(sub)
+        setSports(sp)
+        setClubs(cl)
+        setHouses(ho)
         setGuardians(g)
       })
       .catch((err) => {
@@ -108,9 +131,24 @@ export function StudentsPage() {
         s.studentNumber.toLowerCase().includes(q) ||
         s.admissionNumber.toLowerCase().includes(q)
       const matchesClass = classFilter === 'all' || s.classId === classFilter
-      const matchesStream = streamFilter === 'all' || s.streamId === streamFilter
+      const cls = classes.find((c) => c.id === s.classId)
+      const levelId = s.educationLevelId || cls?.educationLevelId
+      const matchesLevel = levelFilter === 'all' || levelId === levelFilter
+      const matchesGender = genderFilter === 'all' || s.gender === genderFilter
       const matchesStatus = statusFilter === 'all' || s.status === statusFilter
-      return matchesSearch && matchesClass && matchesStream && matchesStatus
+      const matchesSubject =
+        subjectFilter === 'all' || (s.subjectIds ?? []).includes(subjectFilter)
+      const matchesSport =
+        sportFilter === 'all' || (s.sportIds ?? []).includes(sportFilter)
+      return (
+        matchesSearch &&
+        matchesClass &&
+        matchesLevel &&
+        matchesGender &&
+        matchesStatus &&
+        matchesSubject &&
+        matchesSport
+      )
     })
     rows = [...rows].sort((a, b) =>
       sort === 'name'
@@ -118,7 +156,18 @@ export function StudentsPage() {
         : a.studentNumber.localeCompare(b.studentNumber),
     )
     return rows
-  }, [students, search, classFilter, streamFilter, statusFilter, sort])
+  }, [
+    students,
+    classes,
+    search,
+    classFilter,
+    levelFilter,
+    genderFilter,
+    statusFilter,
+    subjectFilter,
+    sportFilter,
+    sort,
+  ])
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -127,17 +176,20 @@ export function StudentsPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, classFilter, streamFilter, statusFilter, sort])
+  }, [search, classFilter, levelFilter, genderFilter, statusFilter, subjectFilter, sportFilter, sort])
 
   function openCreate() {
-    const defaultClass = classes[0]
+    const defaultClass = classes.find((c) => (c.status ?? 'ACTIVE') === 'ACTIVE') ?? classes[0]
     const defaultStream = streams.find((s) => s.classId === defaultClass?.id)
     setEditing(null)
     setForm({
       ...studentToFormValues(),
       classId: defaultClass?.id ?? '',
       streamId: defaultStream?.id ?? '',
-      subjectIds: ['sub-math', 'sub-eng', 'sub-sci'],
+      educationLevelId: defaultClass?.educationLevelId ?? '',
+      academicYearId: defaultClass?.academicYearId ?? '',
+      termId: defaultClass?.termId ?? '',
+      subjectIds: [],
     })
     setFormOpen(true)
   }
@@ -153,18 +205,16 @@ export function StudentsPage() {
       notify.error('First and last name are required')
       return
     }
-    if (!form.classId || !form.streamId) {
-      notify.error('Class and stream are required')
-      return
-    }
-    if (form.subjectIds.length === 0) {
-      notify.error('Select at least one subject')
+    if (!form.classId) {
+      notify.error('Class is required')
       return
     }
 
     setSaving(true)
     try {
       const seq = students.length + 1
+      const admission =
+        form.admissionNumber.trim() || `ADM-${String(24000 + seq)}`
       const payload = {
         firstName: form.firstName.trim(),
         middleName: form.middleName.trim() || undefined,
@@ -177,27 +227,57 @@ export function StudentsPage() {
         admissionDate: form.admissionDate,
         status: form.status,
         classId: form.classId,
-        streamId: form.streamId,
+        streamId: form.streamId || undefined,
+        educationLevelId: form.educationLevelId || undefined,
+        academicYearId: form.academicYearId || undefined,
+        termId: form.termId || undefined,
         subjectIds: form.subjectIds,
+        sportIds: form.sportIds,
+        clubIds: form.clubIds,
+        houseId: form.houseId || undefined,
         guardianIds: form.guardianIds,
         studentNumber:
           form.studentNumber.trim() ||
           `VHS-${new Date().getFullYear()}-${String(seq).padStart(3, '0')}`,
-        admissionNumber:
-          form.admissionNumber.trim() || `ADM-${String(24000 + seq)}`,
+        admissionNumber: admission,
+        newGuardians:
+          form.newGuardian &&
+          form.newGuardian.firstName.trim() &&
+          form.newGuardian.lastName.trim() &&
+          form.newGuardian.phone.trim()
+            ? [
+                {
+                  firstName: form.newGuardian.firstName.trim(),
+                  lastName: form.newGuardian.lastName.trim(),
+                  relationship: form.newGuardian.relationship.trim() || 'Parent',
+                  phone: form.newGuardian.phone.trim(),
+                  email: form.newGuardian.email.trim() || undefined,
+                  address: form.newGuardian.address.trim() || undefined,
+                  occupation: form.newGuardian.occupation.trim() || undefined,
+                  emergencyContact: form.newGuardian.emergencyContact,
+                },
+              ]
+            : undefined,
       }
 
       if (editing) {
-        const updated = await notify.process(() => studentService.update(editing.id, payload), {
-          loading: 'Updating student…',
-          success: 'Student profile updated',
-        })
+        const { newGuardians: _ng, ...updatePayload } = payload
+        const updated = await notify.process(
+          () => studentService.update(editing.id, updatePayload),
+          {
+            loading: 'Updating student…',
+            success: 'Student profile updated',
+          },
+        )
         setStudents((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
       } else {
-        const created = await notify.process(() => studentService.create(payload), {
-          loading: 'Registering student…',
-          success: 'Student registered',
-        })
+        const created = await notify.process(
+          () => studentService.create(payload as Parameters<typeof studentService.create>[0]),
+          {
+            loading: 'Registering student…',
+            success: 'Student registered',
+          },
+        )
         setStudents((prev) => [created, ...prev])
       }
       setFormOpen(false)
@@ -226,12 +306,12 @@ export function StudentsPage() {
 
       <div className="overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-b from-card to-card/80 shadow-card">
         <div className="space-y-4 border-b border-border/70 bg-muted/25 p-4 sm:p-5">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <SearchInput
               value={search}
               onChange={setSearch}
-              placeholder="Search by name or student number…"
-              className="md:col-span-2 xl:col-span-2"
+              placeholder="Search name or admission number…"
+              className="md:col-span-2"
             />
             <Select value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
               <option value="all">All classes</option>
@@ -241,21 +321,44 @@ export function StudentsPage() {
                 </option>
               ))}
             </Select>
-            <Select value={streamFilter} onChange={(e) => setStreamFilter(e.target.value)}>
-              <option value="all">All streams</option>
-              {streams.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
+            <Select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)}>
+              <option value="all">All levels</option>
+              {EDUCATION_LEVELS.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
                 </option>
               ))}
             </Select>
             <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="all">All statuses</option>
               <option value="ACTIVE">Active</option>
-              <option value="INACTIVE">Inactive</option>
-              <option value="GRADUATED">Graduated</option>
-              <option value="TRANSFERRED">Transferred</option>
               <option value="SUSPENDED">Suspended</option>
+              <option value="TRANSFERRED">Transferred</option>
+              <option value="WITHDRAWN">Withdrawn</option>
+              <option value="GRADUATED">Graduated</option>
+              <option value="ARCHIVED">Archived</option>
+              <option value="INACTIVE">Inactive</option>
+            </Select>
+            <Select value={genderFilter} onChange={(e) => setGenderFilter(e.target.value)}>
+              <option value="all">All genders</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+            </Select>
+            <Select value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)}>
+              <option value="all">All subjects</option>
+              {subjects.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+            <Select value={sportFilter} onChange={(e) => setSportFilter(e.target.value)}>
+              <option value="all">All sports</option>
+              {sports.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
             </Select>
           </div>
         </div>
@@ -302,8 +405,9 @@ export function StudentsPage() {
 
             <ul className="divide-y divide-border/70">
               {pageRows.map((s) => {
-                const cls = classes.find((c) => c.id === s.classId)?.name ?? '—'
-                const stream = streams.find((st) => st.id === s.streamId)?.name ?? '—'
+                const cls = classes.find((c) => c.id === s.classId)
+                const classLabel = cls?.name ?? '—'
+                const levelLabel = educationLevelName(s.educationLevelId || cls?.educationLevelId)
                 const subjectCount = s.subjectIds?.length ?? 0
                 return (
                   <li key={s.id} className="px-4 py-3.5 transition hover:bg-muted/30 sm:px-5">
@@ -336,11 +440,12 @@ export function StudentsPage() {
                           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                             <span className="inline-flex items-center gap-1">
                               <GraduationCap className="h-3.5 w-3.5" />
-                              {s.studentNumber}
+                              {s.admissionNumber}
                             </span>
                             <span className="inline-flex items-center gap-1">
                               <School className="h-3.5 w-3.5" />
-                              {cls} {stream}
+                              {classLabel}
+                              {levelLabel !== '—' ? ` · ${levelLabel}` : ''}
                             </span>
                             <span className="inline-flex items-center gap-1">
                               <Users className="h-3.5 w-3.5" />
@@ -408,6 +513,9 @@ export function StudentsPage() {
             classes={classes}
             streams={streams}
             subjects={subjects}
+            sports={sports}
+            clubs={clubs}
+            houses={houses}
             guardians={guardians}
             fullAccess
           />

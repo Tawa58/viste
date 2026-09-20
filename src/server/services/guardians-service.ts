@@ -40,7 +40,13 @@ export async function createGuardian(
 ): Promise<GuardianDto> {
   requirePermission(session, 'parents.manage')
   const id = newId('g')
-  const row: Guardian = { ...input, id, studentIds: [...input.studentIds] }
+  const row: Guardian = {
+    ...input,
+    id,
+    email: input.email?.trim() || '',
+    address: input.address?.trim() || '—',
+    studentIds: [...input.studentIds],
+  }
   await setDoc('guardians', id, { ...row })
   await writeAuditLog({
     actorId: session.uid,

@@ -12,7 +12,20 @@ export type UserRole =
   | 'LIBRARIAN'
   | 'TRANSPORT_MANAGER'
 
-export type StudentStatus = 'ACTIVE' | 'INACTIVE' | 'GRADUATED' | 'TRANSFERRED' | 'SUSPENDED'
+export type StudentStatus =
+  | 'ACTIVE'
+  | 'INACTIVE'
+  | 'GRADUATED'
+  | 'TRANSFERRED'
+  | 'SUSPENDED'
+  | 'WITHDRAWN'
+  | 'ARCHIVED'
+
+export type ClassStatus = 'ACTIVE' | 'ARCHIVED'
+
+export type ExemptionType = 'SUBJECT' | 'SPORT' | 'ACTIVITY' | 'OTHER'
+
+export type ClubActivityType = 'CLUB' | 'SOCIETY' | 'ACTIVITY' | 'OTHER'
 export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'AUTHORIZED_ABSENCE'
 export type PaymentStatus = 'PENDING' | 'CONFIRMED' | 'REVERSED' | 'CANCELLED'
 export type ResultAccessState =
@@ -70,8 +83,15 @@ export interface Student {
   status: StudentStatus
   classId: string
   streamId: string
+  /** Canonical education level id (ecd, grade-1, form-1, …). */
+  educationLevelId?: string
+  academicYearId?: string
+  termId?: string
   /** Subjects the student is registered for. */
   subjectIds: string[]
+  sportIds?: string[]
+  clubIds?: string[]
+  houseId?: string
   guardianIds: string[]
   /** Firestore `files/{id}` reference — never store image bytes here. */
   profilePhotoId?: string
@@ -97,6 +117,8 @@ export interface Guardian {
   address: string
   studentIds: string[]
   occupation?: string
+  /** Marked as the primary emergency contact when true. */
+  emergencyContact?: boolean
 }
 
 export interface Staff {
@@ -140,9 +162,15 @@ export interface Term {
 export interface SchoolClass {
   id: string
   name: string
+  /** Display / legacy label — prefer educationLevelId. */
   level: string
+  educationLevelId?: string
   academicYearId: string
+  termId?: string
   classTeacherId?: string
+  description?: string
+  status?: ClassStatus
+  capacity?: number
 }
 
 export interface Stream {
@@ -157,6 +185,75 @@ export interface Subject {
   code: string
   name: string
   category: string
+  /** Levels this subject is offered for (filters student registration). */
+  educationLevelIds?: string[]
+  teacherIds?: string[]
+  active?: boolean
+}
+
+export interface Sport {
+  id: string
+  name: string
+  description?: string
+  active: boolean
+}
+
+export interface ClubActivity {
+  id: string
+  name: string
+  type: ClubActivityType
+  description?: string
+  active: boolean
+}
+
+export interface House {
+  id: string
+  name: string
+  color?: string
+  active: boolean
+}
+
+export interface StudentExemption {
+  id: string
+  studentId: string
+  type: ExemptionType
+  /** Subject / sport / club id when applicable. */
+  targetId?: string
+  targetLabel: string
+  reason: string
+  startDate: string
+  endDate?: string
+  notes?: string
+  createdBy: string
+  createdByName?: string
+  createdAt: string
+  active: boolean
+}
+
+export interface ClassTransfer {
+  id: string
+  studentId: string
+  fromClassId: string
+  toClassId: string
+  fromStreamId?: string
+  toStreamId?: string
+  date: string
+  reason?: string
+  notes?: string
+  transferredBy: string
+  transferredByName?: string
+}
+
+export interface StudentClassStats {
+  totalStudents: number
+  totalClasses: number
+  ecdStudents: number
+  primaryStudents: number
+  secondaryStudents: number
+  activeStudents: number
+  transferredStudents: number
+  archivedStudents: number
+  classDistribution: { classId: string; className: string; count: number }[]
 }
 
 export interface AttendanceRecord {

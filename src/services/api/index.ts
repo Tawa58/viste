@@ -73,8 +73,11 @@ import { FirebaseAuthService } from '@/services/firebase/auth-service'
 import {
   ApiAuthService,
   apiCatalogService,
+  apiClassService,
   apiDashboardService,
+  apiExtracurricularService,
   apiStudentService,
+  apiSubjectAdminService,
 } from '@/services/api/server-api-services'
 import { readPublicEnv } from '@/lib/env'
 
@@ -282,6 +285,9 @@ const mockCatalogService = {
   getClasses: (): Promise<SchoolClass[]> => mockRequest(classes),
   getStreams: (): Promise<Stream[]> => mockRequest(streams),
   getSubjects: (): Promise<Subject[]> => mockRequest(subjects),
+  getSports: (): Promise<import('@/types').Sport[]> => mockRequest([]),
+  getClubs: (): Promise<import('@/types').ClubActivity[]> => mockRequest([]),
+  getHouses: (): Promise<import('@/types').House[]> => mockRequest([]),
   getStaff: (): Promise<Staff[]> => mockRequest([...staff]),
   getGuardians: (): Promise<Guardian[]> => mockRequest([...guardians]),
   getGuardian: (id: string) => mockRequest(guardians.find((g) => g.id === id)),
@@ -381,3 +387,91 @@ export const catalogService = USE_MOCK_API
   : USE_SERVER_API
     ? apiCatalogService
     : firestoreCatalogService
+
+export const classService = USE_MOCK_API
+  ? {
+      list: () => mockRequest([...classes]),
+      getStats: async () => ({
+        totalStudents: students.length,
+        totalClasses: classes.length,
+        ecdStudents: 0,
+        primaryStudents: 0,
+        secondaryStudents: students.length,
+        activeStudents: students.filter((s) => s.status === 'ACTIVE').length,
+        transferredStudents: students.filter((s) => s.status === 'TRANSFERRED').length,
+        archivedStudents: students.filter((s) => s.status === 'ARCHIVED' || s.status === 'INACTIVE')
+          .length,
+        classDistribution: classes.map((c) => ({
+          classId: c.id,
+          className: c.name,
+          count: students.filter((s) => s.classId === c.id).length,
+        })),
+      }),
+      getById: (id: string) => mockRequest(classes.find((c) => c.id === id)!),
+      create: async (input: Omit<SchoolClass, 'id' | 'level'> & { educationLevelId: string }) => {
+        const created: SchoolClass = {
+          ...input,
+          id: `cls-${Date.now()}`,
+          level: input.educationLevelId,
+          status: input.status ?? 'ACTIVE',
+        }
+        classes.unshift(created)
+        streams.unshift({
+          id: `str-${Date.now()}`,
+          classId: created.id,
+          name: created.name,
+          capacity: input.capacity ?? 40,
+        })
+        return mockRequest(created, 250)
+      },
+      update: async (id: string, patch: Partial<SchoolClass>) => {
+        const idx = classes.findIndex((c) => c.id === id)
+        if (idx < 0) throw new Error('Class not found')
+        classes[idx] = { ...classes[idx], ...patch, id }
+        return mockRequest({ ...classes[idx] }, 200)
+      },
+      archive: async (id: string) => {
+        const idx = classes.findIndex((c) => c.id === id)
+        if (idx < 0) throw new Error('Class not found')
+        classes[idx] = { ...classes[idx], status: 'ARCHIVED' }
+        return mockRequest({ ...classes[idx] }, 200)
+      },
+    }
+  : apiClassService
+
+export const subjectAdminService = USE_MOCK_API
+  ? {
+      list: () => mockRequest([...subjects]),
+      create: async (input: Omit<Subject, 'id'>) => {
+        const created: Subject = { ...input, id: `sub-${Date.now()}`, active: input.active ?? true }
+        subjects.unshift(created)
+        return mockRequest(created, 200)
+      },
+      update: async (id: string, patch: Partial<Subject>) => {
+        const idx = subjects.findIndex((s) => s.id === id)
+        if (idx < 0) throw new Error('Subject not found')
+        subjects[idx] = { ...subjects[idx], ...patch, id }
+        return mockRequest({ ...subjects[idx] }, 200)
+      },
+    }
+  : apiSubjectAdminService
+
+export const extracurricularService = USE_MOCK_API
+  ? {
+      listSports: () => mockRequest([] as import('@/types').Sport[]),
+      createSport: async (input: Omit<import('@/types').Sport, 'id'>) =>
+        mockRequest({ ...input, id: `sport-${Date.now()}` }, 200),
+      updateSport: async (id: string, patch: Partial<import('@/types').Sport>) =>
+        mockRequest({ id, name: 'Sport', active: true, ...patch }, 200),
+      listClubs: () => mockRequest([] as import('@/types').ClubActivity[]),
+      createClub: async (input: Omit<import('@/types').ClubActivity, 'id'>) =>
+        mockRequest({ ...input, id: `club-${Date.now()}` }, 200),
+      updateClub: async (id: string, patch: Partial<import('@/types').ClubActivity>) =>
+        mockRequest({ id, name: 'Club', type: 'CLUB' as const, active: true, ...patch }, 200),
+      listHouses: () => mockRequest([] as import('@/types').House[]),
+      createHouse: async (input: Omit<import('@/types').House, 'id'>) =>
+        mockRequest({ ...input, id: `house-${Date.now()}` }, 200),
+      updateHouse: async (id: string, patch: Partial<import('@/types').House>) =>
+        mockRequest({ id, name: 'House', active: true, ...patch }, 200),
+    }
+  : apiExtracurricularService

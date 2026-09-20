@@ -11,5 +11,8 @@ export const GET = withApiHandler(async (request) => {
     classes: snap.classes,
     streams: snap.streams,
     subjects: snap.subjects,
+    sports: snap.sports ?? [],
+    clubs: snap.clubs ?? [],
+    houses: snap.houses ?? [],
   })
 })

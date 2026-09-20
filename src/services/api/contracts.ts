@@ -26,6 +26,23 @@ export interface StudentService {
   getById(id: string): Promise<Student | undefined>
   create(input: StudentInput): Promise<Student>
   update(id: string, patch: StudentUpdate): Promise<Student>
+  archive?(id: string): Promise<Student>
+  transfer?(input: {
+    studentId: string
+    toClassId: string
+    reason?: string
+    notes?: string
+    date?: string
+  }): Promise<{ student: Student; transfer: import('@/types').ClassTransfer }>
+  listTransfers?(studentId: string): Promise<import('@/types').ClassTransfer[]>
+  listExemptions?(studentId: string): Promise<import('@/types').StudentExemption[]>
+  createExemption?(
+    studentId: string,
+    input: Omit<import('@/types').StudentExemption, 'id' | 'studentId' | 'createdBy' | 'createdAt' | 'active' | 'createdByName'> & {
+      studentId?: string
+    },
+  ): Promise<import('@/types').StudentExemption>
+  deactivateExemption?(studentId: string, exemptionId: string): Promise<import('@/types').StudentExemption>
 }
 
 export interface DashboardService {

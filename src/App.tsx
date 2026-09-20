@@ -22,8 +22,11 @@ const StudentsPage = lazyPage(() => import('@/views/students-page'), 'StudentsPa
 const StudentDetailPage = lazyPage(() => import('@/views/student-detail-page'), 'StudentDetailPage')
 const TeachersPage = lazyPage(() => import('@/views/teachers-page'), 'TeachersPage')
 const TeacherDetailPage = lazyPage(() => import('@/views/teachers-page'), 'TeacherDetailPage')
-const ClassesPage = lazyPage(() => import('@/views/classes-subjects-page'), 'ClassesPage')
-const SubjectsPage = lazyPage(() => import('@/views/classes-subjects-page'), 'SubjectsPage')
+const ClassesPage = lazyPage(() => import('@/views/classes-page'), 'ClassesPage')
+const ClassDetailPage = lazyPage(() => import('@/views/class-detail-page'), 'ClassDetailPage')
+const SubjectsPage = lazyPage(() => import('@/views/subjects-page'), 'SubjectsPage')
+const SportsPage = lazyPage(() => import('@/views/extracurricular-page'), 'SportsPage')
+const ClubsPage = lazyPage(() => import('@/views/extracurricular-page'), 'ClubsPage')
 const AttendancePage = lazyPage(() => import('@/views/attendance-page'), 'AttendancePage')
 const ExaminationsPage = lazyPage(() => import('@/views/exams-results-page'), 'ExaminationsPage')
 const ResultsPage = lazyPage(() => import('@/views/exams-results-page'), 'ResultsPage')
@@ -85,7 +88,10 @@ export default function App() {
                 <Route path="/teachers" element={<TeachersPage />} />
                 <Route path="/teachers/:id" element={<TeacherDetailPage />} />
                 <Route path="/classes" element={<ClassesPage />} />
+                <Route path="/classes/:id" element={<ClassDetailPage />} />
                 <Route path="/subjects" element={<SubjectsPage />} />
+                <Route path="/sports" element={<SportsPage />} />
+                <Route path="/clubs" element={<ClubsPage />} />
                 <Route path="/attendance" element={<AttendancePage />} />
                 <Route path="/examinations" element={<ExaminationsPage />} />
                 <Route path="/results" element={<ResultsPage />} />

@@ -7,6 +7,8 @@ export const studentStatusSchema = z.enum([
   'GRADUATED',
   'TRANSFERRED',
   'SUSPENDED',
+  'WITHDRAWN',
+  'ARCHIVED',
 ])
 
 export const studentCreateSchema = z.object({
@@ -23,23 +25,117 @@ export const studentCreateSchema = z.object({
   admissionDate: isoDateSchema,
   status: studentStatusSchema.default('ACTIVE'),
   classId: idSchema,
-  streamId: idSchema,
+  streamId: idSchema.optional().or(z.literal('')),
+  educationLevelId: z.string().min(1).max(40).optional(),
+  academicYearId: idSchema.optional(),
+  termId: idSchema.optional(),
   subjectIds: z.array(idSchema).default([]),
+  sportIds: z.array(idSchema).default([]),
+  clubIds: z.array(idSchema).default([]),
+  houseId: idSchema.optional().or(z.literal('')),
   guardianIds: z.array(idSchema).default([]),
   profilePhotoId: idSchema.optional(),
+  /** Inline guardians created during registration (optional). */
+  newGuardians: z
+    .array(
+      z.object({
+        firstName: z.string().min(1).max(100),
+        lastName: z.string().min(1).max(100),
+        relationship: z.string().min(1).max(80),
+        email: emailSchema.optional().or(z.literal('')),
+        phone: z.string().min(3).max(40),
+        address: z.string().max(500).optional(),
+        occupation: z.string().max(120).optional(),
+        emergencyContact: z.boolean().optional(),
+      }),
+    )
+    .optional(),
 })
 
-export const studentUpdateSchema = studentCreateSchema.partial()
+export const studentUpdateSchema = studentCreateSchema
+  .omit({ newGuardians: true })
+  .partial()
+
+export const classStatusSchema = z.enum(['ACTIVE', 'ARCHIVED'])
+
+export const classCreateSchema = z.object({
+  name: z.string().min(1).max(120),
+  educationLevelId: z.string().min(1).max(40),
+  academicYearId: idSchema,
+  termId: idSchema.optional().or(z.literal('')),
+  classTeacherId: idSchema.optional().or(z.literal('')),
+  description: z.string().max(1000).optional(),
+  capacity: z.number().int().min(1).max(200).optional(),
+  status: classStatusSchema.default('ACTIVE'),
+})
+
+export const classUpdateSchema = classCreateSchema.partial()
+
+export const subjectCreateSchema = z.object({
+  code: z.string().min(1).max(32),
+  name: z.string().min(1).max(120),
+  category: z.string().min(1).max(80),
+  educationLevelIds: z.array(z.string().min(1).max(40)).default([]),
+  teacherIds: z.array(idSchema).default([]),
+  active: z.boolean().default(true),
+})
+
+export const subjectUpdateSchema = subjectCreateSchema.partial()
+
+export const sportCreateSchema = z.object({
+  name: z.string().min(1).max(120),
+  description: z.string().max(500).optional(),
+  active: z.boolean().default(true),
+})
+
+export const sportUpdateSchema = sportCreateSchema.partial()
+
+export const clubCreateSchema = z.object({
+  name: z.string().min(1).max(120),
+  type: z.enum(['CLUB', 'SOCIETY', 'ACTIVITY', 'OTHER']).default('CLUB'),
+  description: z.string().max(500).optional(),
+  active: z.boolean().default(true),
+})
+
+export const clubUpdateSchema = clubCreateSchema.partial()
+
+export const houseCreateSchema = z.object({
+  name: z.string().min(1).max(120),
+  color: z.string().max(40).optional(),
+  active: z.boolean().default(true),
+})
+
+export const houseUpdateSchema = houseCreateSchema.partial()
+
+export const exemptionCreateSchema = z.object({
+  studentId: idSchema,
+  type: z.enum(['SUBJECT', 'SPORT', 'ACTIVITY', 'OTHER']),
+  targetId: idSchema.optional().or(z.literal('')),
+  targetLabel: z.string().min(1).max(160),
+  reason: z.string().min(1).max(500),
+  startDate: isoDateSchema,
+  endDate: isoDateSchema.optional().or(z.literal('')),
+  notes: z.string().max(1000).optional(),
+})
+
+export const transferStudentSchema = z.object({
+  studentId: idSchema,
+  toClassId: idSchema,
+  reason: z.string().max(500).optional(),
+  notes: z.string().max(1000).optional(),
+  date: isoDateSchema.optional(),
+})
 
 export const guardianCreateSchema = z.object({
   firstName: z.string().min(1).max(100),
   lastName: z.string().min(1).max(100),
   relationship: z.string().min(1).max(80),
-  email: emailSchema,
+  email: emailSchema.optional().or(z.literal('')),
   phone: z.string().min(3).max(40),
-  address: z.string().min(1).max(500),
+  address: z.string().min(1).max(500).default('—'),
   studentIds: z.array(idSchema).default([]),
   occupation: z.string().max(120).optional(),
+  emergencyContact: z.boolean().optional(),
 })
 
 export const guardianUpdateSchema = guardianCreateSchema.partial()
@@ -124,3 +220,12 @@ export type StaffCreateInput = z.infer<typeof staffCreateSchema>
 export type PaymentCreateInput = z.infer<typeof paymentCreateSchema>
 export type MarkUpsertInput = z.infer<typeof markUpsertSchema>
 export type ResultTransitionInput = z.infer<typeof resultTransitionSchema>
+export type ClassCreateInput = z.infer<typeof classCreateSchema>
+export type ClassUpdateInput = z.infer<typeof classUpdateSchema>
+export type SubjectCreateInput = z.infer<typeof subjectCreateSchema>
+export type SubjectUpdateInput = z.infer<typeof subjectUpdateSchema>
+export type SportCreateInput = z.infer<typeof sportCreateSchema>
+export type ClubCreateInput = z.infer<typeof clubCreateSchema>
+export type HouseCreateInput = z.infer<typeof houseCreateSchema>
+export type ExemptionCreateInput = z.infer<typeof exemptionCreateSchema>
+export type TransferStudentInput = z.infer<typeof transferStudentSchema>

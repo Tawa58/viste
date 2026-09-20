@@ -10,9 +10,12 @@ import type {
   AttendanceRecord,
   AuditLog,
   AuthUser,
+  ClassTransfer,
+  ClubActivity,
   Examination,
   FeeStructure,
   Guardian,
+  House,
   InventoryItem,
   Invoice,
   LibraryBook,
@@ -22,10 +25,13 @@ import type {
   ResultPortalView,
   RolePermission,
   SchoolClass,
+  Sport,
   Staff,
   StaffLoginCredential,
   Stream,
   Student,
+  StudentClassStats,
+  StudentExemption,
   Subject,
   Term,
   AcademicYear,
@@ -95,6 +101,27 @@ export const apiStudentService: StudentService = {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
+  archive: (id) =>
+    apiFetch<Student>(`/api/v1/students/${id}`, { method: 'DELETE' }),
+  transfer: (input) =>
+    apiFetch<{ student: Student; transfer: ClassTransfer }>('/api/v1/students/transfer', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  listTransfers: (studentId) =>
+    apiFetch<ClassTransfer[]>(`/api/v1/students/${studentId}/transfers`),
+  listExemptions: (studentId) =>
+    apiFetch<StudentExemption[]>(`/api/v1/students/${studentId}/exemptions`),
+  createExemption: (studentId, input) =>
+    apiFetch<StudentExemption>(`/api/v1/students/${studentId}/exemptions`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  deactivateExemption: (studentId, exemptionId) =>
+    apiFetch<StudentExemption>(`/api/v1/students/${studentId}/exemptions`, {
+      method: 'PATCH',
+      body: JSON.stringify({ id: exemptionId }),
+    }),
 }
 
 type CatalogPayload = {
@@ -103,10 +130,57 @@ type CatalogPayload = {
   classes: SchoolClass[]
   streams: Stream[]
   subjects: Subject[]
+  sports?: Sport[]
+  clubs?: ClubActivity[]
+  houses?: House[]
 }
 
 async function loadCatalogOnce(): Promise<CatalogPayload> {
   return apiFetch<CatalogPayload>('/api/v1/catalog')
+}
+
+export const apiClassService = {
+  list: () => apiFetch<SchoolClass[]>('/api/v1/classes'),
+  getStats: () => apiFetch<StudentClassStats>('/api/v1/classes?stats=1'),
+  getById: (id: string) => apiFetch<SchoolClass>(`/api/v1/classes/${id}`),
+  create: (input: Omit<SchoolClass, 'id' | 'level'> & { educationLevelId: string }) =>
+    apiFetch<SchoolClass>('/api/v1/classes', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, patch: Partial<SchoolClass>) =>
+    apiFetch<SchoolClass>(`/api/v1/classes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+  archive: (id: string) =>
+    apiFetch<SchoolClass>(`/api/v1/classes/${id}`, { method: 'DELETE' }),
+}
+
+export const apiSubjectAdminService = {
+  list: () => apiFetch<Subject[]>('/api/v1/subjects'),
+  create: (input: Omit<Subject, 'id'>) =>
+    apiFetch<Subject>('/api/v1/subjects', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, patch: Partial<Subject>) =>
+    apiFetch<Subject>(`/api/v1/subjects/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+}
+
+export const apiExtracurricularService = {
+  listSports: () => apiFetch<Sport[]>('/api/v1/sports'),
+  createSport: (input: Omit<Sport, 'id'>) =>
+    apiFetch<Sport>('/api/v1/sports', { method: 'POST', body: JSON.stringify(input) }),
+  updateSport: (id: string, patch: Partial<Sport>) =>
+    apiFetch<Sport>(`/api/v1/sports/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  listClubs: () => apiFetch<ClubActivity[]>('/api/v1/clubs'),
+  createClub: (input: Omit<ClubActivity, 'id'>) =>
+    apiFetch<ClubActivity>('/api/v1/clubs', { method: 'POST', body: JSON.stringify(input) }),
+  updateClub: (id: string, patch: Partial<ClubActivity>) =>
+    apiFetch<ClubActivity>(`/api/v1/clubs/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  listHouses: () => apiFetch<House[]>('/api/v1/houses'),
+  createHouse: (input: Omit<House, 'id'>) =>
+    apiFetch<House>('/api/v1/houses', { method: 'POST', body: JSON.stringify(input) }),
+  updateHouse: (id: string, patch: Partial<House>) =>
+    apiFetch<House>(`/api/v1/houses/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
 }
 
 type DashboardPayload = {
@@ -162,6 +236,15 @@ export const apiCatalogService = {
   },
   async getSubjects(): Promise<Subject[]> {
     return (await loadCatalogOnce()).subjects
+  },
+  async getSports(): Promise<Sport[]> {
+    return (await loadCatalogOnce()).sports ?? []
+  },
+  async getClubs(): Promise<ClubActivity[]> {
+    return (await loadCatalogOnce()).clubs ?? []
+  },
+  async getHouses(): Promise<House[]> {
+    return (await loadCatalogOnce()).houses ?? []
   },
   getStaff: () => apiFetch<Staff[]>('/api/v1/teachers'),
   getGuardians: () => apiFetch<Guardian[]>('/api/v1/parents'),

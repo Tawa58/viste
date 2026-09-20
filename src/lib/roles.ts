@@ -29,6 +29,8 @@ export const ROLE_ROUTES: Record<UserRole, '*' | string[]> = {
     '/students',
     '/classes',
     '/subjects',
+    '/sports',
+    '/clubs',
     '/attendance',
     '/examinations',
     '/results',
@@ -60,6 +62,8 @@ export const ROLE_ROUTES: Record<UserRole, '*' | string[]> = {
     '/parents',
     '/classes',
     '/subjects',
+    '/sports',
+    '/clubs',
     '/attendance',
     '/announcements',
     '/reports',
@@ -109,6 +113,16 @@ export function canManageStudents(role: UserRole) {
     role === 'PRINCIPAL' ||
     role === 'REGISTRAR'
   )
+}
+
+/** Create/edit/archive classes and manage class membership. */
+export function canManageClasses(role: UserRole) {
+  return canManageStudents(role)
+}
+
+/** Manage subjects, sports, clubs, and houses. */
+export function canManageAcademics(role: UserRole) {
+  return canManageStudents(role)
 }
 
 /** Teachers may update limited contact fields only. */

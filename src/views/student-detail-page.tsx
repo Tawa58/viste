@@ -28,8 +28,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/contexts/auth-context'
 import { notify } from '@/lib/notify'
 import { canEditStudentLimited, canManageStudents } from '@/lib/roles'
+import { educationLevelName } from '@/lib/education-levels'
 import { catalogService, studentService } from '@/services/api'
 import { formatCurrency, formatDate, fullName } from '@/lib/utils'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import type {
   AttendanceRecord,
   Guardian,
@@ -52,6 +57,11 @@ export function StudentDetailPage() {
   const [classes, setClasses] = useState<SchoolClass[]>([])
   const [streams, setStreams] = useState<Stream[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
+  const [sports, setSports] = useState<import('@/types').Sport[]>([])
+  const [clubs, setClubs] = useState<import('@/types').ClubActivity[]>([])
+  const [houses, setHouses] = useState<import('@/types').House[]>([])
+  const [exemptions, setExemptions] = useState<import('@/types').StudentExemption[]>([])
+  const [transfers, setTransfers] = useState<import('@/types').ClassTransfer[]>([])
   const [allGuardians, setAllGuardians] = useState<Guardian[]>([])
   const [guardians, setGuardians] = useState<Guardian[]>([])
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
@@ -60,10 +70,22 @@ export function StudentDetailPage() {
 
   const [editOpen, setEditOpen] = useState(false)
   const [guardianOpen, setGuardianOpen] = useState(false)
+  const [exemptionOpen, setExemptionOpen] = useState(false)
+  const [transferOpen, setTransferOpen] = useState(false)
   const [editingGuardian, setEditingGuardian] = useState<Guardian | null>(null)
   const [form, setForm] = useState<StudentFormValues>(studentToFormValues())
   const [guardianForm, setGuardianForm] = useState<GuardianFormValues>(guardianToFormValues())
   const [saving, setSaving] = useState(false)
+  const [exemptionForm, setExemptionForm] = useState({
+    type: 'SUBJECT' as import('@/types').ExemptionType,
+    targetLabel: '',
+    reason: '',
+    startDate: new Date().toISOString().slice(0, 10),
+    endDate: '',
+    notes: '',
+  })
+  const [toClassId, setToClassId] = useState('')
+  const [transferReason, setTransferReason] = useState('')
 
   useEffect(() => {
     if (!id) return
@@ -72,20 +94,30 @@ export function StudentDetailPage() {
       catalogService.getClasses(),
       catalogService.getStreams(),
       catalogService.getSubjects(),
+      catalogService.getSports?.() ?? Promise.resolve([]),
+      catalogService.getClubs?.() ?? Promise.resolve([]),
+      catalogService.getHouses?.() ?? Promise.resolve([]),
       catalogService.getGuardians(),
       catalogService.getAttendance(),
       catalogService.getInvoices(),
       catalogService.getMarks(),
-    ]).then(([s, c, st, sub, g, a, inv, m]) => {
+      studentService.listExemptions?.(id) ?? Promise.resolve([]),
+      studentService.listTransfers?.(id) ?? Promise.resolve([]),
+    ]).then(([s, c, st, sub, sp, cl, ho, g, a, inv, m, ex, xf]) => {
       setStudent(s)
       setClasses(c)
       setStreams(st)
       setSubjects(sub)
+      setSports(sp)
+      setClubs(cl)
+      setHouses(ho)
       setAllGuardians(g)
       setGuardians(g.filter((x) => s?.guardianIds.includes(x.id)))
       setAttendance(a.filter((x) => x.studentId === id))
       setInvoices(inv.filter((x) => x.studentId === id))
       setMarks(m.filter((x) => x.studentId === id))
+      setExemptions(ex)
+      setTransfers(xf)
       setLoading(false)
     })
   }, [id])
@@ -122,9 +154,14 @@ export function StudentDetailPage() {
             address: form.address.trim() || '—',
             admissionDate: form.admissionDate,
             status: form.status,
-            classId: form.classId,
             streamId: form.streamId,
+            educationLevelId: form.educationLevelId || undefined,
+            academicYearId: form.academicYearId || undefined,
+            termId: form.termId || undefined,
             subjectIds: form.subjectIds,
+            sportIds: form.sportIds,
+            clubIds: form.clubIds,
+            houseId: form.houseId || undefined,
             guardianIds: form.guardianIds,
             studentNumber: form.studentNumber.trim() || student.studentNumber,
             admissionNumber: form.admissionNumber.trim() || student.admissionNumber,
@@ -164,6 +201,7 @@ export function StudentDetailPage() {
             phone: guardianForm.phone.trim(),
             address: guardianForm.address.trim() || '—',
             occupation: guardianForm.occupation.trim() || undefined,
+            emergencyContact: guardianForm.emergencyContact,
           }),
         {
           loading: 'Saving guardian…',
@@ -174,6 +212,54 @@ export function StudentDetailPage() {
       setGuardians((prev) => prev.map((g) => (g.id === updated.id ? updated : g)))
       setGuardianOpen(false)
       setEditingGuardian(null)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveExemption() {
+    if (!student || !studentService.createExemption) return
+    if (!exemptionForm.targetLabel.trim() || !exemptionForm.reason.trim()) {
+      notify.error('Target and reason are required')
+      return
+    }
+    setSaving(true)
+    try {
+      const created = await notify.process(
+        () =>
+          studentService.createExemption!(student.id, {
+            type: exemptionForm.type,
+            targetLabel: exemptionForm.targetLabel.trim(),
+            reason: exemptionForm.reason.trim(),
+            startDate: exemptionForm.startDate,
+            endDate: exemptionForm.endDate || undefined,
+            notes: exemptionForm.notes.trim() || undefined,
+          }),
+        { loading: 'Creating exemption…', success: 'Exemption recorded' },
+      )
+      setExemptions((prev) => [created, ...prev])
+      setExemptionOpen(false)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function confirmTransfer() {
+    if (!student || !toClassId || !studentService.transfer) return
+    setSaving(true)
+    try {
+      const result = await notify.process(
+        () =>
+          studentService.transfer!({
+            studentId: student.id,
+            toClassId,
+            reason: transferReason.trim() || undefined,
+          }),
+        { loading: 'Transferring…', success: 'Student transferred' },
+      )
+      setStudent(result.student)
+      setTransfers((prev) => [result.transfer, ...prev])
+      setTransferOpen(false)
     } finally {
       setSaving(false)
     }
@@ -191,7 +277,6 @@ export function StudentDetailPage() {
   }
 
   const cls = classes.find((c) => c.id === student.classId)?.name ?? '—'
-  const stream = streams.find((s) => s.id === student.streamId)?.name ?? '—'
   const present = attendance.filter((a) => a.status === 'PRESENT' || a.status === 'LATE').length
   const attendancePct = attendance.length
     ? Math.round((present / attendance.length) * 100)
@@ -203,7 +288,7 @@ export function StudentDetailPage() {
     <div>
       <PageHeader
         title={fullName(student)}
-        description={`${student.studentNumber} · ${cls} ${stream}`}
+        description={`${student.admissionNumber} · ${cls}`}
         breadcrumbs={[
           { label: 'Home', to: '/dashboard' },
           { label: 'Students', to: '/students' },
@@ -216,6 +301,23 @@ export function StudentDetailPage() {
                 <Pencil className="h-4 w-4" />
                 {fullAccess ? 'Edit profile' : 'Update contact'}
               </Button>
+            ) : null}
+            {fullAccess ? (
+              <>
+                <Button variant="outline" onClick={() => setExemptionOpen(true)}>
+                  Add exemption
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setToClassId(classes.find((c) => c.id !== student.classId)?.id ?? '')
+                    setTransferReason('')
+                    setTransferOpen(true)
+                  }}
+                >
+                  Transfer
+                </Button>
+              </>
             ) : null}
             <Button variant="outline" asChild>
               <Link to="/students">Back</Link>
@@ -268,10 +370,16 @@ export function StudentDetailPage() {
               </CardHeader>
               <CardContent className="space-y-1 text-sm">
                 <p>
-                  {cls} · {stream}
+                  {cls}
+                  {educationLevelName(student.educationLevelId) !== '—'
+                    ? ` · ${educationLevelName(student.educationLevelId)}`
+                    : ''}
                 </p>
                 <p>Admission {student.admissionNumber}</p>
                 <p>DOB {formatDate(student.dateOfBirth)}</p>
+                {student.houseId ? (
+                  <p>House {houses.find((h) => h.id === student.houseId)?.name ?? student.houseId}</p>
+                ) : null}
               </CardContent>
             </Card>
             <Card>
@@ -288,22 +396,101 @@ export function StudentDetailPage() {
         </TabsContent>
 
         <TabsContent value="academic">
-          <Card>
-            <CardHeader>
-              <CardTitle>Registered subjects</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2 p-5">
-              {enrolledSubjects.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No subjects registered.</p>
-              ) : (
-                enrolledSubjects.map((s) => (
-                  <Badge key={s.id} variant="secondary">
-                    {s.name}
-                  </Badge>
-                ))
-              )}
-            </CardContent>
-          </Card>
+          <div className="grid gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Registered subjects</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2 p-5">
+                {enrolledSubjects.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No subjects registered.</p>
+                ) : (
+                  enrolledSubjects.map((s) => (
+                    <Badge key={s.id} variant="secondary">
+                      {s.name}
+                    </Badge>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Sports & activities</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2 p-5">
+                {(student.sportIds ?? []).length === 0 && (student.clubIds ?? []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">None assigned.</p>
+                ) : (
+                  <>
+                    {sports
+                      .filter((s) => (student.sportIds ?? []).includes(s.id))
+                      .map((s) => (
+                        <Badge key={s.id} variant="outline">
+                          {s.name}
+                        </Badge>
+                      ))}
+                    {clubs
+                      .filter((c) => (student.clubIds ?? []).includes(c.id))
+                      .map((c) => (
+                        <Badge key={c.id} variant="secondary">
+                          {c.name}
+                        </Badge>
+                      ))}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Active exemptions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 p-5">
+                {exemptions.filter((e) => e.active).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No active exemptions.</p>
+                ) : (
+                  exemptions
+                    .filter((e) => e.active)
+                    .map((e) => (
+                      <div
+                        key={e.id}
+                        className="rounded-xl border border-border px-3 py-2 text-sm"
+                      >
+                        <p className="font-medium">
+                          {e.type}: {e.targetLabel}
+                        </p>
+                        <p className="text-muted-foreground">{e.reason}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(e.startDate)}
+                          {e.endDate ? ` – ${formatDate(e.endDate)}` : ''}
+                          {e.createdByName ? ` · by ${e.createdByName}` : ''}
+                        </p>
+                      </div>
+                    ))
+                )}
+              </CardContent>
+            </Card>
+            {transfers.length > 0 ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Transfer history</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 p-5">
+                  {transfers.map((t) => (
+                    <div key={t.id} className="rounded-xl border border-border px-3 py-2 text-sm">
+                      <p className="font-medium">
+                        {classes.find((c) => c.id === t.fromClassId)?.name ?? t.fromClassId} →{' '}
+                        {classes.find((c) => c.id === t.toClassId)?.name ?? t.toClassId}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(t.date)}
+                        {t.reason ? ` · ${t.reason}` : ''}
+                      </p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ) : null}
+          </div>
         </TabsContent>
 
         <TabsContent value="attendance">
@@ -448,6 +635,9 @@ export function StudentDetailPage() {
             classes={classes}
             streams={streams}
             subjects={subjects}
+            sports={sports}
+            clubs={clubs}
+            houses={houses}
             guardians={allGuardians}
             fullAccess={fullAccess}
           />
@@ -459,6 +649,121 @@ export function StudentDetailPage() {
               Save changes
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={exemptionOpen} onOpenChange={setExemptionOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create exemption</DialogTitle>
+            <DialogDescription>
+              Record a subject, sport, activity, or other approved exemption.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select
+                value={exemptionForm.type}
+                onChange={(e) =>
+                  setExemptionForm((f) => ({
+                    ...f,
+                    type: e.target.value as import('@/types').ExemptionType,
+                  }))
+                }
+              >
+                <option value="SUBJECT">Subject exemption</option>
+                <option value="SPORT">Sports exemption</option>
+                <option value="ACTIVITY">Activity exemption</option>
+                <option value="OTHER">Other</option>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Subject / activity / requirement</Label>
+              <Input
+                value={exemptionForm.targetLabel}
+                onChange={(e) =>
+                  setExemptionForm((f) => ({ ...f, targetLabel: e.target.value }))
+                }
+                placeholder="e.g. Physical Education"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Reason</Label>
+              <Textarea
+                value={exemptionForm.reason}
+                onChange={(e) => setExemptionForm((f) => ({ ...f, reason: e.target.value }))}
+                rows={2}
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Start date</Label>
+                <Input
+                  type="date"
+                  value={exemptionForm.startDate}
+                  onChange={(e) =>
+                    setExemptionForm((f) => ({ ...f, startDate: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>End date</Label>
+                <Input
+                  type="date"
+                  value={exemptionForm.endDate}
+                  onChange={(e) => setExemptionForm((f) => ({ ...f, endDate: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                value={exemptionForm.notes}
+                onChange={(e) => setExemptionForm((f) => ({ ...f, notes: e.target.value }))}
+                rows={2}
+              />
+            </div>
+          </div>
+          <Button loading={saving} onClick={() => void saveExemption()}>
+            Save exemption
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Transfer student</DialogTitle>
+            <DialogDescription>
+              Move to another class while keeping historical records.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <div className="space-y-2">
+              <Label>New class</Label>
+              <Select value={toClassId} onChange={(e) => setToClassId(e.target.value)}>
+                {classes
+                  .filter((c) => c.id !== student?.classId && (c.status ?? 'ACTIVE') === 'ACTIVE')
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Reason / notes</Label>
+              <Textarea
+                value={transferReason}
+                onChange={(e) => setTransferReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <Button loading={saving} disabled={!toClassId} onClick={() => void confirmTransfer()}>
+            Confirm transfer
+          </Button>
         </DialogContent>
       </Dialog>
 
