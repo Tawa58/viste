@@ -6,13 +6,53 @@ import { AppToaster } from '@/components/shared/app-toaster'
 import { FullPageLoader } from '@/components/shared/loading-state'
 import { canAccessPath } from '@/lib/roles'
 
-function lazyPage<T extends ComponentType<object>>(factory: () => Promise<{ default: T } | Record<string, T>>, exportName?: string) {
+function isChunkLoadError(err: unknown) {
+  if (!err || typeof err !== 'object') return false
+  const e = err as { name?: string; message?: string }
+  return (
+    e.name === 'ChunkLoadError' ||
+    (typeof e.message === 'string' &&
+      (e.message.includes('Loading chunk') || e.message.includes('Failed to fetch dynamically imported module')))
+  )
+}
+
+/** One hard reload when a stale deploy left the tab on old chunk hashes. */
+function reloadForStaleChunks() {
+  if (typeof window === 'undefined') return
+  const key = 'viste.chunk-reload'
+  try {
+    if (sessionStorage.getItem(key) === '1') return
+    sessionStorage.setItem(key, '1')
+    window.location.reload()
+  } catch {
+    window.location.reload()
+  }
+}
+
+function lazyPage<T extends ComponentType<object>>(
+  factory: () => Promise<{ default: T } | Record<string, T>>,
+  exportName?: string,
+) {
   return lazy(async () => {
-    const mod = await factory()
-    if (exportName && exportName in mod) {
-      return { default: (mod as Record<string, T>)[exportName]! }
+    try {
+      const mod = await factory()
+      if (typeof window !== 'undefined') {
+        try {
+          sessionStorage.removeItem('viste.chunk-reload')
+        } catch {
+          /* ignore */
+        }
+      }
+      if (exportName && exportName in mod) {
+        return { default: (mod as Record<string, T>)[exportName]! }
+      }
+      return mod as { default: T }
+    } catch (err) {
+      if (isChunkLoadError(err)) {
+        reloadForStaleChunks()
+      }
+      throw err
     }
-    return mod as { default: T }
   })
 }
 
