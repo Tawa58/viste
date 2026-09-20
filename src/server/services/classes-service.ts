@@ -15,6 +15,7 @@ import {
   ensureCurrentAcademicCalendar,
   resolveTermForSequence,
 } from '@/server/services/academic-calendar-service'
+import { assignClassTeacher } from '@/server/services/staff-service'
 
 export type ClassDto = SchoolClass
 
@@ -87,6 +88,10 @@ export async function createClass(
   }
   await setDoc('streams', streamId, { ...stream })
 
+  if (row.classTeacherId) {
+    await assignClassTeacher(id, undefined, row.classTeacherId)
+  }
+
   await writeAuditLog({
     actorId: session.uid,
     actorRole: session.role,
@@ -152,6 +157,11 @@ export async function updateClass(
     status: patch.status ?? current.status ?? 'ACTIVE',
   }
   await setDoc('classes', id, { ...next })
+
+  if (current.classTeacherId !== next.classTeacherId) {
+    await assignClassTeacher(id, current.classTeacherId, next.classTeacherId)
+  }
+
   await writeAuditLog({
     actorId: session.uid,
     actorRole: session.role,

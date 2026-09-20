@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { randomBytes } from 'node:crypto'
 import { getAdminAuth, getAdminDb } from '@/lib/firebase/admin'
 import { writeAuditLog } from '@/server/audit/logger'
 import type { SessionContext } from '@/server/auth/session'
@@ -7,26 +8,87 @@ import { requirePermission } from '@/server/authorization/permissions'
 import { badRequest, conflict, notFound } from '@/server/errors'
 import { getDoc, newId, queryCollection, setDoc } from '@/server/repositories/firestore-repo'
 import type { StaffCreateInput } from '@/server/validators/school'
-import type { Staff, StaffLoginCredential } from '@/types'
+import type { SchoolClass, Staff, StaffLoginCredential } from '@/types'
 
 export type StaffDto = Staff
 
-export type StaffCredentialDto = Omit<StaffLoginCredential, 'password'> & {
+/** Admin-only credential sheet row (includes issued temporary password). */
+export type StaffCredentialDto = StaffLoginCredential & {
   hasAuthAccount: boolean
 }
 
-function stripPassword<T extends { password?: string }>(row: T): Omit<T, 'password'> {
-  const { password: _p, ...rest } = row
-  return rest
+function generateTemporaryPassword(): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
+  const bytes = randomBytes(10)
+  let out = ''
+  for (let i = 0; i < bytes.length; i += 1) {
+    out += alphabet[bytes[i]! % alphabet.length]
+  }
+  return `${out}!`
+}
+
+/** Keep staff.classIds in sync with classes where they are class teacher. */
+export async function syncStaffClassIdsFromClasses(staffId?: string): Promise<void> {
+  const classes = await queryCollection<SchoolClass>('classes', { limit: 200 })
+  const byTeacher = new Map<string, string[]>()
+  for (const cls of classes) {
+    if ((cls.status ?? 'ACTIVE') === 'ARCHIVED') continue
+    const tid = cls.classTeacherId
+    if (!tid) continue
+    const list = byTeacher.get(tid) ?? []
+    list.push(cls.id)
+    byTeacher.set(tid, list)
+  }
+
+  const staffRows = staffId
+    ? [await getDoc<Staff>('staff', staffId)].filter(Boolean) as Staff[]
+    : await queryCollection<Staff>('staff', { limit: 200 })
+
+  await Promise.all(
+    staffRows.map(async (row) => {
+      const nextIds = byTeacher.get(row.id) ?? []
+      const prev = [...(row.classIds ?? [])].sort().join(',')
+      const next = [...nextIds].sort().join(',')
+      if (prev === next) return
+      await setDoc('staff', row.id, { ...row, classIds: nextIds })
+    }),
+  )
+}
+
+export async function assignClassTeacher(
+  classId: string,
+  previousTeacherId: string | undefined,
+  nextTeacherId: string | undefined,
+): Promise<void> {
+  if (previousTeacherId && previousTeacherId !== nextTeacherId) {
+    const prev = await getDoc<Staff>('staff', previousTeacherId)
+    if (prev) {
+      await setDoc('staff', previousTeacherId, {
+        ...prev,
+        classIds: (prev.classIds ?? []).filter((id) => id !== classId),
+      })
+    }
+  }
+  if (nextTeacherId) {
+    const next = await getDoc<Staff>('staff', nextTeacherId)
+    if (next) {
+      const ids = new Set(next.classIds ?? [])
+      ids.add(classId)
+      await setDoc('staff', nextTeacherId, { ...next, classIds: [...ids] })
+    }
+  }
 }
 
 export async function listStaff(session: SessionContext): Promise<StaffDto[]> {
   requirePermission(session, 'teachers.read')
+  // Ensure class-teacher assignments show on staff profiles
+  await syncStaffClassIdsFromClasses().catch(() => undefined)
   return queryCollection<Staff>('staff', { limit: 100 })
 }
 
 export async function getStaff(session: SessionContext, id: string): Promise<StaffDto> {
   requirePermission(session, 'teachers.read')
+  await syncStaffClassIdsFromClasses(id).catch(() => undefined)
   const row = await getDoc<Staff>('staff', id)
   if (!row) throw notFound('Staff not found')
   return row
@@ -38,9 +100,16 @@ export async function createStaff(
   requestId?: string,
 ): Promise<StaffDto> {
   requirePermission(session, 'teachers.manage')
-  const { password, ...rest } = input
+  const password = input.password?.trim() || generateTemporaryPassword()
+  if (password.length < 8) throw badRequest('Password must be at least 8 characters')
+  const { password: _ignored, ...rest } = input
   const id = newId('st')
-  const row: Staff = { ...rest, id }
+  const row: Staff = {
+    ...rest,
+    id,
+    classIds: rest.classIds ?? [],
+    subjectIds: rest.subjectIds ?? [],
+  }
 
   let authUid: string
   try {
@@ -72,10 +141,11 @@ export async function createStaff(
     notificationPrefs: { email: true, sms: false, inApp: true },
   })
 
-  // Metadata only — never store plaintext password
+  // Store admin-issued temporary password for the credentials sheet
   await setDoc('staffCredentials', id, {
     staffId: id,
     email: input.email.toLowerCase(),
+    password,
     role: 'TEACHER',
     temporaryPassword: true,
     lastResetAt: new Date().toISOString().slice(0, 10),
@@ -103,8 +173,12 @@ export async function listStaffCredentials(
   requirePermission(session, 'teachers.manage')
   const rows = await queryCollection<StaffCredRow>('staffCredentials', { limit: 100 })
   return rows.map((row) => ({
-    ...stripPassword(row),
     staffId: row.staffId || row.id,
+    email: row.email,
+    password: row.password || '',
+    role: row.role,
+    temporaryPassword: row.temporaryPassword ?? Boolean(row.password),
+    lastResetAt: row.lastResetAt,
     hasAuthAccount: Boolean(row.authUid),
   }))
 }
@@ -112,20 +186,25 @@ export async function listStaffCredentials(
 export async function resetStaffPassword(
   session: SessionContext,
   staffId: string,
-  password: string,
+  password: string | undefined,
   requestId?: string,
 ): Promise<StaffCredentialDto> {
   requirePermission(session, 'teachers.manage')
-  if (password.length < 8) throw badRequest('Password must be at least 8 characters')
+  const nextPassword = password?.trim() || generateTemporaryPassword()
+  if (nextPassword.length < 8) throw badRequest('Password must be at least 8 characters')
 
   const cred = await getDoc<StaffCredRow>('staffCredentials', staffId)
   if (!cred?.authUid) throw notFound('Staff auth account not found')
 
-  await getAdminAuth().updateUser(cred.authUid, { password })
+  await getAdminAuth().updateUser(cred.authUid, { password: nextPassword })
+  const lastResetAt = new Date().toISOString().slice(0, 10)
   await setDoc('staffCredentials', staffId, {
-    ...stripPassword(cred),
+    staffId,
+    email: cred.email,
+    password: nextPassword,
+    role: cred.role,
     temporaryPassword: true,
-    lastResetAt: new Date().toISOString().slice(0, 10),
+    lastResetAt,
     authUid: cred.authUid,
   })
 
@@ -141,9 +220,10 @@ export async function resetStaffPassword(
   return {
     staffId,
     email: cred.email,
+    password: nextPassword,
     role: cred.role,
     temporaryPassword: true,
-    lastResetAt: new Date().toISOString().slice(0, 10),
+    lastResetAt,
     hasAuthAccount: true,
   }
 }

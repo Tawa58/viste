@@ -301,14 +301,15 @@ const mockCatalogService = {
   getStaffCredentials: (): Promise<StaffLoginCredential[]> => mockRequest([...staffCredentials]),
   getStaffCredential: (staffId: string) =>
     mockRequest(staffCredentials.find((c) => c.staffId === staffId)),
-  async resetStaffPassword(staffId: string, password = 'demo1234'): Promise<StaffLoginCredential> {
+  async resetStaffPassword(staffId: string, password?: string): Promise<StaffLoginCredential> {
     const existing = staffCredentials.find((c) => c.staffId === staffId)
     const member = staff.find((s) => s.id === staffId)
     if (!member) throw new Error('Staff member not found')
+    const nextPassword = password && password.length >= 8 ? password : `Tmp${Date.now().toString(36)}!`
     const next: StaffLoginCredential = {
       staffId,
       email: member.email,
-      password,
+      password: nextPassword,
       role: 'TEACHER',
       temporaryPassword: true,
       lastResetAt: new Date().toISOString().slice(0, 10),

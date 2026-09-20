@@ -5,7 +5,10 @@ import { z } from 'zod'
 import { resetStaffPasswordService } from '@/server/services/staff-service'
 import { rateLimit } from '@/server/http/rate-limit'
 
-const bodySchema = z.object({ password: z.string().min(8).max(128) })
+const bodySchema = z.object({
+  /** Optional — server generates a temporary password when omitted. */
+  password: z.string().min(8).max(128).optional(),
+})
 
 function paramId(id: string | string[] | undefined): string {
   const v = Array.isArray(id) ? id[0] : id
@@ -17,8 +20,10 @@ export const POST = withApiHandler(async (request, ctx) => {
   const session = await requireSession(request)
   rateLimit(`staff:reset:${session.uid}`, 10, 60_000)
   const id = paramId((await ctx.params).id)
-  const body = await request.json().catch(() => null)
-  const parsed = bodySchema.safeParse(body)
+  const body = await request.json().catch(() => ({}))
+  const parsed = bodySchema.safeParse(body ?? {})
   if (!parsed.success) throw badRequest('Invalid password payload', parsed.error.flatten())
-  return jsonOk(await resetStaffPasswordService(session, id, parsed.data.password, ctx.requestId))
+  return jsonOk(
+    await resetStaffPasswordService(session, id, parsed.data.password, ctx.requestId),
+  )
 })

@@ -268,10 +268,10 @@ export const apiCatalogService = {
     const all = await apiFetch<StaffLoginCredential[]>('/api/v1/teachers?credentials=1')
     return all.find((c) => c.staffId === staffId)
   },
-  resetStaffPassword: (staffId: string, password = 'demo1234') =>
+  resetStaffPassword: (staffId: string, password?: string) =>
     apiFetch<StaffLoginCredential>(`/api/v1/teachers/${staffId}/reset-password`, {
       method: 'POST',
-      body: JSON.stringify({ password }),
+      body: JSON.stringify(password ? { password } : {}),
     }),
   updateStaffPhoto: async (
     id: string,
@@ -284,7 +284,7 @@ export const apiCatalogService = {
   createStaff: (input: Omit<Staff, 'id'> & { password?: string }) =>
     apiFetch<Staff>('/api/v1/teachers', {
       method: 'POST',
-      body: JSON.stringify({ ...input, password: input.password ?? 'ChangeMe123!' }),
+      body: JSON.stringify(input),
     }),
   updateGuardian: (id: string, patch: Partial<Omit<Guardian, 'id'>>) =>
     apiFetch<Guardian>(`/api/v1/parents/${id}`, {

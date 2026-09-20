@@ -157,7 +157,8 @@ export const staffCreateSchema = z.object({
   subjectIds: z.array(idSchema).default([]),
   classIds: z.array(idSchema).default([]),
   hireDate: isoDateSchema,
-  password: z.string().min(8).max(128),
+  /** Optional — server auto-generates a temporary password when omitted. */
+  password: z.string().min(8).max(128).optional(),
   profilePhotoId: idSchema.optional(),
 })
 

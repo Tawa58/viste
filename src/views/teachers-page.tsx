@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { KeyRound, Plus } from 'lucide-react'
+import { Download, KeyRound, Plus } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { ProfilePhotoUpload } from '@/components/shared/profile-photo-upload'
 import { SearchInput } from '@/components/shared/search-input'
@@ -22,8 +22,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { catalogService } from '@/services/api'
-import type { Staff, StaffLoginCredential, Subject } from '@/types'
+import { catalogService, classService } from '@/services/api'
+import type { SchoolClass, Staff, StaffLoginCredential, Subject } from '@/types'
 
 const emptyForm = {
   firstName: '',
@@ -37,12 +37,54 @@ const emptyForm = {
   profilePhotoId: undefined as string | undefined,
 }
 
+function classNamesForStaff(staff: Staff, classes: SchoolClass[]) {
+  const fromIds = (staff.classIds ?? [])
+    .map((id) => classes.find((c) => c.id === id)?.name)
+    .filter(Boolean) as string[]
+  const fromTeacher = classes
+    .filter((c) => c.classTeacherId === staff.id && (c.status ?? 'ACTIVE') !== 'ARCHIVED')
+    .map((c) => c.name)
+  return [...new Set([...fromIds, ...fromTeacher])]
+}
+
+function downloadCredentialsCsv(
+  staff: Staff[],
+  credentials: StaffLoginCredential[],
+  classes: SchoolClass[],
+) {
+  const header = ['Name', 'Email / login', 'Password', 'Role', 'Classes', 'Status']
+  const lines = staff.map((s) => {
+    const cred = credentials.find((c) => c.staffId === s.id)
+    const assigned = classNamesForStaff(s, classes).join('; ')
+    return [
+      `${s.firstName} ${s.lastName}`,
+      cred?.email || s.email,
+      cred?.password || '',
+      cred?.role || 'TEACHER',
+      assigned,
+      cred?.temporaryPassword ? 'Temp password' : cred ? 'Active' : 'No login',
+    ]
+      .map((cell) => `"${String(cell).replaceAll('"', '""')}"`)
+      .join(',')
+  })
+  const blob = new Blob([[header.join(','), ...lines].join('\n')], {
+    type: 'text/csv;charset=utf-8',
+  })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `teacher-logins-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export function TeachersPage() {
   const { user } = useAuth()
   const showCredentials = user ? canViewStaffCredentials(user.role) : false
   const [loading, setLoading] = useState(true)
   const [staff, setStaff] = useState<Staff[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
+  const [classes, setClasses] = useState<SchoolClass[]>([])
   const [credentials, setCredentials] = useState<StaffLoginCredential[]>([])
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
@@ -55,20 +97,19 @@ export function TeachersPage() {
     Promise.all([
       catalogService.getStaff(),
       catalogService.getSubjects(),
+      classService.list().catch(() => [] as SchoolClass[]),
       showCredentials ? catalogService.getStaffCredentials() : Promise.resolve([]),
     ])
-      .then(([s, sub, creds]) => {
+      .then(([s, sub, cls, creds]) => {
         if (!mounted) return
         setStaff(s)
         setSubjects(sub)
+        setClasses(cls)
         setCredentials(creds)
       })
       .catch((err) => {
         console.error(err)
-        notify.error(
-          'Could not load teachers',
-          'Check that the Spring API is running and you are signed in.',
-        )
+        notify.error('Could not load teachers', 'Check that you are signed in and try again.')
       })
       .finally(() => {
         if (mounted) setLoading(false)
@@ -100,8 +141,11 @@ export function TeachersPage() {
       form.email.trim() ||
       `${form.firstName.toLowerCase()}.${form.lastName.toLowerCase()}@viste.school`
     const password = form.password.trim()
-    if (password.length < 8) {
-      notify.error('Password required', 'Set an auth password of at least 8 characters.')
+    if (password && password.length < 8) {
+      notify.error(
+        'Password too short',
+        'Use at least 8 characters, or leave blank to auto-generate.',
+      )
       return
     }
     setSaving(true)
@@ -122,17 +166,18 @@ export function TeachersPage() {
             hireDate: new Date().toISOString().slice(0, 10),
             photoUrl: form.photoUrl,
             profilePhotoId: form.profilePhotoId,
-            password,
+            ...(password ? { password } : {}),
           }),
         {
           loading: 'Creating staff and auth account…',
-          success: 'Staff added — they can sign in with this email and password',
+          success: 'Staff added — open View all logins for their email and password',
           error: 'Could not add staff member',
         },
       )
       setStaff((prev) => [created, ...prev])
       if (showCredentials) {
         setCredentials(await catalogService.getStaffCredentials())
+        setCredOpen(true)
       }
       setForm(emptyForm)
       setOpen(false)
@@ -149,8 +194,8 @@ export function TeachersPage() {
         title="Teachers & Staff"
         description={
           showCredentials
-            ? 'Staff directory, portal logins, and profile photos.'
-            : 'Staff directory, departments, and profile photos.'
+            ? 'Staff directory, portal logins, and assigned classes.'
+            : 'Staff directory, departments, and assigned classes.'
         }
         breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Teachers & Staff' }]}
         actions={
@@ -179,6 +224,7 @@ export function TeachersPage() {
             {rows.map((s) => {
               const fullName = `${s.firstName} ${s.lastName}`
               const cred = credentials.find((c) => c.staffId === s.id)
+              const assigned = classNamesForStaff(s, classes)
               return (
                 <div
                   key={s.id}
@@ -197,6 +243,9 @@ export function TeachersPage() {
                         {s.title} · {s.department} · {s.employeeNumber}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
+                        Classes: {assigned.length ? assigned.join(', ') : 'None assigned'}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
                         Subjects:{' '}
                         {s.subjectIds
                           .map((id) => subjects.find((x) => x.id === id)?.name)
@@ -206,6 +255,7 @@ export function TeachersPage() {
                       {showCredentials && cred ? (
                         <p className="mt-1 truncate text-xs font-medium text-foreground/80">
                           Login: {cred.email}
+                          {cred.password ? ' · Password on sheet' : ''}
                         </p>
                       ) : null}
                     </div>
@@ -301,16 +351,17 @@ export function TeachersPage() {
               </div>
               {showCredentials ? (
                 <div className="space-y-2 sm:col-span-2">
-                  <Label>Portal password (auth)</Label>
+                  <Label>Portal password (optional)</Label>
                   <Input
                     type="text"
                     autoComplete="new-password"
                     value={form.password}
                     onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                    placeholder="At least 8 characters"
+                    placeholder="Leave blank to auto-generate"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Creates a Spring auth account. They sign in with this email and password.
+                    Saved on the admin login sheet. Marked as a temporary password until they change
+                    it.
                   </p>
                 </div>
               ) : null}
@@ -330,11 +381,25 @@ export function TeachersPage() {
       <Dialog open={credOpen} onOpenChange={setCredOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Teacher login details</DialogTitle>
+            <DialogTitle>Teacher login sheet</DialogTitle>
             <DialogDescription>
-              Usernames and passwords from Spring auth (`user_accounts`).
+              Email / username and admin-issued passwords. Use Reset if a password is missing
+              (older accounts created before passwords were stored).
             </DialogDescription>
           </DialogHeader>
+          <div className="mb-2 flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                downloadCredentialsCsv(staff, credentials, classes)
+                notify.success('Login sheet downloaded')
+              }}
+            >
+              <Download className="h-3.5 w-3.5" />
+              Download CSV
+            </Button>
+          </div>
           <div className="grid gap-3">
             {staff.map((s) => {
               const cred = credentials.find((c) => c.staffId === s.id)
@@ -347,8 +412,8 @@ export function TeachersPage() {
                     const next = await notify.process(
                       () => catalogService.resetStaffPassword(s.id),
                       {
-                        loading: 'Resetting auth password…',
-                        success: 'New password issued from auth',
+                        loading: 'Issuing temporary password…',
+                        success: 'Temporary password ready — copy it from the card',
                         error: 'Could not reset password',
                       },
                     )
@@ -374,6 +439,7 @@ export function TeacherDetailPage() {
   const [loading, setLoading] = useState(true)
   const [member, setMember] = useState<Staff | undefined>()
   const [subjects, setSubjects] = useState<Subject[]>([])
+  const [classes, setClasses] = useState<SchoolClass[]>([])
   const [credential, setCredential] = useState<StaffLoginCredential | null | undefined>()
   const [savingPhoto, setSavingPhoto] = useState(false)
 
@@ -382,10 +448,12 @@ export function TeacherDetailPage() {
     Promise.all([
       catalogService.getStaffMember(id),
       catalogService.getSubjects(),
+      classService.list().catch(() => [] as SchoolClass[]),
       showCredentials ? catalogService.getStaffCredential(id) : Promise.resolve(undefined),
-    ]).then(([s, sub, cred]) => {
+    ]).then(([s, sub, cls, cred]) => {
       setMember(s)
       setSubjects(sub)
+      setClasses(cls)
       setCredential(cred ?? null)
       setLoading(false)
     })
@@ -409,6 +477,7 @@ export function TeacherDetailPage() {
   if (!member) return <p>Staff member not found.</p>
 
   const fullName = `${member.firstName} ${member.lastName}`
+  const assignedClasses = classNamesForStaff(member, classes)
 
   return (
     <div className="space-y-5">
@@ -458,8 +527,8 @@ export function TeacherDetailPage() {
                 const next = await notify.process(
                   () => catalogService.resetStaffPassword(member.id),
                   {
-                    loading: 'Resetting auth password…',
-                    success: 'New password issued from auth',
+                    loading: 'Issuing temporary password…',
+                    success: 'Temporary password ready — copy it from the card',
                     error: 'Could not reset password',
                   },
                 )
@@ -479,9 +548,13 @@ export function TeacherDetailPage() {
                 <p className="text-muted-foreground">No subjects assigned yet.</p>
               )}
               <p className="mt-3 font-medium">Classes assigned</p>
-              <p className="text-muted-foreground">
-                {member.classIds.length ? member.classIds.join(', ') : 'None'}
-              </p>
+              {assignedClasses.length ? (
+                assignedClasses.map((name) => <p key={name}>{name}</p>)
+              ) : (
+                <p className="text-muted-foreground">
+                  None — assign as class teacher on a class.
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>

@@ -100,9 +100,10 @@ export interface Student {
 export interface StaffLoginCredential {
   staffId: string
   email: string
-  /** Admin-issued password from auth (empty after first login until reset). */
+  /** Admin-issued temporary password (shown on login sheet until reset again). */
   password: string
   role: Extract<UserRole, 'TEACHER' | 'SCHOOL_ADMIN' | 'PRINCIPAL' | 'ACCOUNTANT' | 'REGISTRAR'>
+  /** True when the password was issued by an admin and should be changed after first login. */
   temporaryPassword?: boolean
   lastResetAt?: string
 }
