@@ -73,14 +73,26 @@ export async function listAttendance(
     }
   }
 
-  const where: WhereClause[] = []
-  if (opts?.date) where.push({ field: 'date', op: '==', value: opts.date })
-  if (opts?.classId) where.push({ field: 'classId', op: '==', value: opts.classId })
+  // Single equality filter only — avoid composite-index failures on Vercel.
+  const where: WhereClause[] | undefined = opts?.date
+    ? [{ field: 'date', op: '==', value: opts.date }]
+    : opts?.classId
+      ? [{ field: 'classId', op: '==', value: opts.classId }]
+      : undefined
 
-  let rows = await queryCollection<AttendanceRecord>('attendance', {
-    limit: 500,
-    where: where.length ? where : undefined,
-  })
+  let rows: AttendanceRecord[] = []
+  try {
+    rows = await queryCollection<AttendanceRecord>('attendance', {
+      limit: 100,
+      where,
+    })
+  } catch (err) {
+    console.error('listAttendance query failed', err)
+    rows = []
+  }
+
+  if (opts?.classId) rows = rows.filter((r) => r.classId === opts.classId)
+  if (opts?.date) rows = rows.filter((r) => r.date === opts.date)
 
   if (session.role === 'TEACHER' && !opts?.classId) {
     const staffId = session.profile.staffId
@@ -100,16 +112,30 @@ export async function listAttendanceSessions(
   opts?: { date?: string; classId?: string },
 ): Promise<AttendanceSessionDto[]> {
   requirePermission(session, 'attendance.read')
-  const where: WhereClause[] = []
-  if (opts?.date) where.push({ field: 'date', op: '==', value: opts.date })
-  if (opts?.classId) where.push({ field: 'classId', op: '==', value: opts.classId })
 
-  let rows = await queryCollection<AttendanceSession>('attendanceSessions', {
-    limit: 200,
-    where: where.length ? where : undefined,
-    orderBy: 'submittedAt',
-    orderDirection: 'desc',
-  })
+  // Use at most one equality filter so we never need a composite Firestore index.
+  // Remaining filters + newest-first sort happen in memory.
+  const where: WhereClause[] | undefined = opts?.date
+    ? [{ field: 'date', op: '==', value: opts.date }]
+    : opts?.classId
+      ? [{ field: 'classId', op: '==', value: opts.classId }]
+      : undefined
+
+  let rows: AttendanceSession[] = []
+  try {
+    rows = await queryCollection<AttendanceSession>('attendanceSessions', {
+      limit: 100,
+      where,
+    })
+  } catch (err) {
+    // Empty / missing collection or index issues should not break the attendance page
+    console.error('listAttendanceSessions query failed', err)
+    rows = []
+  }
+
+  if (opts?.classId) rows = rows.filter((r) => r.classId === opts.classId)
+  if (opts?.date) rows = rows.filter((r) => r.date === opts.date)
+  rows.sort((a, b) => String(b.submittedAt ?? '').localeCompare(String(a.submittedAt ?? '')))
 
   if (session.role === 'TEACHER') {
     const staffId = session.profile.staffId

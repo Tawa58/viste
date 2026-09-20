@@ -74,22 +74,35 @@ export function AttendancePage() {
       setSession(null)
       return
     }
-    const [records, sessList] = await Promise.all([
-      catalogService.getAttendance({ date: forDate, classId: forClassId, kind: 'DAILY' }),
-      catalogService.getAttendanceSessions({ date: forDate, classId: forClassId }),
-    ])
-    const next: Record<string, 'PRESENT' | 'ABSENT'> = {}
-    for (const r of records) {
-      next[r.studentId] = r.status === 'ABSENT' ? 'ABSENT' : 'PRESENT'
+    try {
+      const [records, sessList] = await Promise.all([
+        catalogService.getAttendance({ date: forDate, classId: forClassId, kind: 'DAILY' }),
+        catalogService.getAttendanceSessions({ date: forDate, classId: forClassId }),
+      ])
+      const next: Record<string, 'PRESENT' | 'ABSENT'> = {}
+      for (const r of records) {
+        next[r.studentId] = r.status === 'ABSENT' ? 'ABSENT' : 'PRESENT'
+      }
+      setMarks(next)
+      setSession(sessList[0] ?? null)
+    } catch (err) {
+      console.error(err)
+      setMarks({})
+      setSession(null)
+      notify.error('Could not load register for this class')
     }
-    setMarks(next)
-    setSession(sessList[0] ?? null)
   }
 
   async function loadAdminSessions(forDate: string) {
     if (!isAdmin) return
-    const list = await catalogService.getAttendanceSessions({ date: forDate })
-    setSessions(list)
+    try {
+      const list = await catalogService.getAttendanceSessions({ date: forDate })
+      setSessions(list)
+    } catch (err) {
+      console.error(err)
+      setSessions([])
+      notify.error('Could not load submitted registers')
+    }
   }
 
   useEffect(() => {
