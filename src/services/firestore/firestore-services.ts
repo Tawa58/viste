@@ -248,8 +248,35 @@ export const firestoreCatalogService = {
     // Note: updating Firebase Auth password requires Admin SDK / Cloud Function.
     // Stored credential is what admins retrieve until Admin SDK is added.
     return row
-  },  async getAttendance(): Promise<AttendanceRecord[]> {
-    return firestoreSchool.listAttendance()
+  },
+  async getAttendance(opts?: {
+    date?: string
+    classId?: string
+    kind?: 'DAILY' | 'PERIOD'
+  }): Promise<AttendanceRecord[]> {
+    // Client Firestore path: prefer server API when available
+    try {
+      const { apiCatalogService } = await import('@/services/api/server-api-services')
+      return apiCatalogService.getAttendance(opts)
+    } catch {
+      return firestoreSchool.listAttendance()
+    }
+  },
+  async getAttendanceSessions(opts?: { date?: string; classId?: string }) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.getAttendanceSessions(opts)
+  },
+  async submitDailyRegister(input: {
+    date: string
+    classId: string
+    entries: {
+      studentId: string
+      streamId: string
+      status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED'
+    }[]
+  }) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.submitDailyRegister(input)
   },
   async getInvoices(): Promise<Invoice[]> {
     return firestoreSchool.listInvoices()

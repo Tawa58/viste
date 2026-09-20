@@ -325,7 +325,49 @@ export const apiCatalogService = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  getAttendance: () => apiFetch<AttendanceRecord[]>('/api/v1/attendance'),
+  getAttendance: (opts?: { date?: string; classId?: string; kind?: 'DAILY' | 'PERIOD' }) => {
+    const q = new URLSearchParams()
+    if (opts?.date) q.set('date', opts.date)
+    if (opts?.classId) q.set('classId', opts.classId)
+    if (opts?.kind) q.set('kind', opts.kind)
+    const suffix = q.toString() ? `?${q}` : ''
+    return apiFetch<AttendanceRecord[]>(`/api/v1/attendance${suffix}`)
+  },
+  getAttendanceSessions: (opts?: { date?: string; classId?: string }) => {
+    const q = new URLSearchParams({ sessions: '1' })
+    if (opts?.date) q.set('date', opts.date)
+    if (opts?.classId) q.set('classId', opts.classId)
+    return apiFetch<import('@/types').AttendanceSession[]>(`/api/v1/attendance?${q}`)
+  },
+  submitDailyRegister: (input: {
+    date: string
+    classId: string
+    entries: {
+      studentId: string
+      streamId: string
+      status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED'
+    }[]
+  }) =>
+    apiFetch<{
+      session: import('@/types').AttendanceSession
+      records: AttendanceRecord[]
+    }>('/api/v1/attendance', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  upsertAttendance: (input: {
+    date: string
+    studentId: string
+    classId: string
+    streamId: string
+    status: AttendanceRecord['status']
+    kind?: 'DAILY' | 'PERIOD'
+    subjectId?: string
+  }) =>
+    apiFetch<AttendanceRecord>('/api/v1/attendance', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
   getExaminations: async (): Promise<Examination[]> => [],
   getAssessments: () => apiFetch<Assessment[]>('/api/v1/results?kind=assessments'),
   getMarks: () => apiFetch<Mark[]>('/api/v1/results?kind=marks'),

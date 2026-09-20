@@ -418,7 +418,90 @@ const mockCatalogService = {
     guardians.unshift(created)
     return mockRequest(created, 250)
   },
-  getAttendance: (): Promise<AttendanceRecord[]> => mockRequest(attendanceRecords),
+  getAttendance: (opts?: { date?: string; classId?: string; kind?: 'DAILY' | 'PERIOD' }) => {
+    let rows = [...attendanceRecords]
+    if (opts?.date) rows = rows.filter((r) => r.date === opts.date)
+    if (opts?.classId) rows = rows.filter((r) => r.classId === opts.classId)
+    if (opts?.kind) {
+      rows = rows.filter((r) => (r.kind ?? (r.subjectId ? 'PERIOD' : 'DAILY')) === opts.kind)
+    }
+    return mockRequest(rows)
+  },
+  getAttendanceSessions: async (_opts?: { date?: string; classId?: string }) =>
+    mockRequest([] as import('@/types').AttendanceSession[]),
+  async submitDailyRegister(input: {
+    date: string
+    classId: string
+    entries: {
+      studentId: string
+      streamId: string
+      status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED'
+    }[]
+  }) {
+    const cls = classes.find((c) => c.id === input.classId)
+    for (const entry of input.entries) {
+      const id = `att_${input.date}_${input.classId}_${entry.studentId}_daily`
+      const idx = attendanceRecords.findIndex((r) => r.id === id)
+      const row: AttendanceRecord = {
+        id,
+        date: input.date,
+        classId: input.classId,
+        studentId: entry.studentId,
+        streamId: entry.streamId,
+        status: entry.status,
+        recordedBy: 'mock',
+        kind: 'DAILY',
+        recordedAt: new Date().toISOString(),
+      }
+      if (idx >= 0) attendanceRecords[idx] = row
+      else attendanceRecords.unshift(row)
+    }
+    const presentCount = input.entries.filter((e) => e.status === 'PRESENT' || e.status === 'LATE')
+      .length
+    const absentCount = input.entries.filter((e) => e.status === 'ABSENT').length
+    const session: import('@/types').AttendanceSession = {
+      id: `attsess_${input.date}_${input.classId}`,
+      date: input.date,
+      classId: input.classId,
+      className: cls?.name,
+      submittedAt: new Date().toISOString(),
+      submittedBy: 'mock',
+      submittedByName: 'Mock Teacher',
+      presentCount,
+      absentCount,
+      totalCount: input.entries.length,
+    }
+    return mockRequest({
+      session,
+      records: attendanceRecords.filter(
+        (r) => r.date === input.date && r.classId === input.classId && r.kind === 'DAILY',
+      ),
+    })
+  },
+  upsertAttendance: async (input: {
+    date: string
+    studentId: string
+    classId: string
+    streamId: string
+    status: AttendanceRecord['status']
+    kind?: 'DAILY' | 'PERIOD'
+    subjectId?: string
+  }) => {
+    const kind = input.kind ?? (input.subjectId ? 'PERIOD' : 'DAILY')
+    const id =
+      kind === 'DAILY'
+        ? `att_${input.date}_${input.classId}_${input.studentId}_daily`
+        : `att-${Date.now()}`
+    const row: AttendanceRecord = {
+      id,
+      ...input,
+      kind,
+      recordedBy: 'mock',
+      recordedAt: new Date().toISOString(),
+    }
+    attendanceRecords.unshift(row)
+    return mockRequest(row)
+  },
   getExaminations: (): Promise<Examination[]> => mockRequest(examinations),
   getAssessments: (): Promise<Assessment[]> => mockRequest(assessments),
   getMarks: (): Promise<Mark[]> => mockRequest(marks),

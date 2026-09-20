@@ -176,7 +176,25 @@ export const attendanceUpsertSchema = z.object({
   streamId: idSchema,
   subjectId: idSchema.optional(),
   status: z.enum(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED', 'AUTHORIZED_ABSENCE']),
+  kind: z.enum(['DAILY', 'PERIOD']).optional(),
 })
+
+export const attendanceRegisterSchema = z.object({
+  date: isoDateSchema,
+  classId: idSchema,
+  entries: z
+    .array(
+      z.object({
+        studentId: idSchema,
+        streamId: idSchema,
+        status: z.enum(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']),
+      }),
+    )
+    .min(1)
+    .max(200),
+})
+
+export type AttendanceRegisterInput = z.infer<typeof attendanceRegisterSchema>
 
 export const paymentCreateSchema = z.object({
   studentId: idSchema,

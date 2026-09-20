@@ -23,6 +23,7 @@ import type {
 } from '@/types'
 import { listClasses as listClassesManaged } from '@/server/services/classes-service'
 import { listSubjects as listSubjectsManaged } from '@/server/services/extracurricular-service'
+import { computeTodayAttendancePct } from '@/server/services/attendance-service'
 
 export type ClassDto = SchoolClass
 export type StreamDto = Stream
@@ -102,7 +103,7 @@ export async function getDashboardBundle(session: SessionContext): Promise<Dashb
   const db = getAdminDb()
   const scopedRole = session.role === 'PARENT' || session.role === 'STUDENT'
 
-  const [accessibleStudents, studentCountSnap, teacherCount, invoices, payments, assessments] =
+  const [accessibleStudents, studentCountSnap, teacherCount, invoices, payments, assessments, todayPct] =
     await Promise.all([
       scopedRole ? listAccessibleStudents(session) : Promise.resolve(null),
       scopedRole
@@ -117,6 +118,7 @@ export async function getDashboardBundle(session: SessionContext): Promise<Dashb
       queryCollection<Invoice>('invoices', { limit: 100 }),
       queryCollection<Payment>('payments', { limit: 100 }),
       queryCollection<Assessment>('assessments', { limit: 100 }),
+      computeTodayAttendancePct().catch(() => 0),
     ])
 
   let studentHeadcount: number
@@ -135,7 +137,7 @@ export async function getDashboardBundle(session: SessionContext): Promise<Dashb
   const stats: DashboardStats = {
     totalStudents: studentHeadcount,
     totalTeachers: teacherCount,
-    todayAttendancePct: 0,
+    todayAttendancePct: todayPct,
     outstandingFees: scopedInvoices.reduce((sum, i) => sum + Math.max(0, i.total - i.paid), 0),
     feesCollected: scopedPayments
       .filter((p) => p.status === 'CONFIRMED')
@@ -169,5 +171,7 @@ export async function listAuditLogsService(session: SessionContext): Promise<Aud
 // Re-export attendance helpers expected by early API routes
 export {
   listAttendance as listAttendanceService,
+  listAttendanceSessions as listAttendanceSessionsService,
   upsertAttendance as upsertAttendanceService,
+  submitDailyRegister as submitDailyRegisterService,
 } from '@/server/services/attendance-service'

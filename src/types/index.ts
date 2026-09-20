@@ -278,6 +278,25 @@ export interface AttendanceRecord {
   subjectId?: string
   status: AttendanceStatus
   recordedBy: string
+  /** Homeroom daily register vs subject period mark. */
+  kind?: 'DAILY' | 'PERIOD'
+  recordedAt?: string
+}
+
+/** One submitted daily register for a class on a date. */
+export interface AttendanceSession {
+  id: string
+  date: string
+  classId: string
+  className?: string
+  submittedAt: string
+  submittedBy: string
+  submittedByName?: string
+  presentCount: number
+  absentCount: number
+  lateCount?: number
+  excusedCount?: number
+  totalCount: number
 }
 
 export interface Examination {
