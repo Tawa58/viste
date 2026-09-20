@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { catalogService, classService } from '@/services/api'
 import type { SchoolClass, Staff, StaffLoginCredential, Subject } from '@/types'
 
@@ -436,6 +437,11 @@ export function TeacherDetailPage() {
   const { id } = useParams()
   const { user } = useAuth()
   const showCredentials = user ? canViewStaffCredentials(user.role) : false
+  const canConfigureAccess = user
+    ? user.role === 'SUPER_ADMIN' ||
+      user.role === 'SCHOOL_ADMIN' ||
+      user.role === 'PRINCIPAL'
+    : false
   const [loading, setLoading] = useState(true)
   const [member, setMember] = useState<Staff | undefined>()
   const [subjects, setSubjects] = useState<Subject[]>([])
@@ -557,8 +563,133 @@ export function TeacherDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          {canConfigureAccess ? (
+            <TeacherAccessPanel staffId={member.id} staffName={fullName} />
+          ) : null}
         </div>
       </div>
     </div>
+  )
+}
+
+type StaffAccessPayload = {
+  staffId: string
+  roleDefaults: string[]
+  assignable: string[]
+  groups: { label: string; permissions: string[] }[]
+  overrides: { grant?: string[]; deny?: string[] }
+  effective: string[]
+  selected: string[]
+}
+
+function TeacherAccessPanel({
+  staffId,
+  staffName,
+}: {
+  staffId: string
+  staffName: string
+}) {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [access, setAccess] = useState<StaffAccessPayload | null>(null)
+  const [selected, setSelected] = useState<string[]>([])
+
+  useEffect(() => {
+    let mounted = true
+    catalogService
+      .getStaffAccess(staffId)
+      .then((data) => {
+        if (!mounted) return
+        setAccess(data)
+        setSelected(data.selected)
+      })
+      .catch((err) => {
+        console.error(err)
+        notify.error('Could not load teacher access settings')
+      })
+      .finally(() => {
+        if (mounted) setLoading(false)
+      })
+    return () => {
+      mounted = false
+    }
+  }, [staffId])
+
+  async function save() {
+    setSaving(true)
+    try {
+      const next = await notify.process(
+        () => catalogService.updateStaffAccess(staffId, selected),
+        {
+          loading: 'Saving teacher access…',
+          success: `Access updated for ${staffName}`,
+          error: 'Could not save access',
+        },
+      )
+      setAccess(next)
+      setSelected(next.selected)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function resetToDefaults() {
+    if (!access) return
+    setSelected([...access.roleDefaults].filter((p) => access.assignable.includes(p)))
+  }
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="p-5 text-sm text-muted-foreground">Loading access…</CardContent>
+      </Card>
+    )
+  }
+
+  if (!access) return null
+
+  return (
+    <Card>
+      <CardContent className="space-y-4 p-5">
+        <div>
+          <p className="font-medium">What this teacher can see & do</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Tick modules and actions for {staffName}. They only see students in their assigned
+            classes. Changes apply on their next request (within ~20 seconds).
+          </p>
+        </div>
+        {access.groups.map((group) => (
+          <div key={group.label}>
+            <p className="mb-2 text-sm font-semibold">{group.label}</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {group.permissions.map((perm) => (
+                <label key={perm} className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={selected.includes(perm)}
+                    onCheckedChange={(checked) => {
+                      setSelected((prev) =>
+                        checked === true
+                          ? [...new Set([...prev, perm])]
+                          : prev.filter((p) => p !== perm),
+                      )
+                    }}
+                  />
+                  <span className="font-mono text-xs">{perm}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+        <div className="flex flex-wrap gap-2">
+          <Button loading={saving} onClick={() => void save()}>
+            Save access
+          </Button>
+          <Button type="button" variant="outline" onClick={resetToDefaults}>
+            Reset to teacher defaults
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

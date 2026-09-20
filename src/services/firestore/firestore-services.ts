@@ -176,6 +176,52 @@ export const firestoreCatalogService = {
     if (!snap.exists()) return undefined
     return { staffId, ...snap.data() } as StaffLoginCredential
   },
+  async getStaffAccess(staffId: string) {
+    const {
+      listPermissions,
+      TEACHER_ASSIGNABLE_PERMISSIONS,
+      TEACHER_PERMISSION_GROUPS,
+      resolveEffectivePermissions,
+    } = await import('@/server/authorization/rbac-map')
+    const member = await firestoreSchool.getStaff(staffId)
+    if (!member) throw new Error('Staff not found')
+    const overrides = member.permissionOverrides ?? {}
+    const effective = resolveEffectivePermissions('TEACHER', overrides)
+    const assignable = [...TEACHER_ASSIGNABLE_PERMISSIONS]
+    return {
+      staffId,
+      roleDefaults: listPermissions('TEACHER'),
+      assignable,
+      groups: TEACHER_PERMISSION_GROUPS.map((g) => ({
+        label: g.label,
+        permissions: [...g.permissions],
+      })),
+      overrides,
+      effective,
+      selected: assignable.filter((p) => effective.includes(p)),
+    }
+  },
+  async updateStaffAccess(staffId: string, permissions: string[]) {
+    const { overridesFromTeacherSelection } = await import('@/server/authorization/rbac-map')
+    const { setDoc, doc, getDoc } = await import('firebase/firestore')
+    const { getFirestoreDb } = await import('@/services/firebase/app')
+    const ref = doc(getFirestoreDb(), 'staff', staffId)
+    const snap = await getDoc(ref)
+    if (!snap.exists()) throw new Error('Staff not found')
+    const overrides = overridesFromTeacherSelection(permissions)
+    await setDoc(
+      ref,
+      {
+        ...snap.data(),
+        permissionOverrides: {
+          grant: overrides.grant ?? [],
+          deny: overrides.deny ?? [],
+        },
+      },
+      { merge: true },
+    )
+    return this.getStaffAccess(staffId)
+  },
   async resetStaffPassword(staffId: string, password?: string): Promise<StaffLoginCredential> {
     const member = await firestoreSchool.getStaff(staffId)
     if (!member) throw new Error('Staff member not found')

@@ -107,15 +107,21 @@ export const navGroups: NavGroup[] = [
   },
 ]
 
-export function getNavGroupsForRole(role: UserRole): NavGroup[] {
+export function getNavGroupsForRole(
+  role: UserRole,
+  permissions?: readonly string[] | null,
+): NavGroup[] {
   return navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => canAccessPath(role, item.to)),
+      items: group.items.filter((item) => canAccessPath(role, item.to, permissions)),
     }))
     .filter((group) => group.items.length > 0)
 }
 
-export function getMainNavForRole(role: UserRole): NavItem[] {
-  return mainNav.filter((item) => canAccessPath(role, item.to))
+export function getMainNavForRole(
+  role: UserRole,
+  permissions?: readonly string[] | null,
+): NavItem[] {
+  return mainNav.filter((item) => canAccessPath(role, item.to, permissions))
 }

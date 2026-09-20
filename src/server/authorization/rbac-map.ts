@@ -122,10 +122,180 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   STUDENT,
 }
 
+/**
+ * Permissions an admin may grant/deny on an individual teacher.
+ * Excludes school-wide admin controls (users/roles/settings/audit).
+ */
+export const TEACHER_ASSIGNABLE_PERMISSIONS: readonly Permission[] = [
+  'students.read',
+  'students.create',
+  'students.update',
+  'students.archive',
+  'students.transfer',
+  'students.exempt',
+  'parents.read',
+  'parents.manage',
+  'classes.read',
+  'classes.manage',
+  'subjects.read',
+  'subjects.manage',
+  'extracurricular.read',
+  'extracurricular.manage',
+  'attendance.read',
+  'attendance.create',
+  'attendance.update',
+  'fees.read',
+  'fees.create',
+  'fees.update',
+  'payments.read',
+  'payments.create',
+  'results.read',
+  'results.enter',
+  'results.update',
+  'results.approve',
+  'results.publish',
+]
+
+export const TEACHER_PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] = [
+  {
+    label: 'Students',
+    permissions: [
+      'students.read',
+      'students.create',
+      'students.update',
+      'students.archive',
+      'students.transfer',
+      'students.exempt',
+    ],
+  },
+  {
+    label: 'Classes & subjects',
+    permissions: [
+      'classes.read',
+      'classes.manage',
+      'subjects.read',
+      'subjects.manage',
+      'extracurricular.read',
+      'extracurricular.manage',
+    ],
+  },
+  {
+    label: 'Attendance',
+    permissions: ['attendance.read', 'attendance.create', 'attendance.update'],
+  },
+  {
+    label: 'Exams & results',
+    permissions: [
+      'results.read',
+      'results.enter',
+      'results.update',
+      'results.approve',
+      'results.publish',
+    ],
+  },
+  {
+    label: 'Parents & fees',
+    permissions: [
+      'parents.read',
+      'parents.manage',
+      'fees.read',
+      'fees.create',
+      'fees.update',
+      'payments.read',
+      'payments.create',
+    ],
+  },
+]
+
+/** Map app paths → required permission (null = always allowed for signed-in users with route access). */
+export const PATH_PERMISSION: Record<string, Permission | null> = {
+  '/dashboard': null,
+  '/settings': null,
+  '/announcements': null,
+  '/reports': 'students.read',
+  '/students': 'students.read',
+  '/classes': 'classes.read',
+  '/subjects': 'subjects.read',
+  '/sports': 'extracurricular.read',
+  '/clubs': 'extracurricular.read',
+  '/attendance': 'attendance.read',
+  '/examinations': 'results.read',
+  '/results': 'results.read',
+  '/fees': 'fees.read',
+  '/parents': 'parents.read',
+  '/teachers': 'teachers.read',
+  '/users': 'users.manage',
+  '/audit-logs': 'audit.read',
+  '/inventory': 'settings.manage',
+  '/library': 'students.read',
+  '/transport': 'students.read',
+}
+
+export function isPermission(value: string): value is Permission {
+  return (PERMISSIONS as readonly string[]).includes(value)
+}
+
 export function hasPermission(role: UserRole, permission: Permission): boolean {
   return ROLE_PERMISSIONS[role]?.includes(permission) ?? false
 }
 
 export function listPermissions(role: UserRole): Permission[] {
   return [...(ROLE_PERMISSIONS[role] ?? [])]
+}
+
+export type PermissionOverrides = {
+  grant?: string[]
+  deny?: string[]
+}
+
+/** Role baseline ∪ grant − deny, clamped to known permissions. */
+export function resolveEffectivePermissions(
+  role: UserRole,
+  overrides?: PermissionOverrides | null,
+): Permission[] {
+  const base = new Set(listPermissions(role))
+  for (const raw of overrides?.grant ?? []) {
+    if (isPermission(raw)) base.add(raw)
+  }
+  for (const raw of overrides?.deny ?? []) {
+    if (isPermission(raw)) base.delete(raw)
+  }
+  return PERMISSIONS.filter((p) => base.has(p))
+}
+
+/**
+ * Build grant/deny from an admin checkbox set for a teacher.
+ * Only TEACHER_ASSIGNABLE_PERMISSIONS may change; other role perms stay as defaults.
+ */
+export function overridesFromTeacherSelection(selected: string[]): PermissionOverrides {
+  const defaults = new Set(listPermissions('TEACHER'))
+  const assignable = new Set(TEACHER_ASSIGNABLE_PERMISSIONS)
+  const chosen = new Set(
+    selected.filter((p): p is Permission => isPermission(p) && assignable.has(p)),
+  )
+
+  const grant: Permission[] = []
+  const deny: Permission[] = []
+  for (const p of TEACHER_ASSIGNABLE_PERMISSIONS) {
+    const on = chosen.has(p)
+    const wasDefault = defaults.has(p)
+    if (on && !wasDefault) grant.push(p)
+    if (!on && wasDefault) deny.push(p)
+  }
+  return { grant, deny }
+}
+
+export function pathAllowedByPermissions(
+  pathname: string,
+  permissions: readonly string[],
+): boolean {
+  const normalized = pathname.replace(/\/+$/, '') || '/'
+  const match =
+    Object.keys(PATH_PERMISSION)
+      .sort((a, b) => b.length - a.length)
+      .find((prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`)) ?? null
+  if (!match) return false
+  const required = PATH_PERMISSION[match]
+  if (required === null) return true
+  return permissions.includes(required)
 }

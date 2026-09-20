@@ -63,10 +63,10 @@ function ProtectedRoute() {
 }
 
 function RoleRoute() {
-  const { user } = useAuth()
+  const { user, permissions } = useAuth()
   const location = useLocation()
   if (!user) return <Navigate to="/login" replace />
-  if (!canAccessPath(user.role, location.pathname)) {
+  if (!canAccessPath(user.role, location.pathname, permissions)) {
     return <Navigate to="/dashboard" replace />
   }
   return <Outlet />

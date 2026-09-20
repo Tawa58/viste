@@ -14,6 +14,8 @@ export interface AuthService {
   getDemoCredentials(): typeof demoCredentials
   updateProfile(userId: string, patch: Partial<AuthUser>): Promise<AuthUser>
   me?(): Promise<AuthUser>
+  /** Current user plus effective RBAC permissions. */
+  session?(): Promise<{ user: AuthUser; permissions: string[] }>
 }
 
 export type StudentInput = Omit<Student, 'id'>

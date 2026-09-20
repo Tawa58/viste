@@ -10,7 +10,7 @@ import {
 } from '@/lib/education-levels'
 import { getDoc, newId, queryCollection, setDoc } from '@/server/repositories/firestore-repo'
 import type { ClassCreateInput, ClassUpdateInput } from '@/server/validators/school'
-import type { SchoolClass, Stream, Student, StudentClassStats } from '@/types'
+import type { SchoolClass, Staff, Stream, Student, StudentClassStats } from '@/types'
 import {
   ensureCurrentAcademicCalendar,
   resolveTermForSequence,
@@ -31,13 +31,27 @@ function normalizeClass(row: SchoolClass): SchoolClass {
 export async function listClasses(session: SessionContext): Promise<ClassDto[]> {
   requirePermission(session, 'classes.read')
   const rows = await queryCollection<SchoolClass>('classes', { limit: 100, orderBy: 'name' })
-  return rows.map(normalizeClass)
+  const normalized = rows.map(normalizeClass)
+  if (session.role !== 'TEACHER') return normalized
+
+  const staffId = session.profile.staffId
+  if (!staffId) return []
+  const staff = await getDoc<Staff>('staff', staffId)
+  const classIds = new Set(staff?.classIds ?? [])
+  // Class teachers also see classes they own even if classIds lagged
+  return normalized.filter(
+    (c) => classIds.has(c.id) || c.classTeacherId === staffId,
+  )
 }
 
 export async function getClass(session: SessionContext, id: string): Promise<ClassDto> {
   requirePermission(session, 'classes.read')
   const row = await getDoc<SchoolClass>('classes', id)
   if (!row) throw notFound('Class not found')
+  if (session.role === 'TEACHER') {
+    const { assertTeacherOwnsClass } = await import('@/server/authorization/isolation')
+    await assertTeacherOwnsClass(session, id)
+  }
   return normalizeClass(row)
 }
 

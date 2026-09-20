@@ -44,6 +44,11 @@ export class FirebaseAuthService implements AuthService {
     return getOrCreateUserProfile(user)
   }
 
+  async session(): Promise<{ user: AuthUser; permissions: string[] }> {
+    const user = await this.me()
+    return { user, permissions: [] }
+  }
+
   async updateProfile(userId: string, patch: Partial<AuthUser>): Promise<AuthUser> {
     const auth = getFirebaseAuth()
     if (auth.currentUser && patch.name) {

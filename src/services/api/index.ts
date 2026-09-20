@@ -143,6 +143,26 @@ class MockAuthService implements AuthService {
     return demoCredentials
   }
 
+  async me() {
+    const raw = localStorage.getItem('viste.auth.user') ?? sessionStorage.getItem('viste.auth.user')
+    if (!raw) throw new Error('Not signed in')
+    return JSON.parse(raw) as AuthUser
+  }
+
+  async session() {
+    const user = await this.me()
+    const { resolveEffectivePermissions } = await import('@/server/authorization/rbac-map')
+    let overrides = null as { grant?: string[]; deny?: string[] } | null
+    if (user.staffId) {
+      const member = staff.find((s) => s.id === user.staffId)
+      overrides = member?.permissionOverrides ?? null
+    }
+    return {
+      user,
+      permissions: resolveEffectivePermissions(user.role, overrides),
+    }
+  }
+
   async updateProfile(userId: string, patch: Partial<AuthUser>) {
     const index = mockUsers.findIndex((u) => u.id === userId)
     if (index < 0) throw new Error('User not found')
@@ -301,6 +321,34 @@ const mockCatalogService = {
   getStaffCredentials: (): Promise<StaffLoginCredential[]> => mockRequest([...staffCredentials]),
   getStaffCredential: (staffId: string) =>
     mockRequest(staffCredentials.find((c) => c.staffId === staffId)),
+  async getStaffAccess(staffId: string) {
+    const { listPermissions, TEACHER_ASSIGNABLE_PERMISSIONS, TEACHER_PERMISSION_GROUPS, resolveEffectivePermissions } =
+      await import('@/server/authorization/rbac-map')
+    const member = staff.find((s) => s.id === staffId)
+    if (!member) throw new Error('Staff not found')
+    const overrides = member.permissionOverrides ?? {}
+    const effective = resolveEffectivePermissions('TEACHER', overrides)
+    const assignable = [...TEACHER_ASSIGNABLE_PERMISSIONS]
+    return mockRequest({
+      staffId,
+      roleDefaults: listPermissions('TEACHER'),
+      assignable,
+      groups: TEACHER_PERMISSION_GROUPS.map((g) => ({
+        label: g.label,
+        permissions: [...g.permissions],
+      })),
+      overrides,
+      effective,
+      selected: assignable.filter((p) => effective.includes(p)),
+    })
+  },
+  async updateStaffAccess(staffId: string, permissions: string[]) {
+    const { overridesFromTeacherSelection } = await import('@/server/authorization/rbac-map')
+    const member = staff.find((s) => s.id === staffId)
+    if (!member) throw new Error('Staff not found')
+    member.permissionOverrides = overridesFromTeacherSelection(permissions)
+    return this.getStaffAccess(staffId)
+  },
   async resetStaffPassword(staffId: string, password?: string): Promise<StaffLoginCredential> {
     const existing = staffCredentials.find((c) => c.staffId === staffId)
     const member = staff.find((s) => s.id === staffId)

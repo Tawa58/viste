@@ -89,7 +89,7 @@ function SidebarNav({ collapsed, groups }: { collapsed: boolean; groups: NavGrou
 }
 
 export function AppShell() {
-  const { user, logout } = useAuth()
+  const { user, permissions, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
@@ -97,12 +97,12 @@ export function AppShell() {
   const [logoutOpen, setLogoutOpen] = useState(false)
 
   const roleNav = useMemo(
-    () => (user ? getNavGroupsForRole(user.role) : []),
-    [user],
+    () => (user ? getNavGroupsForRole(user.role, permissions) : []),
+    [user, permissions],
   )
   const roleMainNav = useMemo(
-    () => (user ? getMainNavForRole(user.role) : []),
-    [user],
+    () => (user ? getMainNavForRole(user.role, permissions) : []),
+    [user, permissions],
   )
 
   useEffect(() => {
@@ -124,8 +124,8 @@ export function AppShell() {
         { label: 'Fees & Payments', to: '/fees' },
         { label: 'Attendance', to: '/attendance' },
         { label: 'Results', to: '/results' },
-      ].filter((link) => (user ? canAccessPath(user.role, link.to) : false)),
-    [user],
+      ].filter((link) => (user ? canAccessPath(user.role, link.to, permissions) : false)),
+    [user, permissions],
   )
 
   async function handleLogout() {

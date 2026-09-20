@@ -1,5 +1,41 @@
 import type { UserRole } from '@/types'
 
+/** Path → permission required for teachers with custom access (null = always). */
+const PATH_PERMISSION: Record<string, string | null> = {
+  '/dashboard': null,
+  '/settings': null,
+  '/announcements': null,
+  '/reports': 'students.read',
+  '/students': 'students.read',
+  '/classes': 'classes.read',
+  '/subjects': 'subjects.read',
+  '/sports': 'extracurricular.read',
+  '/clubs': 'extracurricular.read',
+  '/attendance': 'attendance.read',
+  '/examinations': 'results.read',
+  '/results': 'results.read',
+  '/fees': 'fees.read',
+  '/parents': 'parents.read',
+  '/teachers': 'teachers.read',
+  '/users': 'users.manage',
+  '/audit-logs': 'audit.read',
+  '/inventory': 'settings.manage',
+  '/library': 'students.read',
+  '/transport': 'students.read',
+}
+
+function pathAllowedByPermissions(pathname: string, permissions: readonly string[]) {
+  const normalized = pathname.replace(/\/+$/, '') || '/'
+  const match =
+    Object.keys(PATH_PERMISSION)
+      .sort((a, b) => b.length - a.length)
+      .find((prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`)) ?? null
+  if (!match) return false
+  const required = PATH_PERMISSION[match]
+  if (required === null) return true
+  return permissions.includes(required)
+}
+
 const SCHOOL_SETTINGS_ROLES: UserRole[] = [
   'SUPER_ADMIN',
   'SCHOOL_ADMIN',
@@ -34,6 +70,8 @@ export const ROLE_ROUTES: Record<UserRole, '*' | string[]> = {
     '/attendance',
     '/examinations',
     '/results',
+    '/fees',
+    '/parents',
     '/announcements',
     '/reports',
     '/settings',
@@ -138,12 +176,33 @@ export function hasFullConsoleAccess(role: UserRole) {
   return ROLE_ROUTES[role] === '*'
 }
 
-export function canAccessPath(role: UserRole, pathname: string) {
+export function canAccessPath(
+  role: UserRole,
+  pathname: string,
+  permissions?: readonly string[] | null,
+) {
   const allowed = ROLE_ROUTES[role]
   if (allowed === '*') return true
+
+  // Per-user permission overrides (teachers) further restrict/expand within role routes
+  if (permissions && permissions.length > 0 && role === 'TEACHER') {
+    const inRoleRoutes = allowed.some(
+      (route) => pathname === route || pathname.startsWith(`${route}/`),
+    )
+    if (!inRoleRoutes) return false
+    return pathAllowedByPermissions(pathname, permissions)
+  }
+
   return allowed.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),
   )
+}
+
+export function hasAppPermission(
+  permissions: readonly string[] | null | undefined,
+  permission: string,
+) {
+  return Boolean(permissions?.includes(permission))
 }
 
 export function formatRoleLabel(role: UserRole) {

@@ -5,7 +5,9 @@ import { forbidden, unauthorized } from '@/server/errors'
 import {
   hasPermission,
   requirePermission as assertPermission,
+  resolveEffectivePermissions,
   type Permission,
+  type PermissionOverrides,
 } from '@/server/authorization/permissions'
 import type { AuthUser, UserRole } from '@/types'
 
@@ -14,6 +16,8 @@ export type SessionContext = {
   email: string
   role: UserRole
   profile: AuthUser
+  /** Effective permissions for this session (role + staff overrides). */
+  permissions: import('@/server/authorization/rbac-map').Permission[]
   token: { authTime?: number }
 }
 
@@ -153,11 +157,25 @@ export async function verifyBearerToken(request: Request): Promise<SessionContex
   const { remember } = await import('@/server/http/memo')
   return remember(cacheKey, 20_000, async () => {
     const profile = await loadOrCreateProfile(decoded.uid, email, decoded.name)
+    let overrides: PermissionOverrides | null = null
+    if (profile.staffId && profile.role === 'TEACHER') {
+      try {
+        const staffSnap = await getAdminDb().collection('staff').doc(profile.staffId).get()
+        if (staffSnap.exists) {
+          const data = staffSnap.data() as { permissionOverrides?: PermissionOverrides }
+          overrides = data.permissionOverrides ?? null
+        }
+      } catch {
+        overrides = null
+      }
+    }
+    const permissions = resolveEffectivePermissions(profile.role, overrides)
     return {
       uid: decoded.uid,
       email,
       role: profile.role,
       profile,
+      permissions,
       token: { authTime: decoded.auth_time },
     }
   })
@@ -175,7 +193,7 @@ export function requirePermission(session: SessionContext, permission: Permissio
 }
 
 export function sessionHasPermission(session: SessionContext, permission: Permission) {
-  return hasPermission(session.role, permission)
+  return session.permissions?.includes(permission) ?? hasPermission(session.role, permission)
 }
 
 /** Strip privileged fields from client profile patches. */

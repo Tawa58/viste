@@ -135,6 +135,14 @@ export interface Staff {
   subjectIds: string[]
   classIds: string[]
   hireDate: string
+  /**
+   * Per-teacher RBAC overrides (grant/deny on top of TEACHER role defaults).
+   * Only admins with teachers.manage / roles.manage may edit.
+   */
+  permissionOverrides?: {
+    grant?: string[]
+    deny?: string[]
+  }
   /** Firestore `files/{id}` reference — never store image bytes here. */
   profilePhotoId?: string
   /**

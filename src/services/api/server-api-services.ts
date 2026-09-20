@@ -53,7 +53,7 @@ export class ApiAuthService implements AuthService {
       email.trim().toLowerCase(),
       password,
     )
-    const me = await apiFetch<{ user: AuthUser; permissions: string[] }>('/api/v1/auth/me')
+    const me = await this.session()
     return me.user
   }
 
@@ -65,8 +65,12 @@ export class ApiAuthService implements AuthService {
     return demoCredentials
   }
 
+  async session() {
+    return apiFetch<{ user: AuthUser; permissions: string[] }>('/api/v1/auth/me')
+  }
+
   async me() {
-    const me = await apiFetch<{ user: AuthUser }>('/api/v1/auth/me')
+    const me = await this.session()
     return me.user
   }
 
@@ -268,6 +272,29 @@ export const apiCatalogService = {
     const all = await apiFetch<StaffLoginCredential[]>('/api/v1/teachers?credentials=1')
     return all.find((c) => c.staffId === staffId)
   },
+  getStaffAccess: (staffId: string) =>
+    apiFetch<{
+      staffId: string
+      roleDefaults: string[]
+      assignable: string[]
+      groups: { label: string; permissions: string[] }[]
+      overrides: { grant?: string[]; deny?: string[] }
+      effective: string[]
+      selected: string[]
+    }>(`/api/v1/teachers/${staffId}/access`),
+  updateStaffAccess: (staffId: string, permissions: string[]) =>
+    apiFetch<{
+      staffId: string
+      roleDefaults: string[]
+      assignable: string[]
+      groups: { label: string; permissions: string[] }[]
+      overrides: { grant?: string[]; deny?: string[] }
+      effective: string[]
+      selected: string[]
+    }>(`/api/v1/teachers/${staffId}/access`, {
+      method: 'PUT',
+      body: JSON.stringify({ permissions }),
+    }),
   resetStaffPassword: (staffId: string, password?: string) =>
     apiFetch<StaffLoginCredential>(`/api/v1/teachers/${staffId}/reset-password`, {
       method: 'POST',

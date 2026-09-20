@@ -9,6 +9,7 @@ import { badRequest, conflict, notFound } from '@/server/errors'
 import { getDoc, newId, queryCollection, setDoc } from '@/server/repositories/firestore-repo'
 import type { StaffCreateInput } from '@/server/validators/school'
 import type { SchoolClass, Staff, StaffLoginCredential } from '@/types'
+import type { PermissionOverrides } from '@/server/authorization/rbac-map'
 
 export type StaffDto = Staff
 
@@ -228,10 +229,101 @@ export async function resetStaffPassword(
   }
 }
 
+export type StaffAccessDto = {
+  staffId: string
+  roleDefaults: string[]
+  assignable: string[]
+  groups: { label: string; permissions: string[] }[]
+  overrides: PermissionOverrides
+  effective: string[]
+  selected: string[]
+}
+
+export async function getStaffAccess(
+  session: SessionContext,
+  staffId: string,
+): Promise<StaffAccessDto> {
+  requirePermission(session, 'teachers.manage')
+  const row = await getDoc<Staff>('staff', staffId)
+  if (!row) throw notFound('Staff not found')
+
+  const {
+    listPermissions,
+    TEACHER_ASSIGNABLE_PERMISSIONS,
+    TEACHER_PERMISSION_GROUPS,
+    resolveEffectivePermissions,
+  } = await import('@/server/authorization/rbac-map')
+
+  const overrides = row.permissionOverrides ?? {}
+  const effective = resolveEffectivePermissions('TEACHER', overrides)
+  const assignable = [...TEACHER_ASSIGNABLE_PERMISSIONS]
+  const selected = assignable.filter((p) => effective.includes(p))
+
+  return {
+    staffId,
+    roleDefaults: listPermissions('TEACHER'),
+    assignable,
+    groups: TEACHER_PERMISSION_GROUPS.map((g) => ({
+      label: g.label,
+      permissions: [...g.permissions],
+    })),
+    overrides,
+    effective,
+    selected,
+  }
+}
+
+export async function updateStaffAccess(
+  session: SessionContext,
+  staffId: string,
+  selectedPermissions: string[],
+  requestId?: string,
+): Promise<StaffAccessDto> {
+  requirePermission(session, 'teachers.manage')
+  const row = await getDoc<Staff>('staff', staffId)
+  if (!row) throw notFound('Staff not found')
+
+  const { overridesFromTeacherSelection } = await import('@/server/authorization/rbac-map')
+  const overrides = overridesFromTeacherSelection(selectedPermissions)
+
+  await setDoc('staff', staffId, {
+    ...row,
+    permissionOverrides: {
+      grant: overrides.grant ?? [],
+      deny: overrides.deny ?? [],
+    },
+  })
+
+  // Drop cached sessions so the teacher picks up access changes quickly
+  try {
+    const { forget } = await import('@/server/http/memo')
+    forget('session:')
+  } catch {
+    /* ignore */
+  }
+
+  await writeAuditLog({
+    actorId: session.uid,
+    actorRole: session.role,
+    action: 'staff.access_update',
+    entityType: 'staff',
+    entityId: staffId,
+    requestId,
+    metadata: {
+      grant: overrides.grant ?? [],
+      deny: overrides.deny ?? [],
+    },
+  })
+
+  return getStaffAccess(session, staffId)
+}
+
 export const listStaffService = listStaff
 export const createStaffService = createStaff
 export const listStaffCredentialsService = listStaffCredentials
 export const resetStaffPasswordService = resetStaffPassword
+export const getStaffAccessService = getStaffAccess
+export const updateStaffAccessService = updateStaffAccess
 
 // Guardians lived here briefly — re-export for API routes that still import from staff-service
 export {

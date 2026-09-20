@@ -13,7 +13,6 @@ const FULL_STUDENT_ACCESS = new Set([
   'RECEPTIONIST',
   'ACCOUNTANT',
   'FINANCE_OFFICER',
-  'TEACHER',
   'LIBRARIAN',
   'TRANSPORT_MANAGER',
 ])
@@ -28,6 +27,14 @@ export async function getGuardianOrThrow(id: string): Promise<Guardian> {
   const snap = await getAdminDb().collection('guardians').doc(id).get()
   if (!snap.exists) throw notFound('Guardian not found')
   return { id: snap.id, ...(snap.data() as Omit<Guardian, 'id'>) }
+}
+
+async function getStaffForSession(session: SessionContext): Promise<Staff | null> {
+  const staffId = session.profile.staffId
+  if (!staffId) return null
+  const snap = await getAdminDb().collection('staff').doc(staffId).get()
+  if (!snap.exists) return null
+  return { id: snap.id, ...(snap.data() as Omit<Staff, 'id'>) }
 }
 
 /** Ensure session parent is linked to the given student via guardians/{guardianId}. */
@@ -61,6 +68,16 @@ export async function assertCanAccessStudent(
 
   if (FULL_STUDENT_ACCESS.has(session.role)) return loaded
 
+  if (session.role === 'TEACHER') {
+    const staff = await getStaffForSession(session)
+    if (!staff) throw forbidden('Teacher profile is not linked to staff')
+    const classIds = staff.classIds ?? []
+    if (!classIds.includes(loaded.classId)) {
+      throw forbidden("Teacher is not assigned to this student's class")
+    }
+    return loaded
+  }
+
   if (session.role === 'STUDENT') {
     if (session.profile.studentId !== studentId) {
       throw forbidden('Student record access denied')
@@ -81,8 +98,14 @@ export function filterStudentsForRole(
   session: SessionContext,
   students: Student[],
   linkedStudentIds?: string[],
+  teacherClassIds?: string[],
 ): Student[] {
   if (FULL_STUDENT_ACCESS.has(session.role)) return students
+
+  if (session.role === 'TEACHER') {
+    const ids = new Set(teacherClassIds ?? [])
+    return students.filter((s) => ids.has(s.classId))
+  }
 
   if (session.role === 'STUDENT') {
     const id = session.profile.studentId
@@ -118,6 +141,16 @@ export async function listAccessibleStudents(session: SessionContext): Promise<S
     return out
   }
 
+  if (session.role === 'TEACHER') {
+    const staff = await getStaffForSession(session)
+    const classIds = new Set(staff?.classIds ?? [])
+    if (classIds.size === 0) return []
+    const snap = await db.collection('students').limit(500).get()
+    return snap.docs
+      .map((d) => ({ id: d.id, ...(d.data() as Omit<Student, 'id'>) }))
+      .filter((s) => classIds.has(s.classId))
+  }
+
   const snap = await db.collection('students').limit(500).get()
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Student, 'id'>) }))
 }
@@ -128,11 +161,8 @@ export async function assertTeacherOwnsClass(
   classId: string,
 ): Promise<void> {
   if (session.role !== 'TEACHER') return
-  const staffId = session.profile.staffId
-  if (!staffId) throw forbidden('Teacher profile is not linked to staff')
-  const snap = await getAdminDb().collection('staff').doc(staffId).get()
-  if (!snap.exists) throw forbidden('Staff record not found')
-  const staff = snap.data() as Staff
+  const staff = await getStaffForSession(session)
+  if (!staff) throw forbidden('Teacher profile is not linked to staff')
   if (!staff.classIds?.includes(classId)) {
     throw forbidden('Teacher is not assigned to this class')
   }

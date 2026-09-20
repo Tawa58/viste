@@ -22,6 +22,22 @@ describe('RBAC permissions', () => {
     expect(hasPermission('TEACHER', 'results.approve')).toBe(false)
   })
 
+  it('resolves teacher grant/deny overrides', async () => {
+    const { resolveEffectivePermissions, overridesFromTeacherSelection } = await import(
+      '@/server/authorization/rbac-map'
+    )
+    const overrides = overridesFromTeacherSelection([
+      'students.read',
+      'classes.read',
+      'fees.read',
+    ])
+    expect(overrides.grant).toContain('fees.read')
+    expect(overrides.deny).toContain('attendance.read')
+    const effective = resolveEffectivePermissions('TEACHER', overrides)
+    expect(effective).toContain('fees.read')
+    expect(effective).not.toContain('attendance.create')
+  })
+
   it('every role has a permission list', () => {
     for (const role of Object.keys(ROLE_PERMISSIONS)) {
       expect(ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS].length).toBeGreaterThan(0)

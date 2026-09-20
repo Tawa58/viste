@@ -395,7 +395,7 @@ export function UsersRolesPage() {
     <div>
       <PageHeader
         title="Users & Roles"
-        description="RBAC management UI — permissions are visual only for now."
+        description="Manage school users. Configure each teacher’s access from their teacher profile."
         breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Users & Roles' }]}
       />
       <Tabs defaultValue="users">
