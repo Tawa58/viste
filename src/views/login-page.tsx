@@ -5,8 +5,10 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import { BrandMark } from '@/components/shared/brand-mark'
-import { notify } from '@/lib/notify'
-import { Alert } from '@/components/shared/alert'
+import {
+  LoginAuthFeedback,
+  type LoginAuthStatus,
+} from '@/components/shared/login-auth-feedback'
 import { ThemeToggle } from '@/components/shared/theme-toggle'
 import { FadeIn } from '@/components/shared/page-transition'
 import { Button } from '@/components/ui/button'
@@ -17,6 +19,7 @@ import { Label } from '@/components/ui/label'
 import { useAuth } from '@/contexts/auth-context'
 import { authService } from '@/services/api'
 import { USE_MOCK_API } from '@/services/api/client'
+import { cn } from '@/lib/utils'
 
 const loginSchema = z.object({
   email: z.string().min(1, 'Email or username is required'),
@@ -26,11 +29,17 @@ const loginSchema = z.object({
 
 type LoginValues = z.infer<typeof loginSchema>
 
+function wait(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
 export function LoginPage() {
   const { user, login } = useAuth()
   const navigate = useNavigate()
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [authStatus, setAuthStatus] = useState<LoginAuthStatus>('idle')
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -41,23 +50,22 @@ export function LoginPage() {
     },
   })
 
-  if (user) return <Navigate to="/dashboard" replace />
+  const busy = authStatus !== 'idle'
+
+  // Allow success animation to finish before auto-redirect from auth context
+  if (user && authStatus === 'idle') return <Navigate to="/dashboard" replace />
 
   async function onSubmit(values: LoginValues) {
-    setError(null)
+    setAuthStatus('loading')
     try {
-      await notify.process(
-        () => login(values.email.trim(), values.password, values.remember),
-        {
-          loading: 'Signing you in…',
-          success: 'Welcome back to Viste High School',
-          error: 'Sign-in failed. Check your credentials and try again.',
-        },
-      )
-      navigate('/dashboard')
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Login failed'
-      setError(message)
+      await login(values.email.trim(), values.password, values.remember)
+      setAuthStatus('success')
+      await wait(1250)
+      navigate('/dashboard', { replace: true })
+    } catch {
+      setAuthStatus('error')
+      await wait(1500)
+      setAuthStatus('idle')
     }
   }
 
@@ -100,7 +108,12 @@ export function LoginPage() {
         </FadeIn>
 
         <FadeIn delay={0.08}>
-          <Card className="mx-auto w-full max-w-md border-border/70 shadow-elevated hover:shadow-elevated">
+          <Card
+            className={cn(
+              'relative mx-auto w-full max-w-md border-border/70 shadow-elevated hover:shadow-elevated',
+              busy && 'pointer-events-none',
+            )}
+          >
             <CardHeader className="space-y-3">
               <div className="lg:hidden">
                 <BrandMark />
@@ -115,6 +128,7 @@ export function LoginPage() {
                   <Input
                     id="email"
                     autoComplete="username"
+                    disabled={busy}
                     {...form.register('email')}
                     placeholder="you@viste.school"
                   />
@@ -133,13 +147,15 @@ export function LoginPage() {
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
                       className="pr-11"
+                      disabled={busy}
                       {...form.register('password')}
                     />
                     <button
                       type="button"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
                       onClick={() => setShowPassword((v) => !v)}
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      disabled={busy}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -156,6 +172,7 @@ export function LoginPage() {
                     <Checkbox
                       checked={form.watch('remember')}
                       onCheckedChange={(v) => form.setValue('remember', v === true)}
+                      disabled={busy}
                     />
                     Remember me
                   </label>
@@ -164,9 +181,12 @@ export function LoginPage() {
                   </button>
                 </div>
 
-                {error && <Alert title={error} tone="danger" />}
-
-                <Button type="submit" className="w-full" loading={form.formState.isSubmitting}>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  loading={authStatus === 'loading'}
+                  disabled={busy}
+                >
                   Sign in
                 </Button>
               </form>
@@ -195,6 +215,8 @@ export function LoginPage() {
           </Card>
         </FadeIn>
       </div>
+
+      {authStatus !== 'idle' ? <LoginAuthFeedback status={authStatus} /> : null}
     </div>
   )
 }
