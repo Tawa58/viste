@@ -4,6 +4,14 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Viste High School Management System',
   description: 'School operations console for academics, attendance, fees, and staff.',
+  icons: {
+    icon: [
+      { url: '/favicon.png', type: 'image/png' },
+      { url: '/icon.png', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-icon.png', type: 'image/png' }],
+    shortcut: '/favicon.png',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
