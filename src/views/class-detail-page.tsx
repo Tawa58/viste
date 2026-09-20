@@ -48,6 +48,7 @@ export function ClassDetailPage() {
   const [staff, setStaff] = useState<Staff[]>([])
   const [years, setYears] = useState<AcademicYear[]>([])
   const [terms, setTerms] = useState<Term[]>([])
+  const [subjects, setSubjects] = useState<import('@/types').Subject[]>([])
 
   const [editOpen, setEditOpen] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
@@ -59,20 +60,22 @@ export function ClassDetailPage() {
     name: '',
     educationLevelId: '',
     academicYearId: '',
-    termId: '',
+    termSequence: 1 as 1 | 2 | 3,
     classTeacherId: '',
+    subjectIds: [] as string[],
     description: '',
   })
 
   async function reload() {
     if (!id) return
-    const [c, stu, classes, sf, y, t] = await Promise.all([
+    const [c, stu, classes, sf, y, t, sub] = await Promise.all([
       classService.getById(id),
       studentService.list(),
       classService.list(),
       catalogService.getStaff(),
       catalogService.getYears(),
       catalogService.getTerms(),
+      catalogService.getSubjects(),
     ])
     setCls(c)
     setStudents(stu.filter((s) => s.classId === id))
@@ -80,6 +83,7 @@ export function ClassDetailPage() {
     setStaff(sf)
     setYears(y)
     setTerms(t)
+    setSubjects(sub)
   }
 
   useEffect(() => {
@@ -101,12 +105,17 @@ export function ClassDetailPage() {
 
   function openEdit() {
     if (!cls) return
+    const seq =
+      (cls.termSequence as 1 | 2 | 3 | undefined) ||
+      (terms.find((t) => t.id === cls.termId)?.sequence as 1 | 2 | 3 | undefined) ||
+      1
     setEditForm({
       name: cls.name,
       educationLevelId: cls.educationLevelId ?? '',
       academicYearId: cls.academicYearId,
-      termId: cls.termId ?? '',
+      termSequence: seq,
       classTeacherId: cls.classTeacherId ?? '',
+      subjectIds: [...(cls.subjectIds ?? [])],
       description: cls.description ?? '',
     })
     setEditOpen(true)
@@ -114,6 +123,10 @@ export function ClassDetailPage() {
 
   async function saveEdit() {
     if (!cls) return
+    if (!editForm.classTeacherId) {
+      notify.error('Class teacher is required')
+      return
+    }
     setSaving(true)
     try {
       await notify.process(
@@ -121,9 +134,10 @@ export function ClassDetailPage() {
           classService.update(cls.id, {
             name: editForm.name.trim(),
             educationLevelId: editForm.educationLevelId,
-            academicYearId: editForm.academicYearId,
-            termId: editForm.termId || undefined,
-            classTeacherId: editForm.classTeacherId || undefined,
+            academicYearId: editForm.academicYearId || undefined,
+            termSequence: editForm.termSequence,
+            classTeacherId: editForm.classTeacherId,
+            subjectIds: editForm.subjectIds,
             description: editForm.description.trim() || undefined,
           }),
         { loading: 'Saving class…', success: 'Class updated' },
@@ -260,7 +274,11 @@ export function ClassDetailPage() {
             <p className="text-xs text-muted-foreground">Year / term</p>
             <p className="mt-1 font-semibold">
               {year?.name ?? '—'}
-              {term ? ` · ${term.name}` : ''}
+              {cls.termSequence
+                ? ` · Term ${cls.termSequence}`
+                : term
+                  ? ` · ${term.name}`
+                  : ''}
             </p>
           </CardContent>
         </Card>
@@ -271,6 +289,23 @@ export function ClassDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {(cls.subjectIds ?? []).length > 0 ? (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Subjects</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {subjects
+              .filter((s) => (cls.subjectIds ?? []).includes(s.id))
+              .map((s) => (
+                <Badge key={s.id} variant="secondary">
+                  {s.name}
+                </Badge>
+              ))}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {cls.description ? (
         <Card className="mb-6">
@@ -380,31 +415,29 @@ export function ClassDetailPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Academic year</Label>
-                <Select
-                  value={editForm.academicYearId}
-                  onChange={(e) => setEditForm((f) => ({ ...f, academicYearId: e.target.value }))}
-                >
-                  {years.map((y) => (
-                    <option key={y.id} value={y.id}>
-                      {y.name}
-                    </option>
-                  ))}
-                </Select>
+                <Input
+                  value={
+                    (years.find((y) => y.id === editForm.academicYearId)?.name ??
+                      years.find((y) => y.isCurrent)?.name ??
+                      'Current year') + ' (automatic)'
+                  }
+                  disabled
+                />
               </div>
               <div className="space-y-2">
                 <Label>Term</Label>
                 <Select
-                  value={editForm.termId}
-                  onChange={(e) => setEditForm((f) => ({ ...f, termId: e.target.value }))}
+                  value={String(editForm.termSequence)}
+                  onChange={(e) =>
+                    setEditForm((f) => ({
+                      ...f,
+                      termSequence: Number(e.target.value) as 1 | 2 | 3,
+                    }))
+                  }
                 >
-                  <option value="">Optional</option>
-                  {terms
-                    .filter((t) => t.academicYearId === editForm.academicYearId)
-                    .map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
+                  <option value="1">Term 1</option>
+                  <option value="2">Term 2</option>
+                  <option value="3">Term 3</option>
                 </Select>
               </div>
             </div>
@@ -414,13 +447,44 @@ export function ClassDetailPage() {
                 value={editForm.classTeacherId}
                 onChange={(e) => setEditForm((f) => ({ ...f, classTeacherId: e.target.value }))}
               >
-                <option value="">Unassigned</option>
+                <option value="">Select teacher</option>
                 {staff.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.firstName} {s.lastName}
                   </option>
                 ))}
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Subjects</Label>
+              <div className="grid max-h-40 gap-2 overflow-y-auto rounded-xl border border-border p-3 sm:grid-cols-2">
+                {subjects
+                  .filter((s) => {
+                    if (s.active === false) return false
+                    if (!s.educationLevelIds?.length) return true
+                    return s.educationLevelIds.includes(editForm.educationLevelId)
+                  })
+                  .map((subject) => {
+                    const checked = editForm.subjectIds.includes(subject.id)
+                    return (
+                      <label key={subject.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() =>
+                            setEditForm((f) => ({
+                              ...f,
+                              subjectIds: checked
+                                ? f.subjectIds.filter((x) => x !== subject.id)
+                                : [...f.subjectIds, subject.id],
+                            }))
+                          }
+                        />
+                        {subject.name}
+                      </label>
+                    )
+                  })}
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Notes</Label>

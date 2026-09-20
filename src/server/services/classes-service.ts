@@ -11,6 +11,10 @@ import {
 import { getDoc, newId, queryCollection, setDoc } from '@/server/repositories/firestore-repo'
 import type { ClassCreateInput, ClassUpdateInput } from '@/server/validators/school'
 import type { SchoolClass, Stream, Student, StudentClassStats } from '@/types'
+import {
+  ensureCurrentAcademicCalendar,
+  resolveTermForSequence,
+} from '@/server/services/academic-calendar-service'
 
 export type ClassDto = SchoolClass
 
@@ -19,6 +23,7 @@ function normalizeClass(row: SchoolClass): SchoolClass {
     ...row,
     status: row.status ?? 'ACTIVE',
     level: row.level || educationLevelName(row.educationLevelId) || row.name,
+    subjectIds: row.subjectIds ?? [],
   }
 }
 
@@ -44,15 +49,28 @@ export async function createClass(
   const level = getEducationLevel(input.educationLevelId)
   if (!level) throw badRequest('Invalid education level')
 
+  const calendar = await ensureCurrentAcademicCalendar()
+  const academicYearId = emptyToUndefined(input.academicYearId) || calendar.year.id
+
+  const termSequence = (input.termSequence ??
+    (input.termId
+      ? calendar.terms.find((t) => t.id === input.termId)?.sequence
+      : undefined) ??
+    1) as 1 | 2 | 3
+
+  const term = await resolveTermForSequence(academicYearId, termSequence)
+
   const id = newId('cls')
   const row: SchoolClass = {
     id,
     name: input.name.trim(),
     educationLevelId: input.educationLevelId,
     level: level.name,
-    academicYearId: input.academicYearId,
-    termId: input.termId || undefined,
-    classTeacherId: input.classTeacherId || undefined,
+    academicYearId,
+    termId: term.id,
+    termSequence,
+    classTeacherId: emptyToUndefined(input.classTeacherId),
+    subjectIds: [...(input.subjectIds ?? [])],
     description: input.description?.trim() || undefined,
     capacity: input.capacity,
     status: input.status ?? 'ACTIVE',
@@ -77,7 +95,12 @@ export async function createClass(
     entityId: id,
     requestId,
   })
-  return row
+  return normalizeClass(row)
+}
+
+function emptyToUndefined(value?: string | null) {
+  if (!value || !value.trim()) return undefined
+  return value.trim()
 }
 
 export async function updateClass(
@@ -98,6 +121,18 @@ export async function updateClass(
   const educationLevelId = patch.educationLevelId ?? current.educationLevelId
   const levelName = educationLevelName(educationLevelId) || current.level
 
+  let academicYearId = patch.academicYearId || current.academicYearId
+  let termId = patch.termId === '' ? undefined : (patch.termId ?? current.termId)
+  let termSequence = patch.termSequence ?? current.termSequence
+
+  if (patch.termSequence === 1 || patch.termSequence === 2 || patch.termSequence === 3) {
+    const calendar = await ensureCurrentAcademicCalendar()
+    academicYearId = academicYearId || calendar.year.id
+    const term = await resolveTermForSequence(academicYearId, patch.termSequence)
+    termId = term.id
+    termSequence = patch.termSequence
+  }
+
   const next: SchoolClass = {
     ...current,
     ...patch,
@@ -105,14 +140,14 @@ export async function updateClass(
     name: patch.name?.trim() ?? current.name,
     educationLevelId,
     level: levelName,
-    termId:
-      patch.termId === ''
-        ? undefined
-        : (patch.termId ?? current.termId),
+    academicYearId,
+    termId,
+    termSequence,
     classTeacherId:
       patch.classTeacherId === ''
         ? undefined
         : (patch.classTeacherId ?? current.classTeacherId),
+    subjectIds: patch.subjectIds ?? current.subjectIds ?? [],
     description: patch.description?.trim() ?? current.description,
     status: patch.status ?? current.status ?? 'ACTIVE',
   }

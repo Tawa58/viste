@@ -15,8 +15,6 @@ describe('validators', () => {
 
   it('accepts valid student create', () => {
     const parsed = studentCreateSchema.safeParse({
-      studentNumber: 'S1',
-      admissionNumber: 'A1',
       firstName: 'Ada',
       lastName: 'Lovelace',
       dateOfBirth: '2008-01-01',
@@ -25,6 +23,21 @@ describe('validators', () => {
       admissionDate: '2025-01-01',
       classId: 'cls-f1',
       streamId: 'str-1a',
+    })
+    expect(parsed.success).toBe(true)
+  })
+
+  it('accepts blank numbers for auto-assignment', () => {
+    const parsed = studentCreateSchema.safeParse({
+      studentNumber: '',
+      admissionNumber: '',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      dateOfBirth: '2008-01-01',
+      gender: 'Female',
+      address: 'Harare',
+      admissionDate: '2026-01-15',
+      classId: 'cls_f1',
     })
     expect(parsed.success).toBe(true)
   })

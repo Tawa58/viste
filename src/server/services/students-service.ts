@@ -9,6 +9,12 @@ import {
 } from '@/server/authorization/isolation'
 import { badRequest, notFound } from '@/server/errors'
 import { resolveEducationLevelId } from '@/lib/education-levels'
+import {
+  enrollmentYearFromDate,
+  formatVhsNumber,
+  maxVhsSequence,
+} from '@/lib/student-numbers'
+import { getAdminDb } from '@/lib/firebase/admin'
 import { getDoc, newId, queryCollection, setDoc } from '@/server/repositories/firestore-repo'
 import { getDefaultStreamForClass } from '@/server/services/classes-service'
 import type {
@@ -30,6 +36,34 @@ export type StudentDto = Student
 function emptyToUndefined(value?: string | null) {
   if (!value || !value.trim()) return undefined
   return value.trim()
+}
+
+/** Allocate next VHS-{year}-{001} via a per-year counter (seeded from existing students). */
+async function allocateVhsStudentNumber(admissionDate: string): Promise<string> {
+  const year = enrollmentYearFromDate(admissionDate)
+  const db = getAdminDb()
+  const counterRef = db.collection('counters').doc(`vhs-${year}`)
+
+  const existingCounter = await counterRef.get()
+  if (!existingCounter.exists) {
+    const existing = await db.collection('students').select('studentNumber', 'admissionNumber').get()
+    const rows = existing.docs.map(
+      (d) => d.data() as { studentNumber?: string; admissionNumber?: string },
+    )
+    const seed = maxVhsSequence(rows, year) + 1
+    await counterRef.set({ next: seed, year, updatedAt: new Date().toISOString() }, { merge: true })
+  }
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(counterRef)
+    const next = typeof snap.data()?.next === 'number' ? (snap.data()!.next as number) : 1
+    tx.set(
+      counterRef,
+      { next: next + 1, year, updatedAt: new Date().toISOString() },
+      { merge: true },
+    )
+    return formatVhsNumber(year, next)
+  })
 }
 
 export async function listStudents(session: SessionContext): Promise<StudentDto[]> {
@@ -90,10 +124,25 @@ export async function createStudent(
     schoolClass.educationLevelId ||
     resolveEducationLevelId(schoolClass.level)
 
+  const providedStudentNo = emptyToUndefined(input.studentNumber)
+  const providedAdmissionNo = emptyToUndefined(input.admissionNumber)
+  let studentNumber = providedStudentNo
+  let admissionNumber = providedAdmissionNo
+
+  if (!studentNumber || !admissionNumber) {
+    const allocated = await allocateVhsStudentNumber(input.admissionDate)
+    studentNumber = studentNumber ?? allocated
+    admissionNumber = admissionNumber ?? allocated
+  }
+
+  // Keep both in sync when only one was provided
+  if (providedStudentNo && !providedAdmissionNo) admissionNumber = providedStudentNo
+  if (providedAdmissionNo && !providedStudentNo) studentNumber = providedAdmissionNo
+
   const row: Student = {
     id,
-    studentNumber: input.studentNumber.trim(),
-    admissionNumber: input.admissionNumber.trim(),
+    studentNumber,
+    admissionNumber,
     firstName: input.firstName.trim(),
     middleName: emptyToUndefined(input.middleName),
     lastName: input.lastName.trim(),

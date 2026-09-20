@@ -12,8 +12,9 @@ export const studentStatusSchema = z.enum([
 ])
 
 export const studentCreateSchema = z.object({
-  studentNumber: z.string().min(1).max(64),
-  admissionNumber: z.string().min(1).max(64),
+  /** Optional on create — server assigns VHS-{year}-{001} when blank. */
+  studentNumber: z.string().max(64).optional().or(z.literal('')),
+  admissionNumber: z.string().max(64).optional().or(z.literal('')),
   firstName: z.string().min(1).max(100),
   middleName: z.string().max(100).optional(),
   lastName: z.string().min(1).max(100),
@@ -61,9 +62,13 @@ export const classStatusSchema = z.enum(['ACTIVE', 'ARCHIVED'])
 export const classCreateSchema = z.object({
   name: z.string().min(1).max(120),
   educationLevelId: z.string().min(1).max(40),
-  academicYearId: idSchema,
+  /** Optional — server uses the current academic year when omitted. */
+  academicYearId: idSchema.optional().or(z.literal('')),
   termId: idSchema.optional().or(z.literal('')),
+  /** Preferred: Term 1 / 2 / 3 — resolved against the academic year. */
+  termSequence: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
   classTeacherId: idSchema.optional().or(z.literal('')),
+  subjectIds: z.array(idSchema).default([]),
   description: z.string().max(1000).optional(),
   capacity: z.number().int().min(1).max(200).optional(),
   status: classStatusSchema.default('ACTIVE'),

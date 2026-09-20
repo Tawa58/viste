@@ -42,6 +42,7 @@ import {
 import { catalogService, classService, studentService } from '@/services/api'
 import { cn, fullName } from '@/lib/utils'
 import { EDUCATION_LEVELS, educationLevelName } from '@/lib/education-levels'
+import { previewNextVhsNumber } from '@/lib/student-numbers'
 import type {
   ClubActivity,
   Guardian,
@@ -179,8 +180,10 @@ export function StudentsPage() {
   }, [search, classFilter, levelFilter, genderFilter, statusFilter, subjectFilter, sportFilter, sort])
 
   function openCreate() {
-    const defaultClass = classes.find((c) => (c.status ?? 'ACTIVE') === 'ACTIVE') ?? classes[0]
-    const defaultStream = streams.find((s) => s.classId === defaultClass?.id)
+    const defaultClass = classes.find((c) => (c.status ?? 'ACTIVE') === 'ACTIVE')
+    const defaultStream = defaultClass
+      ? streams.find((s) => s.classId === defaultClass.id)
+      : undefined
     setEditing(null)
     setForm({
       ...studentToFormValues(),
@@ -189,6 +192,8 @@ export function StudentsPage() {
       educationLevelId: defaultClass?.educationLevelId ?? '',
       academicYearId: defaultClass?.academicYearId ?? '',
       termId: defaultClass?.termId ?? '',
+      studentNumber: '',
+      admissionNumber: '',
       subjectIds: [],
     })
     setFormOpen(true)
@@ -212,9 +217,6 @@ export function StudentsPage() {
 
     setSaving(true)
     try {
-      const seq = students.length + 1
-      const admission =
-        form.admissionNumber.trim() || `ADM-${String(24000 + seq)}`
       const payload = {
         firstName: form.firstName.trim(),
         middleName: form.middleName.trim() || undefined,
@@ -236,10 +238,9 @@ export function StudentsPage() {
         clubIds: form.clubIds,
         houseId: form.houseId || undefined,
         guardianIds: form.guardianIds,
-        studentNumber:
-          form.studentNumber.trim() ||
-          `VHS-${new Date().getFullYear()}-${String(seq).padStart(3, '0')}`,
-        admissionNumber: admission,
+        // Blank on create → server assigns VHS-{year}-{001} for both numbers
+        studentNumber: editing ? form.studentNumber.trim() : '',
+        admissionNumber: editing ? form.admissionNumber.trim() : '',
         newGuardians:
           form.newGuardian &&
           form.newGuardian.firstName.trim() &&
@@ -518,6 +519,9 @@ export function StudentsPage() {
             houses={houses}
             guardians={guardians}
             fullAccess
+            numberPreview={
+              editing ? undefined : previewNextVhsNumber(students, form.admissionDate)
+            }
           />
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setFormOpen(false)} disabled={saving}>

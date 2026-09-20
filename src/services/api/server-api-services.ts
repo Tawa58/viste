@@ -143,9 +143,18 @@ export const apiClassService = {
   list: () => apiFetch<SchoolClass[]>('/api/v1/classes'),
   getStats: () => apiFetch<StudentClassStats>('/api/v1/classes?stats=1'),
   getById: (id: string) => apiFetch<SchoolClass>(`/api/v1/classes/${id}`),
-  create: (input: Omit<SchoolClass, 'id' | 'level'> & { educationLevelId: string }) =>
+  create: (
+    input: Omit<SchoolClass, 'id' | 'level' | 'academicYearId'> & {
+      educationLevelId: string
+      academicYearId?: string
+      termSequence?: 1 | 2 | 3
+    },
+  ) =>
     apiFetch<SchoolClass>('/api/v1/classes', { method: 'POST', body: JSON.stringify(input) }),
-  update: (id: string, patch: Partial<SchoolClass>) =>
+  update: (
+    id: string,
+    patch: Partial<SchoolClass> & { termSequence?: 1 | 2 | 3 },
+  ) =>
     apiFetch<SchoolClass>(`/api/v1/classes/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),

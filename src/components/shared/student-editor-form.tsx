@@ -108,6 +108,7 @@ export function StudentEditorForm({
   houses = [],
   guardians,
   fullAccess,
+  numberPreview,
   className,
 }: {
   mode: 'create' | 'edit'
@@ -122,6 +123,8 @@ export function StudentEditorForm({
   guardians: Guardian[]
   /** Admin/registrar: full fields. Teacher: phone + address only. */
   fullAccess: boolean
+  /** Preview of auto-assigned VHS number on create. */
+  numberPreview?: string
   className?: string
 }) {
   const classStreams = useMemo(
@@ -185,7 +188,10 @@ export function StudentEditorForm({
     )
   }
 
-  const activeClasses = classes.filter((c) => (c.status ?? 'ACTIVE') === 'ACTIVE')
+  const activeClasses = useMemo(() => {
+    const open = classes.filter((c) => (c.status ?? 'ACTIVE') !== 'ARCHIVED')
+    return open.length > 0 ? open : classes
+  }, [classes])
 
   return (
     <div className={cn('space-y-5', className)}>
@@ -278,38 +284,10 @@ export function StudentEditorForm({
           Academic information
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Student / admission number</Label>
-            <Input
-              value={values.admissionNumber}
-              onChange={(e) =>
-                onChange({
-                  ...values,
-                  admissionNumber: e.target.value,
-                  studentNumber: values.studentNumber || e.target.value,
-                })
-              }
-              placeholder={mode === 'create' ? 'e.g. VHS-2026-001' : undefined}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Student number</Label>
-            <Input
-              value={values.studentNumber}
-              onChange={(e) => setField('studentNumber', e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Admission date</Label>
-            <Input
-              type="date"
-              value={values.admissionDate}
-              onChange={(e) => setField('admissionDate', e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Class</Label>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="student-class">Class</Label>
             <Select
+              id="student-class"
               value={values.classId}
               onChange={(e) => {
                 const classId = e.target.value
@@ -324,14 +302,18 @@ export function StudentEditorForm({
                   educationLevelId: nextLevel,
                   academicYearId: cls?.academicYearId ?? values.academicYearId,
                   termId: cls?.termId ?? values.termId,
-                  // Drop subjects that no longer match the level
-                  subjectIds: values.subjectIds.filter((id) => {
-                    const sub = subjects.find((s) => s.id === id)
-                    if (!sub?.educationLevelIds?.length) return true
-                    return !nextLevel || sub.educationLevelIds.includes(nextLevel)
-                  }),
+                  // Prefer the class curriculum; fall back to level-compatible selection
+                  subjectIds:
+                    cls?.subjectIds && cls.subjectIds.length > 0
+                      ? [...cls.subjectIds]
+                      : values.subjectIds.filter((id) => {
+                          const sub = subjects.find((s) => s.id === id)
+                          if (!sub?.educationLevelIds?.length) return true
+                          return !nextLevel || sub.educationLevelIds.includes(nextLevel)
+                        }),
                 })
               }}
+              required
             >
               <option value="">Select class</option>
               {activeClasses.map((c) => (
@@ -340,13 +322,67 @@ export function StudentEditorForm({
                 </option>
               ))}
             </Select>
+            {activeClasses.length === 0 ? (
+              <p className="text-xs text-destructive">
+                No active classes found. Create a class under Classes before registering students.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Required. Choosing a class sets the education level and filters subjects.
+              </p>
+            )}
           </div>
+
           {levelId ? (
-            <div className="space-y-2 sm:col-span-2">
+            <div className="space-y-2">
               <Label>Education level</Label>
               <Input value={educationLevelName(levelId)} disabled />
             </div>
           ) : null}
+
+          <div className="space-y-2">
+            <Label>Admission date</Label>
+            <Input
+              type="date"
+              value={values.admissionDate}
+              onChange={(e) => setField('admissionDate', e.target.value)}
+            />
+          </div>
+
+          {mode === 'create' ? (
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Student / admission number</Label>
+              <Input
+                value={numberPreview || 'VHS-YYYY-001'}
+                disabled
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                Assigned automatically as <span className="font-mono">VHS-{'{year}'}-001</span> based
+                on admission year. Same value is used for student number and admission number.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label>Admission number</Label>
+                <Input
+                  value={values.admissionNumber}
+                  onChange={(e) => setField('admissionNumber', e.target.value)}
+                  className="font-mono"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Student number</Label>
+                <Input
+                  value={values.studentNumber}
+                  onChange={(e) => setField('studentNumber', e.target.value)}
+                  className="font-mono"
+                />
+              </div>
+            </>
+          )}
+
           {classStreams.length > 1 ? (
             <div className="space-y-2">
               <Label>Stream</Label>

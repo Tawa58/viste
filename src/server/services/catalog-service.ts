@@ -57,6 +57,11 @@ export async function getCatalogSnapshot(session: SessionContext) {
   requirePermission(session, 'classes.read')
   const { remember, sessionCacheKey } = await import('@/server/http/memo')
   return remember(sessionCacheKey(session, 'catalog'), 30_000, async () => {
+    const { ensureCurrentAcademicCalendar } = await import(
+      '@/server/services/academic-calendar-service'
+    )
+    await ensureCurrentAcademicCalendar()
+
     const [classes, streams, subjects, academicYears, terms, sports, clubs, houses] =
       await Promise.all([
         queryCollection<SchoolClass>('classes', { limit: 100 }),

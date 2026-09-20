@@ -197,11 +197,17 @@ class MockStudentService implements StudentService {
     return mockRequest(students.find((s) => s.id === id))
   }
   async create(input: Omit<Student, 'id'>) {
+    const { previewNextVhsNumber } = await import('@/lib/student-numbers')
+    const allocated = previewNextVhsNumber(students, input.admissionDate)
     const created: Student = {
       ...input,
       id: `stu-${Date.now()}`,
+      studentNumber: input.studentNumber?.trim() || allocated,
+      admissionNumber: input.admissionNumber?.trim() || allocated,
       subjectIds: [...input.subjectIds],
       guardianIds: [...input.guardianIds],
+      sportIds: [...(input.sportIds ?? [])],
+      clubIds: [...(input.clubIds ?? [])],
     }
     students.unshift(created)
     for (const gid of created.guardianIds) {
@@ -408,11 +414,19 @@ export const classService = USE_MOCK_API
         })),
       }),
       getById: (id: string) => mockRequest(classes.find((c) => c.id === id)!),
-      create: async (input: Omit<SchoolClass, 'id' | 'level'> & { educationLevelId: string }) => {
+      create: async (
+        input: Omit<SchoolClass, 'id' | 'level' | 'academicYearId'> & {
+          educationLevelId: string
+          academicYearId?: string
+          termSequence?: 1 | 2 | 3
+        },
+      ) => {
         const created: SchoolClass = {
           ...input,
           id: `cls-${Date.now()}`,
           level: input.educationLevelId,
+          academicYearId: input.academicYearId || `ay-${new Date().getFullYear()}`,
+          termSequence: input.termSequence ?? 1,
           status: input.status ?? 'ACTIVE',
         }
         classes.unshift(created)
@@ -424,7 +438,10 @@ export const classService = USE_MOCK_API
         })
         return mockRequest(created, 250)
       },
-      update: async (id: string, patch: Partial<SchoolClass>) => {
+      update: async (
+        id: string,
+        patch: Partial<SchoolClass> & { termSequence?: 1 | 2 | 3 },
+      ) => {
         const idx = classes.findIndex((c) => c.id === id)
         if (idx < 0) throw new Error('Class not found')
         classes[idx] = { ...classes[idx], ...patch, id }

@@ -19,17 +19,20 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import { useAuth } from '@/contexts/auth-context'
 import { EDUCATION_LEVELS, educationLevelName } from '@/lib/education-levels'
 import { notify } from '@/lib/notify'
 import { canManageClasses } from '@/lib/roles'
 import { catalogService, classService, studentService } from '@/services/api'
+import { cn } from '@/lib/utils'
 import type {
   AcademicYear,
   SchoolClass,
   Staff,
   Student,
   StudentClassStats,
+  Subject,
   Term,
 } from '@/types'
 
@@ -37,8 +40,9 @@ type ClassForm = {
   name: string
   educationLevelId: string
   academicYearId: string
-  termId: string
+  termSequence: 1 | 2 | 3
   classTeacherId: string
+  subjectIds: string[]
   description: string
 }
 
@@ -46,8 +50,9 @@ const emptyForm = (): ClassForm => ({
   name: '',
   educationLevelId: 'form-1',
   academicYearId: '',
-  termId: '',
+  termSequence: 1,
   classTeacherId: '',
+  subjectIds: [],
   description: '',
 })
 
@@ -61,6 +66,7 @@ export function ClassesPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [years, setYears] = useState<AcademicYear[]>([])
   const [terms, setTerms] = useState<Term[]>([])
+  const [subjects, setSubjects] = useState<Subject[]>([])
   const [stats, setStats] = useState<StudentClassStats | null>(null)
   const [search, setSearch] = useState('')
   const [levelFilter, setLevelFilter] = useState('all')
@@ -70,12 +76,13 @@ export function ClassesPage() {
   const [form, setForm] = useState<ClassForm>(emptyForm())
 
   async function reload() {
-    const [c, sf, stu, y, t, st] = await Promise.all([
+    const [c, sf, stu, y, t, sub, st] = await Promise.all([
       classService.list(),
       catalogService.getStaff(),
       studentService.list(),
       catalogService.getYears(),
       catalogService.getTerms(),
+      catalogService.getSubjects(),
       classService.getStats().catch(() => null),
     ])
     setClasses(c)
@@ -83,6 +90,7 @@ export function ClassesPage() {
     setStudents(stu)
     setYears(y)
     setTerms(t)
+    setSubjects(sub)
     setStats(st)
   }
 
@@ -110,34 +118,68 @@ export function ClassesPage() {
     })
   }, [classes, search, levelFilter, statusFilter])
 
+  const currentYear = useMemo(
+    () => years.find((y) => y.isCurrent) ?? years[0],
+    [years],
+  )
+
+  const levelSubjects = useMemo(() => {
+    return subjects.filter((s) => {
+      if (s.active === false) return false
+      if (!s.educationLevelIds?.length) return true
+      return s.educationLevelIds.includes(form.educationLevelId)
+    })
+  }, [subjects, form.educationLevelId])
+
+  function toggleSubject(id: string) {
+    setForm((f) => ({
+      ...f,
+      subjectIds: f.subjectIds.includes(id)
+        ? f.subjectIds.filter((x) => x !== id)
+        : [...f.subjectIds, id],
+    }))
+  }
+
   function openCreate() {
-    const currentYear = years.find((y) => y.isCurrent) ?? years[0]
-    const yearTerms = terms.filter((t) => t.academicYearId === currentYear?.id)
     setEditing(null)
     setForm({
       ...emptyForm(),
       academicYearId: currentYear?.id ?? '',
-      termId: yearTerms[0]?.id ?? '',
+      termSequence: 1,
+      subjectIds: [],
     })
     setOpen(true)
   }
 
   function openEdit(cls: SchoolClass) {
+    const seq =
+      (cls.termSequence as 1 | 2 | 3 | undefined) ||
+      (terms.find((t) => t.id === cls.termId)?.sequence as 1 | 2 | 3 | undefined) ||
+      1
     setEditing(cls)
     setForm({
       name: cls.name,
       educationLevelId: cls.educationLevelId ?? 'form-1',
-      academicYearId: cls.academicYearId,
-      termId: cls.termId ?? '',
+      academicYearId: cls.academicYearId || currentYear?.id || '',
+      termSequence: seq,
       classTeacherId: cls.classTeacherId ?? '',
+      subjectIds: [...(cls.subjectIds ?? [])],
       description: cls.description ?? '',
     })
     setOpen(true)
   }
 
   async function saveClass() {
-    if (!form.name.trim() || !form.educationLevelId || !form.academicYearId) {
-      notify.error('Class name, education level, and academic year are required')
+    if (!form.name.trim() || !form.educationLevelId) {
+      notify.error('Class name and education level are required')
+      return
+    }
+    if (![1, 2, 3].includes(form.termSequence)) {
+      notify.error('Select Term 1, 2, or 3')
+      return
+    }
+    if (!form.classTeacherId) {
+      notify.error('Select a class teacher')
       return
     }
     setSaving(true)
@@ -145,9 +187,11 @@ export function ClassesPage() {
       const payload = {
         name: form.name.trim(),
         educationLevelId: form.educationLevelId,
-        academicYearId: form.academicYearId,
-        termId: form.termId || undefined,
-        classTeacherId: form.classTeacherId || undefined,
+        // Server fills current academic year when blank
+        academicYearId: form.academicYearId || currentYear?.id || undefined,
+        termSequence: form.termSequence,
+        classTeacherId: form.classTeacherId,
+        subjectIds: form.subjectIds,
         description: form.description.trim() || undefined,
       }
       if (editing) {
@@ -178,8 +222,6 @@ export function ClassesPage() {
   }
 
   if (loading) return <LoadingState message="Loading classes…" />
-
-  const yearTerms = terms.filter((t) => t.academicYearId === form.academicYearId)
 
   return (
     <div>
@@ -297,7 +339,15 @@ export function ClassesPage() {
                   </p>
                   <p>
                     {year?.name ?? '—'}
-                    {term ? ` · ${term.name}` : ''}
+                    {cls.termSequence
+                      ? ` · Term ${cls.termSequence}`
+                      : term
+                        ? ` · ${term.name}`
+                        : ''}
+                  </p>
+                  <p>
+                    Subjects:{' '}
+                    <span className="text-foreground">{(cls.subjectIds ?? []).length}</span>
                   </p>
                   <div className="flex flex-wrap gap-2 pt-1">
                     <Button asChild size="sm" variant="outline">
@@ -330,7 +380,7 @@ export function ClassesPage() {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit class' : 'Create class'}</DialogTitle>
             <DialogDescription>
@@ -352,7 +402,18 @@ export function ClassesPage() {
               <Select
                 id="class-level"
                 value={form.educationLevelId}
-                onChange={(e) => setForm((f) => ({ ...f, educationLevelId: e.target.value }))}
+                onChange={(e) => {
+                  const educationLevelId = e.target.value
+                  setForm((f) => ({
+                    ...f,
+                    educationLevelId,
+                    subjectIds: f.subjectIds.filter((id) => {
+                      const sub = subjects.find((s) => s.id === id)
+                      if (!sub?.educationLevelIds?.length) return true
+                      return sub.educationLevelIds.includes(educationLevelId)
+                    }),
+                  }))
+                }}
               >
                 {EDUCATION_LEVELS.map((l) => (
                   <option key={l.id} value={l.id}>
@@ -364,35 +425,35 @@ export function ClassesPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="class-year">Academic year</Label>
-                <Select
+                <Input
                   id="class-year"
-                  value={form.academicYearId}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, academicYearId: e.target.value, termId: '' }))
+                  value={
+                    (years.find((y) => y.id === (form.academicYearId || currentYear?.id))
+                      ?.name ??
+                      currentYear?.name ??
+                      'Current year') + ' (automatic)'
                   }
-                >
-                  <option value="">Select year</option>
-                  {years.map((y) => (
-                    <option key={y.id} value={y.id}>
-                      {y.name}
-                      {y.isCurrent ? ' (current)' : ''}
-                    </option>
-                  ))}
-                </Select>
+                  disabled
+                />
+                <p className="text-xs text-muted-foreground">
+                  Set automatically to the school’s current academic year.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="class-term">Term</Label>
                 <Select
                   id="class-term"
-                  value={form.termId}
-                  onChange={(e) => setForm((f) => ({ ...f, termId: e.target.value }))}
+                  value={String(form.termSequence)}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      termSequence: Number(e.target.value) as 1 | 2 | 3,
+                    }))
+                  }
                 >
-                  <option value="">Optional</option>
-                  {yearTerms.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
+                  <option value="1">Term 1</option>
+                  <option value="2">Term 2</option>
+                  <option value="3">Term 3</option>
                 </Select>
               </div>
             </div>
@@ -403,7 +464,7 @@ export function ClassesPage() {
                 value={form.classTeacherId}
                 onChange={(e) => setForm((f) => ({ ...f, classTeacherId: e.target.value }))}
               >
-                <option value="">Unassigned</option>
+                <option value="">Select teacher</option>
                 {staff
                   .filter((s) => s.status === 'ACTIVE')
                   .map((s) => (
@@ -412,6 +473,50 @@ export function ClassesPage() {
                     </option>
                   ))}
               </Select>
+              {staff.filter((s) => s.status === 'ACTIVE').length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No active staff yet. Register teachers under Teachers & Staff first.
+                </p>
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              <Label>Subjects undertaken by this class</Label>
+              <div className="grid max-h-48 gap-2 overflow-y-auto rounded-xl border border-border p-3 sm:grid-cols-2">
+                {levelSubjects.length === 0 ? (
+                  <p className="text-sm text-muted-foreground sm:col-span-2">
+                    No subjects for this level. Add subjects under Subjects management.
+                  </p>
+                ) : (
+                  levelSubjects.map((subject) => {
+                    const checked = form.subjectIds.includes(subject.id)
+                    return (
+                      <label
+                        key={subject.id}
+                        className={cn(
+                          'flex cursor-pointer items-start gap-2 rounded-lg border px-2.5 py-2 text-sm',
+                          checked ? 'border-accent/40 bg-accent/5' : 'border-transparent',
+                        )}
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => toggleSubject(subject.id)}
+                          className="mt-0.5"
+                        />
+                        <span>
+                          <span className="font-medium">{subject.name}</span>
+                          <span className="block text-xs text-muted-foreground">
+                            {subject.code}
+                          </span>
+                        </span>
+                      </label>
+                    )
+                  })
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {form.subjectIds.length} selected · filtered for{' '}
+                {educationLevelName(form.educationLevelId)}
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="class-notes">Description / notes</Label>

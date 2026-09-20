@@ -167,7 +167,11 @@ export interface SchoolClass {
   educationLevelId?: string
   academicYearId: string
   termId?: string
+  /** 1 | 2 | 3 — denormalized for display when term docs vary. */
+  termSequence?: number
   classTeacherId?: string
+  /** Subjects offered / undertaken by this class. */
+  subjectIds?: string[]
   description?: string
   status?: ClassStatus
   capacity?: number
