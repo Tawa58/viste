@@ -76,11 +76,12 @@
   --border: #e4ebf1;
   --input: #e4ebf1;
   --ring: #134a66;
-  --sidebar: #0b2a3d;
-  --sidebar-foreground: #e8eef4;
-  --sidebar-border: #163a50;
-  --sidebar-accent: #153d56;
-  --sidebar-accent-foreground: #ffffff;
+  /* Match dashboard / main content surface */
+  --sidebar: #f7f9fb;
+  --sidebar-foreground: #0f172a;
+  --sidebar-border: #e4ebf1;
+  --sidebar-accent: #e8f1f6;
+  --sidebar-accent-foreground: #0f172a;
   --chart-1: #134a66;
   --chart-2: #0d8a7f;
   --chart-3: #c27803;
@@ -114,11 +115,12 @@
   --border: #223447;
   --input: #223447;
   --ring: #8ec4e4;
-  --sidebar: #060e15;
-  --sidebar-foreground: #d7e4ef;
-  --sidebar-border: #162636;
-  --sidebar-accent: #122433;
-  --sidebar-accent-foreground: #ffffff;
+  /* Match dark dashboard surface */
+  --sidebar: #0a121b;
+  --sidebar-foreground: #e8eef4;
+  --sidebar-border: #223447;
+  --sidebar-accent: #182636;
+  --sidebar-accent-foreground: #8ec4e4;
   --chart-1: #8ec4e4;
   --chart-2: #2dd4bf;
   --chart-3: #fdb022;
@@ -222,4 +224,38 @@
   100% {
     background-position: -200% 0;
   }
+}
+
+@keyframes viste-arc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes viste-progress-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+.viste-arc {
+  animation: viste-arc-spin 0.75s linear infinite;
+}
+
+.viste-arc-path {
+  transform-origin: center;
+}
+
+.viste-progress-bar {
+  animation: viste-progress-slide 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Sonner toast polish */
+[data-sonner-toaster] [data-sonner-toast] {
+  --normal-bg: transparent;
+  --normal-border: transparent;
+  --normal-text: inherit;
 }

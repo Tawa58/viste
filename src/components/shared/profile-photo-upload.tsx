@@ -1,25 +1,45 @@
 import { useId, useRef, useState } from 'react'
 import { Camera, ImagePlus, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { FileSyncBadge } from '@/components/shared/file-sync-badge'
+import { notify } from '@/lib/notify'
 import { cn } from '@/lib/utils'
+import {
+  fileService,
+  FileValidationError,
+  type FileAccessContext,
+  type FileCategory,
+  type FileOwnerType,
+  type FileSyncStatus,
+} from '@/services/files'
 
-const MAX_BYTES = 2 * 1024 * 1024
-const ACCEPT = 'image/jpeg,image/png,image/webp,image/gif'
+const ACCEPT = 'image/jpeg,image/png,image/webp'
 
 export function ProfilePhotoUpload({
   name,
-  value,
+  /** Local preview URL for immediate display. */
+  previewUrl,
+  fileId,
   onChange,
+  access,
+  ownerId,
+  ownerType,
+  fileType,
   disabled = false,
   size = 'lg',
   className,
-  hint = 'JPG, PNG or WebP · max 2 MB',
+  hint = 'JPG, PNG or WebP · compressed to Firestore (not Firebase Storage)',
 }: {
   name: string
-  value?: string | null
-  onChange: (photoUrl: string | undefined) => void
+  previewUrl?: string | null
+  fileId?: string | null
+  /** Receives Firestore file id + preview. Large bytes are never stored on the school record. */
+  onChange: (next: { fileId: string; previewUrl: string } | undefined) => void
+  access: FileAccessContext
+  ownerId: string
+  ownerType: FileOwnerType
+  fileType: Extract<FileCategory, 'profile_photo' | 'staff_photo'>
   disabled?: boolean
   size?: 'md' | 'lg'
   className?: string
@@ -28,30 +48,63 @@ export function ProfilePhotoUpload({
   const inputId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<FileSyncStatus | null>(
+    fileId ? 'synced' : null,
+  )
 
   async function handleFile(file: File | undefined) {
     if (!file || disabled) return
 
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please choose an image file')
-      return
-    }
-    if (file.size > MAX_BYTES) {
-      toast.error('Image must be 2 MB or smaller')
-      return
-    }
-
     setBusy(true)
     try {
-      const dataUrl = await readAsDataUrl(file)
-      onChange(dataUrl)
-      toast.success('Profile photo updated')
-    } catch {
-      toast.error('Could not read that image')
+      const result = await notify.process(
+        () =>
+          fileService.uploadFile(
+            {
+              file,
+              fileType,
+              ownerId,
+              ownerType,
+              uploadedBy: access.userId,
+              compressImage: true,
+            },
+            access,
+          ),
+        {
+          loading: 'Uploading photo to Firestore…',
+          success: 'Profile photo saved',
+          error: 'Could not upload photo',
+        },
+      )
+      setSyncStatus(result.metadata.syncStatus)
+      onChange({
+        fileId: result.metadata.id,
+        previewUrl: result.previewUrl ?? URL.createObjectURL(file),
+      })
+      if (result.queuedOffline) {
+        notify.info('Saved offline', 'Photo will sync to Firestore when you are back online.')
+      }
+    } catch (error) {
+      if (error instanceof FileValidationError) {
+        notify.error(error.message)
+      }
     } finally {
       setBusy(false)
       if (inputRef.current) inputRef.current.value = ''
     }
+  }
+
+  async function handleRemove() {
+    if (fileId) {
+      try {
+        await fileService.deleteFile(fileId, access)
+      } catch {
+        // still clear local reference
+      }
+    }
+    onChange(undefined)
+    setSyncStatus(null)
+    notify.success('Profile photo removed')
   }
 
   return (
@@ -59,7 +112,7 @@ export function ProfilePhotoUpload({
       <div className="relative shrink-0">
         <Avatar
           name={name}
-          src={value}
+          src={previewUrl}
           className={cn(size === 'lg' ? 'h-20 w-20 text-lg' : 'h-14 w-14 text-sm')}
         />
         <label
@@ -87,27 +140,29 @@ export function ProfilePhotoUpload({
       <div className="min-w-0 space-y-2">
         <p className="text-sm font-medium">Profile photo</p>
         <p className="text-xs text-muted-foreground">{hint}</p>
+        {syncStatus ? <FileSyncBadge status={syncStatus} /> : null}
+        {fileId ? (
+          <p className="truncate text-[11px] text-muted-foreground">Ref: {fileId}</p>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             variant="outline"
             size="sm"
+            loading={busy}
             disabled={disabled || busy}
             onClick={() => inputRef.current?.click()}
           >
-            <ImagePlus className="h-3.5 w-3.5" />
-            {value ? 'Replace photo' : 'Upload photo'}
+            {!busy ? <ImagePlus className="h-3.5 w-3.5" /> : null}
+            {fileId || previewUrl ? 'Replace photo' : 'Upload photo'}
           </Button>
-          {value && (
+          {(fileId || previewUrl) && (
             <Button
               type="button"
               variant="ghost"
               size="sm"
               disabled={disabled || busy}
-              onClick={() => {
-                onChange(undefined)
-                toast.success('Profile photo removed')
-              }}
+              onClick={() => void handleRemove()}
             >
               <Trash2 className="h-3.5 w-3.5" />
               Remove
@@ -117,16 +172,4 @@ export function ProfilePhotoUpload({
       </div>
     </div>
   )
-}
-
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      if (typeof reader.result === 'string') resolve(reader.result)
-      else reject(new Error('Invalid file result'))
-    }
-    reader.onerror = () => reject(reader.error ?? new Error('Read failed'))
-    reader.readAsDataURL(file)
-  })
 }

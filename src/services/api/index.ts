@@ -26,6 +26,7 @@ import {
   resultPortals,
   rolePermissions,
   staff,
+  staffCredentials,
   streams,
   students,
   subjects,
@@ -40,7 +41,6 @@ import type {
   AttendanceRecord,
   AuditLog,
   AuthUser,
-  DashboardStats,
   Examination,
   FeeStructure,
   Guardian,
@@ -54,6 +54,7 @@ import type {
   RolePermission,
   SchoolClass,
   Staff,
+  StaffLoginCredential,
   Stream,
   Student,
   Subject,
@@ -64,24 +65,69 @@ import type {
 import { mockRequest, USE_MOCK_API } from './client'
 import type { AuthService, DashboardService, StudentService } from './contracts'
 import {
-  HttpAuthService,
-  HttpDashboardService,
-  HttpStudentService,
-  httpCatalogService,
-} from './http-services'
+  firestoreCatalogService,
+  firestoreDashboardService,
+  firestoreStudentService,
+} from '@/services/firestore/firestore-services'
+import { FirebaseAuthService } from '@/services/firebase/auth-service'
+import {
+  ApiAuthService,
+  apiCatalogService,
+  apiDashboardService,
+  apiStudentService,
+} from '@/services/api/server-api-services'
+import { readPublicEnv } from '@/lib/env'
+
+/**
+ * Live mode uses Next.js /api/v1 (Firebase Admin) — server is authority.
+ * Set NEXT_PUBLIC_USE_CLIENT_FIRESTORE=true only for emergency/dev bypass.
+ */
+export const USE_SERVER_API =
+  !USE_MOCK_API && readPublicEnv('USE_CLIENT_FIRESTORE', 'false') !== 'true'
+
+/** @deprecated Prefer USE_SERVER_API. Kept for compatibility. */
+export const USE_FIRESTORE_SCHOOL_DATA =
+  USE_SERVER_API ||
+  readPublicEnv('SCHOOL_DATA_SOURCE', 'firestore') === 'firestore' ||
+  readPublicEnv('USE_FIRESTORE_DATA', 'true') === 'true' ||
+  !USE_MOCK_API
 
 export type { AuthService, DashboardService, StudentService } from './contracts'
 
 class MockAuthService implements AuthService {
   async login(email: string, password: string, _remember = true) {
     await mockRequest(null, 500)
-    const match = demoCredentials.find(
-      (c) => c.email.toLowerCase() === email.toLowerCase() && c.password === password,
+    const normalized = email.toLowerCase()
+    const demoMatch = demoCredentials.find(
+      (c) => c.email.toLowerCase() === normalized && c.password === password,
     )
-    if (!match) {
+    const staffMatch = staffCredentials.find(
+      (c) => c.email.toLowerCase() === normalized && c.password === password,
+    )
+    if (!demoMatch && !staffMatch) {
       throw new Error('Invalid email or password')
     }
-    const user = mockUsers.find((u) => u.email === match.email)
+
+    let user = mockUsers.find((u) => u.email.toLowerCase() === normalized)
+    if (!user && staffMatch) {
+      const member = staff.find((s) => s.id === staffMatch.staffId)
+      if (!member) throw new Error('User not found')
+      user = {
+        id: `u-${member.id}`,
+        name: `${member.firstName} ${member.lastName}`,
+        email: member.email,
+        role: 'TEACHER',
+        phone: member.phone,
+        title: member.title,
+        department: member.department,
+        employeeNumber: member.employeeNumber,
+        staffId: member.id,
+        preferredLanguage: 'en',
+        timezone: 'Africa/Harare',
+        notificationPrefs: { email: true, sms: false, inApp: true },
+      }
+      mockUsers.push(user)
+    }
     if (!user) throw new Error('User not found')
     return { ...user }
   }
@@ -147,6 +193,45 @@ class MockStudentService implements StudentService {
   getById(id: string) {
     return mockRequest(students.find((s) => s.id === id))
   }
+  async create(input: Omit<Student, 'id'>) {
+    const created: Student = {
+      ...input,
+      id: `stu-${Date.now()}`,
+      subjectIds: [...input.subjectIds],
+      guardianIds: [...input.guardianIds],
+    }
+    students.unshift(created)
+    for (const gid of created.guardianIds) {
+      const guardian = guardians.find((g) => g.id === gid)
+      if (guardian && !guardian.studentIds.includes(created.id)) {
+        guardian.studentIds.push(created.id)
+      }
+    }
+    return mockRequest(created, 280)
+  }
+  async update(id: string, patch: Partial<Omit<Student, 'id'>>) {
+    const index = students.findIndex((s) => s.id === id)
+    if (index < 0) throw new Error('Student not found')
+    const current = students[index]
+    const next: Student = {
+      ...current,
+      ...patch,
+      subjectIds: patch.subjectIds ? [...patch.subjectIds] : current.subjectIds,
+      guardianIds: patch.guardianIds ? [...patch.guardianIds] : current.guardianIds,
+    }
+    students[index] = next
+    if (patch.guardianIds) {
+      for (const guardian of guardians) {
+        const linked = next.guardianIds.includes(guardian.id)
+        const has = guardian.studentIds.includes(id)
+        if (linked && !has) guardian.studentIds.push(id)
+        if (!linked && has) {
+          guardian.studentIds = guardian.studentIds.filter((sid) => sid !== id)
+        }
+      }
+    }
+    return mockRequest({ ...next }, 250)
+  }
 }
 
 class MockDashboardService implements DashboardService {
@@ -175,13 +260,21 @@ class MockDashboardService implements DashboardService {
 
 export const authService: AuthService = USE_MOCK_API
   ? new MockAuthService()
-  : new HttpAuthService()
+  : USE_SERVER_API
+    ? new ApiAuthService()
+    : new FirebaseAuthService()
+
 export const studentService: StudentService = USE_MOCK_API
   ? new MockStudentService()
-  : new HttpStudentService()
+  : USE_SERVER_API
+    ? apiStudentService
+    : firestoreStudentService
+
 export const dashboardService: DashboardService = USE_MOCK_API
   ? new MockDashboardService()
-  : new HttpDashboardService()
+  : USE_SERVER_API
+    ? apiDashboardService
+    : firestoreDashboardService
 
 const mockCatalogService = {
   getYears: (): Promise<AcademicYear[]> => mockRequest(academicYears),
@@ -190,22 +283,78 @@ const mockCatalogService = {
   getStreams: (): Promise<Stream[]> => mockRequest(streams),
   getSubjects: (): Promise<Subject[]> => mockRequest(subjects),
   getStaff: (): Promise<Staff[]> => mockRequest([...staff]),
-  getGuardians: (): Promise<Guardian[]> => mockRequest(guardians),
+  getGuardians: (): Promise<Guardian[]> => mockRequest([...guardians]),
   getGuardian: (id: string) => mockRequest(guardians.find((g) => g.id === id)),
   getStaffMember: (id: string) => mockRequest(staff.find((s) => s.id === id)),
-  async updateStaffPhoto(id: string, photoUrl: string | undefined): Promise<Staff | undefined> {
+  getStaffCredentials: (): Promise<StaffLoginCredential[]> => mockRequest([...staffCredentials]),
+  getStaffCredential: (staffId: string) =>
+    mockRequest(staffCredentials.find((c) => c.staffId === staffId)),
+  async resetStaffPassword(staffId: string, password = 'demo1234'): Promise<StaffLoginCredential> {
+    const existing = staffCredentials.find((c) => c.staffId === staffId)
+    const member = staff.find((s) => s.id === staffId)
+    if (!member) throw new Error('Staff member not found')
+    const next: StaffLoginCredential = {
+      staffId,
+      email: member.email,
+      password,
+      role: 'TEACHER',
+      temporaryPassword: true,
+      lastResetAt: new Date().toISOString().slice(0, 10),
+    }
+    if (existing) {
+      Object.assign(existing, next)
+      return mockRequest({ ...existing }, 250)
+    }
+    staffCredentials.push(next)
+    return mockRequest({ ...next }, 250)
+  },
+  async updateStaffPhoto(
+    id: string,
+    patch: { profilePhotoId?: string | null; photoUrl?: string | null },
+  ): Promise<Staff | undefined> {
     const member = staff.find((s) => s.id === id)
     if (!member) return mockRequest(undefined)
-    if (photoUrl) member.photoUrl = photoUrl
-    else delete member.photoUrl
+    if (patch.profilePhotoId) member.profilePhotoId = patch.profilePhotoId
+    else if (patch.profilePhotoId === null) delete member.profilePhotoId
+    if (patch.photoUrl) member.photoUrl = patch.photoUrl
+    else if (patch.photoUrl === null) delete member.photoUrl
     return mockRequest({ ...member }, 200)
   },
-  async createStaff(input: Omit<Staff, 'id'>): Promise<Staff> {
+  async createStaff(input: Omit<Staff, 'id'> & { password?: string }): Promise<Staff> {
+    const { password = 'demo1234', ...staffInput } = input
     const created: Staff = {
-      ...input,
+      ...staffInput,
       id: `st-${Date.now()}`,
     }
     staff.unshift(created)
+    staffCredentials.unshift({
+      staffId: created.id,
+      email: created.email,
+      password,
+      role: 'TEACHER',
+      temporaryPassword: true,
+      lastResetAt: new Date().toISOString().slice(0, 10),
+    })
+    return mockRequest(created, 250)
+  },
+  async updateGuardian(id: string, patch: Partial<Omit<Guardian, 'id'>>): Promise<Guardian> {
+    const index = guardians.findIndex((g) => g.id === id)
+    if (index < 0) throw new Error('Guardian not found')
+    const next: Guardian = {
+      ...guardians[index],
+      ...patch,
+      studentIds: patch.studentIds ? [...patch.studentIds] : guardians[index].studentIds,
+    }
+    guardians[index] = next
+    return mockRequest({ ...next }, 250)
+  },
+  async createGuardian(input: Omit<Guardian, 'id'>): Promise<Guardian> {
+    const created: Guardian = {
+      ...input,
+      id: `g-${Date.now()}`,
+      studentIds: [...input.studentIds],
+    }
+    guardians.unshift(created)
     return mockRequest(created, 250)
   },
   getAttendance: (): Promise<AttendanceRecord[]> => mockRequest(attendanceRecords),
@@ -227,4 +376,8 @@ const mockCatalogService = {
   getResultPortals: (): Promise<ResultPortalView[]> => mockRequest(resultPortals),
 }
 
-export const catalogService = USE_MOCK_API ? mockCatalogService : httpCatalogService
+export const catalogService = USE_MOCK_API
+  ? mockCatalogService
+  : USE_SERVER_API
+    ? apiCatalogService
+    : firestoreCatalogService

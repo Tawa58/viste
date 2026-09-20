@@ -1,0 +1,247 @@
+import type {
+  AttendanceRecord,
+  Guardian,
+  Invoice,
+  Mark,
+  Payment,
+  Staff,
+  StaffLoginCredential,
+  Student,
+} from '@/types'
+import type { DashboardService, StudentService } from '@/services/api/contracts'
+import { buildLiveDashboard } from '@/services/firestore/live-dashboard'
+import { firestoreSchool } from '@/services/firestore/school-repository'
+
+class FirestoreStudentService implements StudentService {
+  async list() {
+    await firestoreSchool.ensureSchoolCatalog()
+    return firestoreSchool.listStudents()
+  }
+  async getById(id: string) {
+    await firestoreSchool.ensureSchoolCatalog()
+    return firestoreSchool.getStudent(id)
+  }
+  async create(input: Omit<Student, 'id'>) {
+    await firestoreSchool.ensureSchoolCatalog()
+    return firestoreSchool.createStudent(input)
+  }
+  async update(id: string, patch: Partial<Omit<Student, 'id'>>) {
+    return firestoreSchool.updateStudent(id, patch)
+  }
+}
+
+class FirestoreDashboardService implements DashboardService {
+  async getStats() {
+    return (await buildLiveDashboard()).stats
+  }
+  async getEnrollmentTrend() {
+    return (await buildLiveDashboard()).enrollment
+  }
+  async getAttendanceOverview() {
+    return (await buildLiveDashboard()).attendanceOverview
+  }
+  async getFeeCollection() {
+    return (await buildLiveDashboard()).feeCollection
+  }
+  async getPerformance() {
+    return (await buildLiveDashboard()).performance
+  }
+  async getRecentPayments() {
+    return (await buildLiveDashboard()).recentPayments
+  }
+  async getRecentActivities() {
+    return (await buildLiveDashboard()).recentActivities
+  }
+}
+
+export const firestoreStudentService: StudentService = new FirestoreStudentService()
+export const firestoreDashboardService: DashboardService = new FirestoreDashboardService()
+
+export const firestoreCatalogService = {
+  async getYears() {
+    await firestoreSchool.ensureSchoolCatalog()
+    return firestoreSchool.listYears()
+  },
+  async getTerms() {
+    await firestoreSchool.ensureSchoolCatalog()
+    return []
+  },
+  async getClasses() {
+    await firestoreSchool.ensureSchoolCatalog()
+    return firestoreSchool.listClasses()
+  },
+  async getStreams() {
+    await firestoreSchool.ensureSchoolCatalog()
+    return firestoreSchool.listStreams()
+  },
+  async getSubjects() {
+    await firestoreSchool.ensureSchoolCatalog()
+    return firestoreSchool.listSubjects()
+  },
+  async getStaff() {
+    await firestoreSchool.ensureSchoolCatalog()
+    return firestoreSchool.listStaff()
+  },
+  async getStaffMember(id: string) {
+    return firestoreSchool.getStaff(id)
+  },
+  async createStaff(input: Omit<Staff, 'id'> & { password?: string }) {
+    const { password, ...rest } = input
+    if (!password || password.length < 8) {
+      throw new Error('Password must be at least 8 characters')
+    }
+    const created = await firestoreSchool.createStaff(rest)
+    const { createFirebaseAuthUser } = await import('@/services/firebase/auth-service')
+    const { setDoc, doc } = await import('firebase/firestore')
+    const { getFirestoreDb } = await import('@/services/firebase/app')
+
+    const authUser = await createFirebaseAuthUser({
+      email: created.email,
+      password,
+      displayName: `${created.firstName} ${created.lastName}`,
+    })
+
+    await setDoc(doc(getFirestoreDb(), 'users', authUser.uid), {
+      id: authUser.uid,
+      name: `${created.firstName} ${created.lastName}`,
+      email: created.email.toLowerCase(),
+      role: 'TEACHER',
+      title: created.title,
+      department: created.department,
+      employeeNumber: created.employeeNumber,
+      staffId: created.id,
+      phone: created.phone,
+      preferredLanguage: 'en',
+      timezone: 'Africa/Harare',
+      notificationPrefs: { email: true, sms: false, inApp: true },
+    })
+
+    await setDoc(doc(getFirestoreDb(), 'staffCredentials', created.id), {
+      staffId: created.id,
+      email: created.email.toLowerCase(),
+      password,
+      role: 'TEACHER',
+      temporaryPassword: true,
+      lastResetAt: new Date().toISOString().slice(0, 10),
+      authUid: authUser.uid,
+    })
+
+    return created
+  },
+  async updateStaffPhoto(
+    id: string,
+    patch: { profilePhotoId?: string | null; photoUrl?: string | null },
+  ) {
+    const next: Partial<Staff> = {}
+    if (patch.profilePhotoId) next.profilePhotoId = patch.profilePhotoId
+    if (patch.profilePhotoId === null) next.profilePhotoId = undefined
+    if (patch.photoUrl) next.photoUrl = patch.photoUrl
+    if (patch.photoUrl === null) next.photoUrl = undefined
+    return firestoreSchool.updateStaff(id, next)
+  },
+  async getGuardians() {
+    return firestoreSchool.listGuardians()
+  },
+  async getGuardian(id: string) {
+    return firestoreSchool.getGuardian(id)
+  },
+  async updateGuardian(id: string, patch: Partial<Omit<Guardian, 'id'>>) {
+    return firestoreSchool.updateGuardian(id, patch)
+  },
+  async createGuardian(input: Omit<Guardian, 'id'>) {
+    return firestoreSchool.createGuardian(input)
+  },
+  async getStaffCredentials(): Promise<StaffLoginCredential[]> {
+    const { getDocs, collection } = await import('firebase/firestore')
+    const { getFirestoreDb } = await import('@/services/firebase/app')
+    const snap = await getDocs(collection(getFirestoreDb(), 'staffCredentials'))
+    return snap.docs.map((d) => {
+      const data = d.data() as StaffLoginCredential
+      return { ...data, staffId: data.staffId ?? d.id }
+    })
+  },
+  async getStaffCredential(staffId: string): Promise<StaffLoginCredential | undefined> {
+    const { getDoc, doc } = await import('firebase/firestore')
+    const { getFirestoreDb } = await import('@/services/firebase/app')
+    const snap = await getDoc(doc(getFirestoreDb(), 'staffCredentials', staffId))
+    if (!snap.exists()) return undefined
+    return { staffId, ...snap.data() } as StaffLoginCredential
+  },
+  async resetStaffPassword(staffId: string, password?: string): Promise<StaffLoginCredential> {
+    const member = await firestoreSchool.getStaff(staffId)
+    if (!member) throw new Error('Staff member not found')
+    const nextPassword =
+      password && password.length >= 8
+        ? password
+        : `Vhs-${crypto.randomUUID().replaceAll('-', '').slice(0, 10)}`
+
+    const { setDoc, doc, getDoc } = await import('firebase/firestore')
+    const { getFirestoreDb } = await import('@/services/firebase/app')
+    const existing = await getDoc(doc(getFirestoreDb(), 'staffCredentials', staffId))
+    const row: StaffLoginCredential = {
+      staffId,
+      email: member.email.toLowerCase(),
+      password: nextPassword,
+      role: 'TEACHER',
+      temporaryPassword: true,
+      lastResetAt: new Date().toISOString().slice(0, 10),
+    }
+    await setDoc(doc(getFirestoreDb(), 'staffCredentials', staffId), {
+      ...existing.data(),
+      ...row,
+    })
+    // Note: updating Firebase Auth password requires Admin SDK / Cloud Function.
+    // Stored credential is what admins retrieve until Admin SDK is added.
+    return row
+  },  async getAttendance(): Promise<AttendanceRecord[]> {
+    return firestoreSchool.listAttendance()
+  },
+  async getInvoices(): Promise<Invoice[]> {
+    return firestoreSchool.listInvoices()
+  },
+  async getPayments(): Promise<Payment[]> {
+    return firestoreSchool.listPayments()
+  },
+  async getMarks(): Promise<Mark[]> {
+    return firestoreSchool.listMarks()
+  },
+  async getAssessments() {
+    return firestoreSchool.listAssessments()
+  },
+  async getExaminations() {
+    return []
+  },
+  async getFeeStructures() {
+    return []
+  },
+  async getAnnouncements() {
+    return []
+  },
+  async getBooks() {
+    return []
+  },
+  async getLoans() {
+    return []
+  },
+  async getInventory() {
+    return []
+  },
+  async getTransport() {
+    return []
+  },
+  async getUsers() {
+    return []
+  },
+  async getRolePermissions() {
+    return []
+  },
+  async getPermissionCatalog() {
+    return []
+  },
+  async getAuditLogs() {
+    return []
+  },
+  async getResultPortals() {
+    return []
+  },
+}

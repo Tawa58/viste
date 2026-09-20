@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.gitignore
+*.md
+.env
+.env.*
+secrets
+npm-debug.log*
+Dockerfile
+.dockerignore
+.vercel
+dist
+coverage
+agent-transcripts

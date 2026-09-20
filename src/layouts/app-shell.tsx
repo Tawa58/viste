@@ -12,8 +12,8 @@ import {
   UserRound,
   X,
 } from 'lucide-react'
-import { toast } from 'sonner'
 import { BrandMark } from '@/components/shared/brand-mark'
+import { notify } from '@/lib/notify'
 import { SchoolLogo } from '@/components/shared/school-logo'
 import { ThemeToggle } from '@/components/shared/theme-toggle'
 import { PageTransition } from '@/components/shared/page-transition'
@@ -40,7 +40,7 @@ function SidebarNav({ collapsed, groups }: { collapsed: boolean; groups: NavGrou
       {groups.map((group) => (
         <div key={group.label}>
           {!collapsed && (
-            <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/45">
+            <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               {group.label}
             </p>
           )}
@@ -53,8 +53,8 @@ function SidebarNav({ collapsed, groups }: { collapsed: boolean; groups: NavGrou
                   to={item.to}
                   className={({ isActive }) =>
                     cn(
-                      'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors duration-150 hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground',
-                      isActive && 'bg-sidebar-accent text-sidebar-accent-foreground',
+                      'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-black transition-colors duration-150 hover:bg-sidebar-accent dark:text-sidebar-foreground',
+                      isActive && 'bg-sidebar-accent font-semibold text-black shadow-sm dark:text-sidebar-accent-foreground',
                       collapsed && 'justify-center px-2',
                     )
                   }
@@ -63,10 +63,19 @@ function SidebarNav({ collapsed, groups }: { collapsed: boolean; groups: NavGrou
                   {({ isActive }) => (
                     <>
                       {isActive && (
-                        <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-accent" />
+                        <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-primary" />
                       )}
-                      <Icon className="h-4 w-4 shrink-0 opacity-85" />
-                      {!collapsed && <span className="truncate">{item.label}</span>}
+                      <Icon
+                        className={cn(
+                          'h-4 w-4 shrink-0 transition-colors',
+                          isActive
+                            ? 'text-primary dark:text-primary'
+                            : 'text-accent group-hover:text-primary dark:text-accent',
+                        )}
+                      />
+                      {!collapsed && (
+                        <span className="truncate text-black dark:text-inherit">{item.label}</span>
+                      )}
                     </>
                   )}
                 </NavLink>
@@ -120,8 +129,11 @@ export function AppShell() {
   )
 
   async function handleLogout() {
-    await logout()
-    toast.success('Signed out successfully')
+    await notify.process(() => logout(), {
+      loading: 'Signing you out…',
+      success: 'Signed out successfully',
+      error: 'Could not sign out',
+    })
     navigate('/login')
   }
 
@@ -134,11 +146,11 @@ export function AppShell() {
         )}
       >
         <div className={cn('flex items-center justify-between gap-2 px-4 py-5', collapsed && 'px-2')}>
-          <BrandMark compact={collapsed} light />
+          <BrandMark compact={collapsed} />
           <Button
             variant="ghost"
             size="icon"
-            className="text-sidebar-foreground hover:bg-sidebar-accent"
+            className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             onClick={() => setCollapsed((v) => !v)}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
@@ -149,17 +161,17 @@ export function AppShell() {
         <div className="mt-auto border-t border-sidebar-border p-3">
           <div
             className={cn(
-              'flex items-center gap-3 rounded-xl bg-sidebar-accent/50 p-2.5',
+              'flex items-center gap-3 rounded-xl border border-border/70 bg-card p-2.5 shadow-card',
               collapsed && 'justify-center',
             )}
           >
             <Avatar name={user?.name ?? 'User'} src={user?.avatarUrl} />
             {!collapsed && (
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-sidebar-foreground">
+                <p className="truncate text-sm font-medium text-black dark:text-foreground">
                   {user?.name}
                 </p>
-                <p className="truncate text-xs text-sidebar-foreground/60">
+                <p className="truncate text-xs text-muted-foreground">
                   {user?.role.replaceAll('_', ' ')}
                 </p>
               </div>
@@ -168,7 +180,7 @@ export function AppShell() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-sidebar-foreground hover:bg-sidebar-accent"
+                className="text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 onClick={() => setLogoutOpen(true)}
                 aria-label="Sign out"
               >
@@ -199,11 +211,11 @@ export function AppShell() {
               transition={{ type: 'spring', stiffness: 320, damping: 32 }}
             >
               <div className="flex items-center justify-between px-4 py-4">
-                <BrandMark light />
+                <BrandMark />
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-sidebar-foreground"
+                  className="text-sidebar-foreground hover:bg-sidebar-accent"
                   onClick={() => setMobileOpen(false)}
                 >
                   <X />
@@ -329,7 +341,7 @@ export function AppShell() {
         </main>
 
         <footer className="border-t border-border px-4 py-4 text-center text-xs text-muted-foreground sm:px-6">
-          Viste High School Management System · UI Phase 1 · Mock data only ·{' '}
+          Viste High School Management System · Firebase Auth + Firestore ·{' '}
           <Link to="/settings" className="underline-offset-2 hover:underline">
             Settings
           </Link>

@@ -1,7 +1,12 @@
+'use client'
+
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { onAuthStateChanged } from 'firebase/auth'
 import { authService } from '@/services/api'
 import { USE_MOCK_API } from '@/services/api/client'
-import { clearAccessToken } from '@/services/api/http'
+import { getFirebaseAuth } from '@/services/firebase/app'
+import { clearSchoolDataCache, prefetchSchoolData } from '@/services/api/prefetch'
+import { clearAuthTokenCache } from '@/services/api/http-client'
 import { mockUsers } from '@/mocks/data'
 import type { AuthUser } from '@/types'
 
@@ -16,39 +21,16 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 const STORAGE_KEY = 'viste.auth.user'
 
-function persistUser(user: AuthUser) {
+function persistUser(user: AuthUser, remember = true) {
   const payload = JSON.stringify(user)
-  if (localStorage.getItem(STORAGE_KEY)) {
-    localStorage.setItem(STORAGE_KEY, payload)
-    return
-  }
-  if (sessionStorage.getItem(STORAGE_KEY)) {
-    sessionStorage.setItem(STORAGE_KEY, payload)
-    return
-  }
-  localStorage.setItem(STORAGE_KEY, payload)
+  sessionStorage.removeItem(STORAGE_KEY)
+  localStorage.removeItem(STORAGE_KEY)
+  ;(remember ? localStorage : sessionStorage).setItem(STORAGE_KEY, payload)
 }
 
-function hydrateStoredUser(raw: string): AuthUser | null {
-  try {
-    const stored = JSON.parse(raw) as AuthUser
-    if (!USE_MOCK_API) return stored
-    const canonical = mockUsers.find((u) => u.id === stored.id || u.email === stored.email)
-    if (!canonical) return stored
-    return {
-      ...canonical,
-      ...stored,
-      role: canonical.role,
-      id: canonical.id,
-      notificationPrefs: {
-        email: stored.notificationPrefs?.email ?? canonical.notificationPrefs?.email ?? true,
-        sms: stored.notificationPrefs?.sms ?? canonical.notificationPrefs?.sms ?? false,
-        inApp: stored.notificationPrefs?.inApp ?? canonical.notificationPrefs?.inApp ?? true,
-      },
-    }
-  } catch {
-    return null
-  }
+function clearSession() {
+  localStorage.removeItem(STORAGE_KEY)
+  sessionStorage.removeItem(STORAGE_KEY)
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -56,19 +38,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const hydrated = hydrateStoredUser(raw)
-      if (hydrated) {
-        setUser(hydrated)
-        persistUser(hydrated)
-      } else {
-        localStorage.removeItem(STORAGE_KEY)
-        sessionStorage.removeItem(STORAGE_KEY)
-        clearAccessToken()
+    if (USE_MOCK_API) {
+      const raw = localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY)
+      if (raw) {
+        try {
+          const stored = JSON.parse(raw) as AuthUser
+          const canonical = mockUsers.find((u) => u.id === stored.id || u.email === stored.email)
+          setUser(canonical ? { ...canonical, ...stored, role: canonical.role, id: canonical.id } : stored)
+        } catch {
+          clearSession()
+        }
       }
+      setLoading(false)
+      return
     }
-    setLoading(false)
+
+    const unsub = onAuthStateChanged(getFirebaseAuth(), async (firebaseUser) => {
+      try {
+        if (!firebaseUser || firebaseUser.isAnonymous) {
+          setUser(null)
+          clearSession()
+          clearSchoolDataCache()
+          clearAuthTokenCache()
+          return
+        }
+        if (!authService.me) {
+          setUser(null)
+          clearSession()
+          return
+        }
+        const profile = await authService.me()
+        setUser(profile)
+        persistUser(profile, true)
+        // Defer warm-up so first paint / dashboard aren’t competing with a full school dump
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+          window.requestIdleCallback(() => prefetchSchoolData(), { timeout: 2500 })
+        } else {
+          setTimeout(() => prefetchSchoolData(), 300)
+        }
+      } catch (err) {
+        console.error(err)
+        setUser(null)
+        clearSession()
+      } finally {
+        setLoading(false)
+      }
+    })
+
+    return () => unsub()
   }, [])
 
   const value = useMemo<AuthContextValue>(
@@ -78,23 +95,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async login(email, password, remember = true) {
         const next = await authService.login(email, password, remember)
         setUser(next)
-        const payload = JSON.stringify(next)
-        sessionStorage.removeItem(STORAGE_KEY)
-        localStorage.removeItem(STORAGE_KEY)
-        ;(remember ? localStorage : sessionStorage).setItem(STORAGE_KEY, payload)
+        persistUser(next, remember)
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+          window.requestIdleCallback(() => prefetchSchoolData(), { timeout: 2500 })
+        } else {
+          setTimeout(() => prefetchSchoolData(), 300)
+        }
       },
       async logout() {
         await authService.logout()
-        clearAccessToken()
+        clearSession()
+        clearSchoolDataCache()
+        clearAuthTokenCache()
         setUser(null)
-        localStorage.removeItem(STORAGE_KEY)
-        sessionStorage.removeItem(STORAGE_KEY)
       },
       async updateProfile(patch) {
         if (!user) throw new Error('Not signed in')
         const next = await authService.updateProfile(user.id, patch)
         setUser(next)
-        persistUser(next)
+        persistUser(next, Boolean(localStorage.getItem(STORAGE_KEY)))
         return next
       },
     }),

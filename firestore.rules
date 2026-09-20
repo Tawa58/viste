@@ -1,0 +1,38 @@
+rules_version = '2';
+
+/**
+ * VISTE MGT — production-oriented Firestore rules
+ *
+ * School data is server-authoritative via Next.js /api/v1 + Firebase Admin.
+ * Clients must NOT read/write students, fees, results, users, auditLogs, etc.
+ *
+ * Files remain a temporary authenticated client path for photo chunks until
+ * a dedicated file upload API is completed. Anonymous access is denied.
+ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    // Default deny — Admin SDK bypasses rules
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Temporary: profile photos / attachments (no anonymous)
+    match /files/{fileId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.resource.data.uploadedBy == request.auth.uid;
+      allow delete: if false;
+    }
+
+    match /files/{fileId}/chunks/{chunkId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if false;
+    }
+  }
+}

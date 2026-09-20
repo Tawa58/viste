@@ -101,6 +101,25 @@ export function canManageSchoolSettings(role: UserRole) {
   return SCHOOL_SETTINGS_ROLES.includes(role)
 }
 
+/** Admin-level student registration, guardian edits, and full profile control. */
+export function canManageStudents(role: UserRole) {
+  return (
+    role === 'SUPER_ADMIN' ||
+    role === 'SCHOOL_ADMIN' ||
+    role === 'PRINCIPAL' ||
+    role === 'REGISTRAR'
+  )
+}
+
+/** Teachers may update limited contact fields only. */
+export function canEditStudentLimited(role: UserRole) {
+  return role === 'TEACHER' || canManageStudents(role)
+}
+
+export function canViewStaffCredentials(role: UserRole) {
+  return role === 'SUPER_ADMIN' || role === 'SCHOOL_ADMIN' || role === 'PRINCIPAL'
+}
+
 export function hasFullConsoleAccess(role: UserRole) {
   return ROLE_ROUTES[role] === '*'
 }

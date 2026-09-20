@@ -26,6 +26,7 @@ export type MarkWorkflowStatus =
   | 'UNDER_REVIEW'
   | 'APPROVED'
   | 'PUBLISHED'
+  | 'LOCKED'
 
 export interface AuthUser {
   id: string
@@ -33,6 +34,8 @@ export interface AuthUser {
   email: string
   role: UserRole
   avatarUrl?: string
+  /** Firestore file id for avatar when using chunked file storage. */
+  avatarFileId?: string
   phone?: string
   title?: string
   department?: string
@@ -67,7 +70,21 @@ export interface Student {
   status: StudentStatus
   classId: string
   streamId: string
+  /** Subjects the student is registered for. */
+  subjectIds: string[]
   guardianIds: string[]
+  /** Firestore `files/{id}` reference — never store image bytes here. */
+  profilePhotoId?: string
+}
+
+export interface StaffLoginCredential {
+  staffId: string
+  email: string
+  /** Admin-issued password from auth (empty after first login until reset). */
+  password: string
+  role: Extract<UserRole, 'TEACHER' | 'SCHOOL_ADMIN' | 'PRINCIPAL' | 'ACCOUNTANT' | 'REGISTRAR'>
+  temporaryPassword?: boolean
+  lastResetAt?: string
 }
 
 export interface Guardian {
@@ -95,7 +112,11 @@ export interface Staff {
   subjectIds: string[]
   classIds: string[]
   hireDate: string
-  /** Profile photo as URL or data URL (mock UI stores uploads locally). */
+  /** Firestore `files/{id}` reference — never store image bytes here. */
+  profilePhotoId?: string
+  /**
+   * @deprecated Local preview/cache only. Prefer `profilePhotoId` + fileService.
+   */
   photoUrl?: string
 }
 

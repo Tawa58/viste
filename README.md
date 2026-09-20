@@ -1,38 +1,64 @@
-# Viste High School Management System
+# Viste High School Management System (VISTE MGT)
 
-React (Vite) frontend + Spring Boot API.
+Next.js + React UI (frozen) + **Next.js `/api/v1`** + Firebase Auth + Firestore (Admin SDK).
 
-## Frontend
+## Architecture
+
+```
+Browser (UI) → Firebase Auth ID token → /api/v1 → RBAC → Services → Firebase Admin → Firestore
+```
+
+Firestore Security Rules default-deny school collections. Do not use the browser as a trusted database client for school data.
+
+## Run locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-Default UI mode uses mock data (`VITE_USE_MOCK_API=true`).
+### Required server env
 
-## Backend (Spring Boot)
+Copy `.env.example` → `.env` and set:
+
+- `NEXT_PUBLIC_FIREBASE_*` (web)
+- `FIREBASE_ADMIN_PROJECT_ID`, `FIREBASE_ADMIN_CLIENT_EMAIL`, `FIREBASE_ADMIN_PRIVATE_KEY`
+  - or `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON`
+- `BOOTSTRAP_ADMIN_EMAILS` (comma-separated) for first SUPER_ADMIN users
+
+Deploy rules:
 
 ```bash
-cd backend
-.\mvnw.cmd spring-boot:run
+firebase deploy --only firestore:rules,database
 ```
 
-API: `http://localhost:18080/api/v1`  
-Health: `http://localhost:18080/api/v1/health`
+## Scripts
 
-### Connect UI to Spring Boot
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Next.js dev |
+| `npm run build` | Production build |
+| `npm run test` | Vitest (RBAC/validators) |
+| `npm run lint` | oxlint |
 
-Update `.env`:
+## Docs
 
-```env
-VITE_API_BASE_URL=http://localhost:18080/api/v1
-VITE_USE_MOCK_API=false
+- `DEPLOY-ALWAYS-ON.md` — Render / Railway always-on (no cold starts)
+- `BACKEND-AUDIT.md`
+- `DATABASE-SCHEMA.md`
+- `SECURITY-ARCHITECTURE.md`
+- `BROWSER-SECURITY-AUDIT.md`
+- `BACKUP-DISASTER-RECOVERY.md`
+- `OFFLINE-SYNC-ARCHITECTURE.md`
+
+## Deploy (always-on — no serverless cold starts)
+
+See **[DEPLOY-ALWAYS-ON.md](./DEPLOY-ALWAYS-ON.md)**.
+
+Recommended: **Render Starter** or **Railway** with the included `Dockerfile`.  
+Do **not** use Render Free (it sleeps). Vercel serverless will cold-start after idle.
+
+```bash
+npm run build
+npm start
 ```
-
-Restart Vite, then sign in with:
-
-- `admin@viste.school` / `demo1234`
-- `teacher@viste.school` / `demo1234`
-
-See [backend/README.md](backend/README.md) for PostgreSQL profile and more endpoints.

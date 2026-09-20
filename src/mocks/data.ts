@@ -26,6 +26,7 @@ import type {
   AcademicYear,
   TransportRoute,
   AuthUser,
+  StaffLoginCredential,
 } from '@/types'
 
 export const demoCredentials = [
@@ -72,43 +73,39 @@ export const mockUsers: AuthUser[] = [
   },
   {
     id: 'u-teacher',
-    name: 'Daniel Mwangi',
+    name: 'Teacher Portal',
     email: 'teacher@viste.school',
     role: 'TEACHER',
     phone: '+1 555 0101',
-    title: 'Senior Teacher',
-    department: 'Mathematics',
-    employeeNumber: 'EMP-1001',
-    staffId: 'st-1',
+    title: 'Teacher',
+    department: 'Academics',
     preferredLanguage: 'en',
     timezone: 'Africa/Harare',
-    bio: 'Mathematics and Computer Science teacher for Forms 3–4.',
+    bio: 'Teacher portal access. Link a staff profile after registering teachers.',
     notificationPrefs: { email: true, sms: false, inApp: true },
   },
   {
     id: 'u-parent',
-    name: 'Grace Ndlovu',
+    name: 'Parent Portal',
     email: 'parent@viste.school',
     role: 'PARENT',
     phone: '+1 555 0200',
     title: 'Parent / Guardian',
-    guardianId: 'g-1',
     preferredLanguage: 'en',
     timezone: 'Africa/Harare',
-    bio: 'Guardian portal access for Leo Ndlovu.',
+    bio: 'Parent portal access. Linked after a guardian is registered.',
     notificationPrefs: { email: true, sms: true, inApp: true },
   },
   {
     id: 'u-student',
-    name: 'Leo Ndlovu',
+    name: 'Student Portal',
     email: 'student@viste.school',
     role: 'STUDENT',
     phone: '+1 555 0300',
     title: 'Student',
-    studentId: 'stu-1',
     preferredLanguage: 'en',
     timezone: 'Africa/Harare',
-    bio: 'Form 3A student.',
+    bio: 'Student portal access. Linked after a student is registered.',
     notificationPrefs: { email: false, sms: false, inApp: true },
   },
 ]
@@ -168,78 +165,11 @@ export const subjects: Subject[] = [
   { id: 'sub-art', code: 'ART', name: 'Art & Design', category: 'Co-curricular' },
 ]
 
-export const staff: Staff[] = [
-  {
-    id: 'st-1',
-    employeeNumber: 'EMP-1001',
-    firstName: 'Daniel',
-    lastName: 'Mwangi',
-    email: 'teacher@viste.school',
-    phone: '+1 555 0101',
-    department: 'Mathematics',
-    title: 'Senior Teacher',
-    status: 'ACTIVE',
-    subjectIds: ['sub-math', 'sub-cs'],
-    classIds: ['cls-f3', 'cls-f4'],
-    hireDate: '2019-08-15',
-  },
-  {
-    id: 'st-2',
-    employeeNumber: 'EMP-1002',
-    firstName: 'Sarah',
-    lastName: 'Bennett',
-    email: 's.bennett@viste.school',
-    phone: '+1 555 0102',
-    department: 'Languages',
-    title: 'Head of English',
-    status: 'ACTIVE',
-    subjectIds: ['sub-eng'],
-    classIds: ['cls-f2', 'cls-f3'],
-    hireDate: '2017-01-10',
-  },
-  {
-    id: 'st-3',
-    employeeNumber: 'EMP-1003',
-    firstName: 'James',
-    lastName: 'Okafor',
-    email: 'j.okafor@viste.school',
-    phone: '+1 555 0103',
-    department: 'Sciences',
-    title: 'Science Teacher',
-    status: 'ACTIVE',
-    subjectIds: ['sub-sci'],
-    classIds: ['cls-f1', 'cls-f2'],
-    hireDate: '2021-03-01',
-  },
-  {
-    id: 'st-4',
-    employeeNumber: 'EMP-1004',
-    firstName: 'Priya',
-    lastName: 'Sharma',
-    email: 'p.sharma@viste.school',
-    phone: '+1 555 0104',
-    department: 'Humanities',
-    title: 'History Teacher',
-    status: 'ACTIVE',
-    subjectIds: ['sub-hist', 'sub-geo'],
-    classIds: ['cls-f3'],
-    hireDate: '2020-09-01',
-  },
-  {
-    id: 'st-5',
-    employeeNumber: 'EMP-1005',
-    firstName: 'Michael',
-    lastName: 'Torres',
-    email: 'm.torres@viste.school',
-    phone: '+1 555 0105',
-    department: 'Sports',
-    title: 'PE Coach',
-    status: 'ACTIVE',
-    subjectIds: ['sub-pe'],
-    classIds: ['cls-f1', 'cls-f4'],
-    hireDate: '2018-05-20',
-  },
-]
+/** Empty by design — register real teachers in the UI / Firestore. */
+export const staff: Staff[] = []
+
+/** Teacher/staff portal login details (filled when staff are registered). */
+export const staffCredentials: StaffLoginCredential[] = []
 
 export const classes: SchoolClass[] = [
   {
@@ -247,28 +177,24 @@ export const classes: SchoolClass[] = [
     name: 'Form 1',
     level: 'Form 1',
     academicYearId: 'ay-2025',
-    classTeacherId: 'st-3',
   },
   {
     id: 'cls-f2',
     name: 'Form 2',
     level: 'Form 2',
     academicYearId: 'ay-2025',
-    classTeacherId: 'st-2',
   },
   {
     id: 'cls-f3',
     name: 'Form 3',
     level: 'Form 3',
     academicYearId: 'ay-2025',
-    classTeacherId: 'st-1',
   },
   {
     id: 'cls-f4',
     name: 'Form 4',
     level: 'Form 4',
     academicYearId: 'ay-2025',
-    classTeacherId: 'st-5',
   },
 ]
 
@@ -283,238 +209,13 @@ export const streams: Stream[] = [
   { id: 'str-4b', classId: 'cls-f4', name: '4B', capacity: 30 },
 ]
 
-export const guardians: Guardian[] = [
-  {
-    id: 'g-1',
-    firstName: 'Grace',
-    lastName: 'Ndlovu',
-    relationship: 'Mother',
-    email: 'parent@viste.school',
-    phone: '+1 555 2001',
-    address: '14 Cedar Avenue',
-    studentIds: ['stu-1', 'stu-2'],
-    occupation: 'Architect',
-  },
-  {
-    id: 'g-2',
-    firstName: 'Robert',
-    lastName: 'Chen',
-    relationship: 'Father',
-    email: 'r.chen@email.com',
-    phone: '+1 555 2002',
-    address: '88 Lake Road',
-    studentIds: ['stu-3'],
-    occupation: 'Engineer',
-  },
-  {
-    id: 'g-3',
-    firstName: 'Fatima',
-    lastName: 'Hassan',
-    relationship: 'Mother',
-    email: 'f.hassan@email.com',
-    phone: '+1 555 2003',
-    address: '3 Palm Court',
-    studentIds: ['stu-4', 'stu-5'],
-    occupation: 'Physician',
-  },
-  {
-    id: 'g-4',
-    firstName: 'Peter',
-    lastName: 'Owusu',
-    relationship: 'Father',
-    email: 'p.owusu@email.com',
-    phone: '+1 555 2004',
-    address: '27 Hillcrest',
-    studentIds: ['stu-6'],
-    occupation: 'Banker',
-  },
-]
+/** Empty by design — add guardians when registering students. */
+export const guardians: Guardian[] = []
 
-export const students: Student[] = [
-  {
-    id: 'stu-1',
-    studentNumber: 'VHS-2024-001',
-    admissionNumber: 'ADM-24001',
-    firstName: 'Leo',
-    middleName: 'K.',
-    lastName: 'Ndlovu',
-    dateOfBirth: '2009-04-12',
-    gender: 'Male',
-    email: 'student@viste.school',
-    phone: '+1 555 3001',
-    address: '14 Cedar Avenue',
-    admissionDate: '2024-09-02',
-    status: 'ACTIVE',
-    classId: 'cls-f3',
-    streamId: 'str-3a',
-    guardianIds: ['g-1'],
-  },
-  {
-    id: 'stu-2',
-    studentNumber: 'VHS-2025-014',
-    admissionNumber: 'ADM-25014',
-    firstName: 'Maya',
-    lastName: 'Ndlovu',
-    dateOfBirth: '2011-08-22',
-    gender: 'Female',
-    address: '14 Cedar Avenue',
-    admissionDate: '2025-09-01',
-    status: 'ACTIVE',
-    classId: 'cls-f1',
-    streamId: 'str-1a',
-    guardianIds: ['g-1'],
-  },
-  {
-    id: 'stu-3',
-    studentNumber: 'VHS-2023-088',
-    admissionNumber: 'ADM-23088',
-    firstName: 'Ethan',
-    lastName: 'Chen',
-    dateOfBirth: '2008-11-03',
-    gender: 'Male',
-    address: '88 Lake Road',
-    admissionDate: '2023-09-04',
-    status: 'ACTIVE',
-    classId: 'cls-f4',
-    streamId: 'str-4a',
-    guardianIds: ['g-2'],
-  },
-  {
-    id: 'stu-4',
-    studentNumber: 'VHS-2024-045',
-    admissionNumber: 'ADM-24045',
-    firstName: 'Aisha',
-    lastName: 'Hassan',
-    dateOfBirth: '2009-02-18',
-    gender: 'Female',
-    address: '3 Palm Court',
-    admissionDate: '2024-09-02',
-    status: 'ACTIVE',
-    classId: 'cls-f3',
-    streamId: 'str-3b',
-    guardianIds: ['g-3'],
-  },
-  {
-    id: 'stu-5',
-    studentNumber: 'VHS-2025-022',
-    admissionNumber: 'ADM-25022',
-    firstName: 'Omar',
-    lastName: 'Hassan',
-    dateOfBirth: '2010-06-09',
-    gender: 'Male',
-    address: '3 Palm Court',
-    admissionDate: '2025-09-01',
-    status: 'ACTIVE',
-    classId: 'cls-f2',
-    streamId: 'str-2a',
-    guardianIds: ['g-3'],
-  },
-  {
-    id: 'stu-6',
-    studentNumber: 'VHS-2022-011',
-    admissionNumber: 'ADM-22011',
-    firstName: 'Nina',
-    lastName: 'Owusu',
-    dateOfBirth: '2008-01-30',
-    gender: 'Female',
-    address: '27 Hillcrest',
-    admissionDate: '2022-09-05',
-    status: 'ACTIVE',
-    classId: 'cls-f4',
-    streamId: 'str-4b',
-    guardianIds: ['g-4'],
-  },
-  {
-    id: 'stu-7',
-    studentNumber: 'VHS-2024-067',
-    admissionNumber: 'ADM-24067',
-    firstName: 'Noah',
-    lastName: 'Patel',
-    dateOfBirth: '2009-09-14',
-    gender: 'Male',
-    address: '9 Riverview',
-    admissionDate: '2024-09-02',
-    status: 'ACTIVE',
-    classId: 'cls-f3',
-    streamId: 'str-3a',
-    guardianIds: ['g-2'],
-  },
-  {
-    id: 'stu-8',
-    studentNumber: 'VHS-2021-003',
-    admissionNumber: 'ADM-21003',
-    firstName: 'Sofia',
-    lastName: 'Martinez',
-    dateOfBirth: '2007-12-01',
-    gender: 'Female',
-    address: '55 Oak Lane',
-    admissionDate: '2021-09-06',
-    status: 'GRADUATED',
-    classId: 'cls-f4',
-    streamId: 'str-4a',
-    guardianIds: ['g-4'],
-  },
-]
+/** Empty by design — register real students in the UI / Firestore. */
+export const students: Student[] = []
 
-export const attendanceRecords: AttendanceRecord[] = [
-  {
-    id: 'att-1',
-    date: '2026-09-15',
-    studentId: 'stu-1',
-    classId: 'cls-f3',
-    streamId: 'str-3a',
-    subjectId: 'sub-math',
-    status: 'PRESENT',
-    recordedBy: 'st-1',
-  },
-  {
-    id: 'att-2',
-    date: '2026-09-15',
-    studentId: 'stu-7',
-    classId: 'cls-f3',
-    streamId: 'str-3a',
-    subjectId: 'sub-math',
-    status: 'LATE',
-    recordedBy: 'st-1',
-  },
-  {
-    id: 'att-3',
-    date: '2026-09-15',
-    studentId: 'stu-4',
-    classId: 'cls-f3',
-    streamId: 'str-3b',
-    subjectId: 'sub-eng',
-    status: 'PRESENT',
-    recordedBy: 'st-2',
-  },
-  {
-    id: 'att-4',
-    date: '2026-09-14',
-    studentId: 'stu-1',
-    classId: 'cls-f3',
-    streamId: 'str-3a',
-    status: 'ABSENT',
-    recordedBy: 'st-1',
-  },
-  {
-    id: 'att-5',
-    date: '2026-09-15',
-    studentId: 'stu-3',
-    classId: 'cls-f4',
-    streamId: 'str-4a',
-    status: 'PRESENT',
-    recordedBy: 'st-5',
-  },
-  {
-    id: 'att-6',
-    date: '2026-09-15',
-    studentId: 'stu-5',
-    classId: 'cls-f2',
-    streamId: 'str-2a',
-    status: 'EXCUSED',
-    recordedBy: 'st-2',
-  },
-]
+export const attendanceRecords: AttendanceRecord[] = []
 
 export const examinations: Examination[] = [
   {
@@ -589,40 +290,7 @@ export const assessments: Assessment[] = [
   },
 ]
 
-export const marks: Mark[] = [
-  {
-    id: 'mk-1',
-    assessmentId: 'as-1',
-    studentId: 'stu-1',
-    score: 86,
-    grade: 'A',
-    status: 'PUBLISHED',
-  },
-  {
-    id: 'mk-2',
-    assessmentId: 'as-1',
-    studentId: 'stu-7',
-    score: 74,
-    grade: 'B',
-    status: 'PUBLISHED',
-  },
-  {
-    id: 'mk-3',
-    assessmentId: 'as-2',
-    studentId: 'stu-1',
-    score: 81,
-    grade: 'A',
-    status: 'APPROVED',
-  },
-  {
-    id: 'mk-4',
-    assessmentId: 'as-3',
-    studentId: 'stu-1',
-    score: 41,
-    grade: 'B',
-    status: 'SUBMITTED',
-  },
-]
+export const marks: Mark[] = []
 
 export const feeStructures: FeeStructure[] = [
   {
@@ -651,87 +319,9 @@ export const feeStructures: FeeStructure[] = [
   },
 ]
 
-export const invoices: Invoice[] = [
-  {
-    id: 'inv-1',
-    studentId: 'stu-1',
-    number: 'INV-2026-1001',
-    dueDate: '2026-02-15',
-    total: 5150,
-    paid: 3000,
-    status: 'PARTIAL',
-  },
-  {
-    id: 'inv-2',
-    studentId: 'stu-3',
-    number: 'INV-2026-1002',
-    dueDate: '2026-02-15',
-    total: 5470,
-    paid: 5470,
-    status: 'PAID',
-  },
-  {
-    id: 'inv-3',
-    studentId: 'stu-4',
-    number: 'INV-2026-1003',
-    dueDate: '2026-01-30',
-    total: 5150,
-    paid: 1000,
-    status: 'OVERDUE',
-  },
-  {
-    id: 'inv-4',
-    studentId: 'stu-6',
-    number: 'INV-2026-1004',
-    dueDate: '2026-03-01',
-    total: 5470,
-    paid: 0,
-    status: 'OPEN',
-  },
-]
+export const invoices: Invoice[] = []
 
-export const payments: Payment[] = [
-  {
-    id: 'pay-1',
-    studentId: 'stu-1',
-    invoiceId: 'inv-1',
-    amount: 2000,
-    method: 'Bank Transfer',
-    status: 'CONFIRMED',
-    paidAt: '2026-01-12T10:20:00',
-    receiptNumber: 'RCPT-9001',
-  },
-  {
-    id: 'pay-2',
-    studentId: 'stu-1',
-    invoiceId: 'inv-1',
-    amount: 1000,
-    method: 'Card',
-    status: 'CONFIRMED',
-    paidAt: '2026-02-02T14:05:00',
-    receiptNumber: 'RCPT-9044',
-  },
-  {
-    id: 'pay-3',
-    studentId: 'stu-3',
-    invoiceId: 'inv-2',
-    amount: 5470,
-    method: 'Bank Transfer',
-    status: 'CONFIRMED',
-    paidAt: '2026-01-20T09:15:00',
-    receiptNumber: 'RCPT-9018',
-  },
-  {
-    id: 'pay-4',
-    studentId: 'stu-4',
-    invoiceId: 'inv-3',
-    amount: 1000,
-    method: 'Cash',
-    status: 'CONFIRMED',
-    paidAt: '2026-01-08T11:40:00',
-    receiptNumber: 'RCPT-8990',
-  },
-]
+export const payments: Payment[] = []
 
 export const announcements: Announcement[] = [
   {
@@ -792,25 +382,7 @@ export const libraryBooks: LibraryBook[] = [
   },
 ]
 
-export const libraryLoans: LibraryLoan[] = [
-  {
-    id: 'ln-1',
-    bookId: 'bk-1',
-    studentId: 'stu-1',
-    borrowedAt: '2026-09-01',
-    dueAt: '2026-09-15',
-    fine: 0,
-  },
-  {
-    id: 'ln-2',
-    bookId: 'bk-2',
-    studentId: 'stu-4',
-    borrowedAt: '2026-08-20',
-    dueAt: '2026-09-03',
-    returnedAt: '2026-09-05',
-    fine: 4,
-  },
-]
+export const libraryLoans: LibraryLoan[] = []
 
 export const inventoryItems: InventoryItem[] = [
   {
@@ -849,7 +421,7 @@ export const transportRoutes: TransportRoute[] = [
     vehicle: 'Bus VHS-01',
     driver: 'Samuel K.',
     fee: 450,
-    studentIds: ['stu-1', 'stu-2'],
+    studentIds: [],
   },
   {
     id: 'tr-2',
@@ -857,7 +429,7 @@ export const transportRoutes: TransportRoute[] = [
     vehicle: 'Bus VHS-02',
     driver: 'Helen R.',
     fee: 520,
-    studentIds: ['stu-3', 'stu-7'],
+    studentIds: [],
   },
   {
     id: 'tr-3',
@@ -865,7 +437,7 @@ export const transportRoutes: TransportRoute[] = [
     vehicle: 'Van VHS-05',
     driver: 'Ibrahim M.',
     fee: 380,
-    studentIds: ['stu-6'],
+    studentIds: [],
   },
 ]
 
@@ -880,35 +452,24 @@ export const appUsers: AppUser[] = [
   },
   {
     id: 'u-teacher',
-    name: 'Daniel Mwangi',
+    name: 'Teacher Portal',
     email: 'teacher@viste.school',
     role: 'TEACHER',
     status: 'ACTIVE',
-    lastLogin: '2026-09-15T07:40:00',
   },
   {
     id: 'u-parent',
-    name: 'Grace Ndlovu',
+    name: 'Parent Portal',
     email: 'parent@viste.school',
     role: 'PARENT',
     status: 'ACTIVE',
-    lastLogin: '2026-09-14T19:10:00',
   },
   {
     id: 'u-student',
-    name: 'Leo Ndlovu',
+    name: 'Student Portal',
     email: 'student@viste.school',
     role: 'STUDENT',
     status: 'ACTIVE',
-    lastLogin: '2026-09-14T18:00:00',
-  },
-  {
-    id: 'u-finance',
-    name: 'Clara Mensah',
-    email: 'finance@viste.school',
-    role: 'ACCOUNTANT',
-    status: 'ACTIVE',
-    lastLogin: '2026-09-15T08:05:00',
   },
 ]
 
@@ -964,58 +525,12 @@ export const rolePermissions: RolePermission[] = [
   },
 ]
 
-export const auditLogs: AuditLog[] = [
-  {
-    id: 'aud-1',
-    user: 'Caxton Nyathi',
-    action: 'LOGIN',
-    module: 'Auth',
-    record: 'admin@viste.school',
-    status: 'SUCCESS',
-    at: '2026-09-15T07:50:00',
-  },
-  {
-    id: 'aud-2',
-    user: 'Daniel Mwangi',
-    action: 'MARK_ENTRY',
-    module: 'Results',
-    record: 'as-3 / stu-1',
-    status: 'SUCCESS',
-    at: '2026-09-14T16:22:00',
-  },
-  {
-    id: 'aud-3',
-    user: 'Clara Mensah',
-    action: 'PAYMENT_CONFIRMED',
-    module: 'Fees',
-    record: 'RCPT-9044',
-    status: 'SUCCESS',
-    at: '2026-02-02T14:05:00',
-  },
-  {
-    id: 'aud-4',
-    user: 'System',
-    action: 'RESULT_PUBLISH_BLOCKED',
-    module: 'Results',
-    record: 'stu-1 fee gate',
-    status: 'WARNING',
-    at: '2026-09-10T11:00:00',
-  },
-  {
-    id: 'aud-5',
-    user: 'Unknown',
-    action: 'LOGIN_FAILED',
-    module: 'Auth',
-    record: 'wrong@viste.school',
-    status: 'FAILED',
-    at: '2026-09-13T21:14:00',
-  },
-]
+export const auditLogs: AuditLog[] = []
 
 export const dashboardStats: DashboardStats = {
   totalStudents: students.filter((s) => s.status === 'ACTIVE').length,
   totalTeachers: staff.filter((s) => s.status === 'ACTIVE').length,
-  todayAttendancePct: 94,
+  todayAttendancePct: 0,
   outstandingFees: invoices.reduce((sum, i) => sum + (i.total - i.paid), 0),
   feesCollected: payments
     .filter((p) => p.status === 'CONFIRMED')
@@ -1026,108 +541,43 @@ export const dashboardStats: DashboardStats = {
 }
 
 export const enrollmentTrend: EnrollmentPoint[] = [
-  { month: 'Jan', students: 610 },
-  { month: 'Feb', students: 618 },
-  { month: 'Mar', students: 625 },
-  { month: 'Apr', students: 630 },
-  { month: 'May', students: 638 },
-  { month: 'Jun', students: 642 },
-  { month: 'Jul', students: 640 },
-  { month: 'Aug', students: 655 },
-  { month: 'Sep', students: 668 },
+  { month: 'Apr', students: 0 },
+  { month: 'May', students: 0 },
+  { month: 'Jun', students: 0 },
+  { month: 'Jul', students: 0 },
+  { month: 'Aug', students: 0 },
+  { month: 'Sep', students: 0 },
 ]
 
 export const attendanceOverview = [
-  { name: 'Present', value: 612 },
-  { name: 'Late', value: 28 },
-  { name: 'Absent', value: 18 },
-  { name: 'Excused', value: 10 },
+  { name: 'Present', value: 0 },
+  { name: 'Late', value: 0 },
+  { name: 'Absent', value: 0 },
+  { name: 'Excused', value: 0 },
 ]
 
 export const feeCollectionSeries = [
-  { month: 'Apr', collected: 82000, outstanding: 24000 },
-  { month: 'May', collected: 91000, outstanding: 21000 },
-  { month: 'Jun', collected: 88000, outstanding: 26000 },
-  { month: 'Jul', collected: 76000, outstanding: 30000 },
-  { month: 'Aug', collected: 94000, outstanding: 18000 },
-  { month: 'Sep', collected: 101000, outstanding: 15000 },
+  { month: 'Apr', collected: 0, outstanding: 0 },
+  { month: 'May', collected: 0, outstanding: 0 },
+  { month: 'Jun', collected: 0, outstanding: 0 },
+  { month: 'Jul', collected: 0, outstanding: 0 },
+  { month: 'Aug', collected: 0, outstanding: 0 },
+  { month: 'Sep', collected: 0, outstanding: 0 },
 ]
 
 export const performanceSeries = [
-  { subject: 'Math', average: 78 },
-  { subject: 'English', average: 81 },
-  { subject: 'Science', average: 74 },
-  { subject: 'History', average: 76 },
-  { subject: 'CS', average: 83 },
+  { subject: 'Math', average: 0 },
+  { subject: 'English', average: 0 },
+  { subject: 'Science', average: 0 },
+  { subject: 'History', average: 0 },
+  { subject: 'CS', average: 0 },
 ]
 
-export const resultPortals: ResultPortalView[] = [
-  {
-    studentId: 'stu-3',
-    studentName: 'Ethan Chen',
-    className: 'Form 4',
-    streamName: '4A',
-    academicYear: '2025/2026',
-    term: 'Term 1',
-    accessState: 'RESULTS_AVAILABLE',
-    overallAverage: 84,
-    teacherComment: 'Excellent focus and leadership in class.',
-    subjects: [
-      { name: 'Mathematics', score: 88, grade: 'A', comment: 'Strong problem solving' },
-      { name: 'English', score: 82, grade: 'A' },
-      { name: 'Science', score: 85, grade: 'A' },
-      { name: 'Computer Science', score: 90, grade: 'A*' },
-    ],
-  },
-  {
-    studentId: 'stu-1',
-    studentName: 'Leo Ndlovu',
-    className: 'Form 3',
-    streamName: '3A',
-    academicYear: '2025/2026',
-    term: 'Term 1',
-    accessState: 'RESULTS_LOCKED_FEES',
-    subjects: [
-      { name: 'Mathematics', score: 86, grade: 'A' },
-      { name: 'English', score: 81, grade: 'A' },
-      { name: 'Science', score: 79, grade: 'B' },
-    ],
-  },
-  {
-    studentId: 'stu-4',
-    studentName: 'Aisha Hassan',
-    className: 'Form 3',
-    streamName: '3B',
-    academicYear: '2025/2026',
-    term: 'Term 2',
-    accessState: 'RESULTS_NOT_PUBLISHED',
-    subjects: [],
-  },
-]
+export const resultPortals: ResultPortalView[] = []
 
-export const recentActivities = [
-  {
-    id: 'ra-1',
-    title: 'Payment confirmed',
-    detail: 'Leo Ndlovu · RCPT-9044 · $1,000',
-    at: '2026-02-02T14:05:00',
-  },
-  {
-    id: 'ra-2',
-    title: 'Attendance recorded',
-    detail: 'Form 3A Mathematics · 32 students',
-    at: '2026-09-15T08:20:00',
-  },
-  {
-    id: 'ra-3',
-    title: 'Marks submitted',
-    detail: 'Science CAT · Form 3A',
-    at: '2026-09-14T16:22:00',
-  },
-  {
-    id: 'ra-4',
-    title: 'Announcement published',
-    detail: 'Library Week',
-    at: '2026-09-10T09:00:00',
-  },
-]
+export const recentActivities: {
+  id: string
+  title: string
+  detail: string
+  at: string
+}[] = []

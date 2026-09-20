@@ -10,9 +10,13 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.next
+out
 *.local
 .env
 .env.*.local
+tsconfig.tsbuildinfo
+*.tsbuildinfo
 
 # Editor directories and files
 .vscode/*
@@ -25,9 +29,10 @@ dist-ssr
 *.sln
 *.sw?
 
-# Spring Boot
-backend/target
-backend/data
-backend/.idea
-backend/*.iml
+
+
+# Firebase Admin / service accounts (never commit)
+secrets/
+*.pem
+*firebase-adminsdk*.json
 
