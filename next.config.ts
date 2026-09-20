@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url'
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
 const nextConfig: NextConfig = {
-  // Standalone output for always-on Docker / Railway / Render
-  output: 'standalone',
+  // Standalone is for Docker / Railway / Render only — breaks Vercel serverless APIs
+  ...(process.env.VERCEL ? {} : { output: 'standalone' as const }),
   reactStrictMode: true,
   serverExternalPackages: ['firebase-admin'],
   turbopack: {
