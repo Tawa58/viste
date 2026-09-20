@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Archive, Pencil, UserPlus, Users } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, UserPlus, Users } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { LoadingState } from '@/components/shared/loading-state'
 import { StatusBadge } from '@/components/shared/status-badge'
@@ -149,12 +149,20 @@ export function ClassDetailPage() {
     }
   }
 
-  async function archive() {
+  async function removeClass() {
     if (!cls) return
-    if (!confirm(`Archive “${cls.name}”?`)) return
-    await notify.process(() => classService.archive(cls.id), {
-      loading: 'Archiving…',
-      success: 'Class archived',
+    if (activeStudents.length > 0) {
+      notify.error(
+        'Cannot delete this class',
+        `${activeStudents.length} student(s) are still assigned. Transfer them first.`,
+      )
+      return
+    }
+    if (!confirm(`Permanently delete “${cls.name}”? This cannot be undone.`)) return
+    await notify.process(() => classService.remove(cls.id), {
+      loading: 'Deleting class…',
+      success: 'Class deleted',
+      error: 'Could not delete class',
     })
     navigate('/classes')
   }
@@ -240,12 +248,14 @@ export function ClassDetailPage() {
                   <Pencil className="h-4 w-4" />
                   Edit
                 </Button>
-                {(cls.status ?? 'ACTIVE') === 'ACTIVE' ? (
-                  <Button variant="ghost" className="text-destructive" onClick={() => void archive()}>
-                    <Archive className="h-4 w-4" />
-                    Archive
-                  </Button>
-                ) : null}
+                <Button
+                  variant="ghost"
+                  className="text-destructive"
+                  onClick={() => void removeClass()}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </Button>
               </>
             ) : null}
           </div>

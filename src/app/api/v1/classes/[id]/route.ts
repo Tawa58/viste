@@ -4,6 +4,7 @@ import { badRequest } from '@/server/errors'
 import { classUpdateSchema } from '@/server/validators/school'
 import {
   archiveClassService,
+  deleteClassService,
   getClassService,
   updateClassService,
 } from '@/server/services/classes-service'
@@ -34,6 +35,12 @@ export const PATCH = withApiHandler(async (request, ctx) => {
 export const DELETE = withApiHandler(async (request, ctx) => {
   const session = await requireSession(request)
   const id = paramId((await ctx.params).id)
-  rateLimit(`classes:archive:${session.uid}`, 30, 60_000)
-  return jsonOk(await archiveClassService(session, id, ctx.requestId))
+  const url = new URL(request.url)
+  const mode = url.searchParams.get('mode')
+  rateLimit(`classes:delete:${session.uid}`, 30, 60_000)
+  // ?mode=archive keeps soft-archive; default is permanent delete
+  if (mode === 'archive') {
+    return jsonOk(await archiveClassService(session, id, ctx.requestId))
+  }
+  return jsonOk(await deleteClassService(session, id, ctx.requestId))
 })

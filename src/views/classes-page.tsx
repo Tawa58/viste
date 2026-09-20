@@ -1,13 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Archive, Plus, School, Users } from 'lucide-react'
+import { Plus, School, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { LoadingState } from '@/components/shared/loading-state'
 import { EmptyState } from '@/components/shared/empty-state'
 import { SearchInput } from '@/components/shared/search-input'
+import { StatusBadge } from '@/components/shared/status-badge'
+import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRow,
+  DataTableShell,
+} from '@/components/shared/data-table'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -212,11 +221,26 @@ export function ClassesPage() {
     }
   }
 
-  async function archiveClass(cls: SchoolClass) {
-    if (!confirm(`Archive class “${cls.name}”? Students keep their historical records.`)) return
-    await notify.process(() => classService.archive(cls.id), {
-      loading: 'Archiving class…',
-      success: 'Class archived',
+  async function deleteClass(cls: SchoolClass) {
+    const count = students.filter((s) => s.classId === cls.id).length
+    if (count > 0) {
+      notify.error(
+        'Cannot delete this class',
+        `${count} student(s) are still assigned. Transfer them first.`,
+      )
+      return
+    }
+    if (
+      !confirm(
+        `Permanently delete class “${cls.name}”? This cannot be undone.`,
+      )
+    ) {
+      return
+    }
+    await notify.process(() => classService.remove(cls.id), {
+      loading: 'Deleting class…',
+      success: 'Class deleted',
+      error: 'Could not delete class',
     })
     await reload()
   }
@@ -298,85 +322,86 @@ export function ClassesPage() {
           onAction={canManage ? openCreate : undefined}
         />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((cls) => {
-            const teacher = staff.find((s) => s.id === cls.classTeacherId)
-            const count = students.filter(
-              (s) => s.classId === cls.id && s.status === 'ACTIVE',
-            ).length
-            const year = years.find((y) => y.id === cls.academicYearId)
-            const term = terms.find((t) => t.id === cls.termId)
-            return (
-              <Card key={cls.id} className="shadow-card transition-shadow hover:shadow-elevated">
-                <CardHeader className="space-y-2">
-                  <CardTitle className="flex items-start justify-between gap-2">
-                    <Link
-                      to={`/classes/${cls.id}`}
-                      className="hover:text-primary hover:underline"
-                    >
-                      {cls.name}
-                    </Link>
-                    <Badge variant="secondary" className="shrink-0">
-                      <Users className="mr-1 h-3 w-3" />
-                      {count}
-                    </Badge>
-                  </CardTitle>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline">
+        <DataTableShell>
+          <DataTable>
+            <DataTableHead>
+              <tr>
+                <DataTableHeaderCell>Class</DataTableHeaderCell>
+                <DataTableHeaderCell>Level</DataTableHeaderCell>
+                <DataTableHeaderCell>Teacher</DataTableHeaderCell>
+                <DataTableHeaderCell>Year / term</DataTableHeaderCell>
+                <DataTableHeaderCell>Students</DataTableHeaderCell>
+                <DataTableHeaderCell>Subjects</DataTableHeaderCell>
+                <DataTableHeaderCell>Status</DataTableHeaderCell>
+                <DataTableHeaderCell className="text-right">Actions</DataTableHeaderCell>
+              </tr>
+            </DataTableHead>
+            <DataTableBody>
+              {filtered.map((cls) => {
+                const teacher = staff.find((s) => s.id === cls.classTeacherId)
+                const count = students.filter(
+                  (s) => s.classId === cls.id && s.status === 'ACTIVE',
+                ).length
+                const year = years.find((y) => y.id === cls.academicYearId)
+                const term = terms.find((t) => t.id === cls.termId)
+                return (
+                  <DataTableRow key={cls.id}>
+                    <DataTableCell>
+                      <Link
+                        to={`/classes/${cls.id}`}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        {cls.name}
+                      </Link>
+                    </DataTableCell>
+                    <DataTableCell>
                       {educationLevelName(cls.educationLevelId) || cls.level}
-                    </Badge>
-                    {(cls.status ?? 'ACTIVE') === 'ARCHIVED' ? (
-                      <Badge variant="danger">Archived</Badge>
-                    ) : null}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm text-muted-foreground">
-                  <p>
-                    Teacher:{' '}
-                    <span className="text-foreground">
-                      {teacher ? `${teacher.firstName} ${teacher.lastName}` : 'Unassigned'}
-                    </span>
-                  </p>
-                  <p>
-                    {year?.name ?? '—'}
-                    {cls.termSequence
-                      ? ` · Term ${cls.termSequence}`
-                      : term
-                        ? ` · ${term.name}`
-                        : ''}
-                  </p>
-                  <p>
-                    Subjects:{' '}
-                    <span className="text-foreground">{(cls.subjectIds ?? []).length}</span>
-                  </p>
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    <Button asChild size="sm" variant="outline">
-                      <Link to={`/classes/${cls.id}`}>Open</Link>
-                    </Button>
-                    {canManage ? (
-                      <>
-                        <Button size="sm" variant="ghost" onClick={() => openEdit(cls)}>
-                          Edit
+                    </DataTableCell>
+                    <DataTableCell>
+                      {teacher ? `${teacher.firstName} ${teacher.lastName}` : '—'}
+                    </DataTableCell>
+                    <DataTableCell className="text-muted-foreground">
+                      {year?.name ?? '—'}
+                      {cls.termSequence
+                        ? ` · Term ${cls.termSequence}`
+                        : term
+                          ? ` · ${term.name}`
+                          : ''}
+                    </DataTableCell>
+                    <DataTableCell>{count}</DataTableCell>
+                    <DataTableCell>{(cls.subjectIds ?? []).length}</DataTableCell>
+                    <DataTableCell>
+                      <StatusBadge status={cls.status ?? 'ACTIVE'} />
+                    </DataTableCell>
+                    <DataTableCell>
+                      <div className="flex flex-wrap justify-end gap-1">
+                        <Button asChild size="sm" variant="outline">
+                          <Link to={`/classes/${cls.id}`}>Open</Link>
                         </Button>
-                        {(cls.status ?? 'ACTIVE') === 'ACTIVE' ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive"
-                            onClick={() => void archiveClass(cls)}
-                          >
-                            <Archive className="h-3.5 w-3.5" />
-                            Archive
-                          </Button>
+                        {canManage ? (
+                          <>
+                            <Button size="sm" variant="ghost" onClick={() => openEdit(cls)}>
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive"
+                              onClick={() => void deleteClass(cls)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Delete
+                            </Button>
+                          </>
                         ) : null}
-                      </>
-                    ) : null}
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+                      </div>
+                    </DataTableCell>
+                  </DataTableRow>
+                )
+              })}
+            </DataTableBody>
+          </DataTable>
+        </DataTableShell>
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>

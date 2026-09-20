@@ -2,10 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowUpRight,
-  GraduationCap,
   MoreHorizontal,
   Plus,
-  School,
   Users,
 } from 'lucide-react'
 import { notify } from '@/lib/notify'
@@ -17,6 +15,15 @@ import { Pagination } from '@/components/shared/pagination'
 import { TableSkeleton } from '@/components/shared/loading-state'
 import { EmptyState } from '@/components/shared/empty-state'
 import { StatusBadge } from '@/components/shared/status-badge'
+import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRow,
+  DataTableShell,
+} from '@/components/shared/data-table'
 import {
   StudentEditorForm,
   studentToFormValues,
@@ -40,7 +47,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { catalogService, classService, studentService } from '@/services/api'
-import { cn, fullName } from '@/lib/utils'
+import { fullName } from '@/lib/utils'
 import { EDUCATION_LEVELS, educationLevelName } from '@/lib/education-levels'
 import { previewNextVhsNumber } from '@/lib/student-numbers'
 import type {
@@ -404,91 +411,100 @@ export function StudentsPage() {
               </div>
             </div>
 
-            <ul className="divide-y divide-border/70">
-              {pageRows.map((s) => {
-                const cls = classes.find((c) => c.id === s.classId)
-                const classLabel = cls?.name ?? '—'
-                const levelLabel = educationLevelName(s.educationLevelId || cls?.educationLevelId)
-                const subjectCount = s.subjectIds?.length ?? 0
-                return (
-                  <li key={s.id} className="px-4 py-3.5 transition hover:bg-muted/30 sm:px-5">
-                    <div className="flex items-start gap-3">
-                      <Checkbox
-                        className="mt-3"
-                        checked={selected.includes(s.id)}
-                        onCheckedChange={(checked) => {
-                          setSelected((prev) =>
-                            checked === true
-                              ? [...prev, s.id]
-                              : prev.filter((id) => id !== s.id),
-                          )
-                        }}
-                        aria-label={`Select ${fullName(s)}`}
-                      />
-                      <Link
-                        to={`/students/${s.id}`}
-                        className={cn(
-                          'flex min-w-0 flex-1 items-start gap-3 rounded-xl outline-none',
-                          'focus-visible:ring-2 focus-visible:ring-ring',
-                        )}
-                      >
-                        <Avatar name={fullName(s)} className="mt-0.5 h-11 w-11 text-sm" />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="truncate font-semibold text-foreground">{fullName(s)}</p>
-                            <StatusBadge status={s.status} />
-                          </div>
-                          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                            <span className="inline-flex items-center gap-1">
-                              <GraduationCap className="h-3.5 w-3.5" />
-                              {s.admissionNumber}
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                              <School className="h-3.5 w-3.5" />
-                              {classLabel}
-                              {levelLabel !== '—' ? ` · ${levelLabel}` : ''}
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                              <Users className="h-3.5 w-3.5" />
-                              {subjectCount} subjects
-                            </span>
-                          </div>
-                        </div>
-                      </Link>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <Button variant="outline" size="sm" className="h-8 gap-1 px-2.5" asChild>
-                          <Link to={`/students/${s.id}`}>
-                            View
-                            <ArrowUpRight className="h-3.5 w-3.5" />
+            <DataTableShell className="rounded-none border-0 shadow-none">
+              <DataTable className="min-w-[720px]">
+                <DataTableHead>
+                  <tr>
+                    <DataTableHeaderCell className="w-10" />
+                    <DataTableHeaderCell>Student</DataTableHeaderCell>
+                    <DataTableHeaderCell>Admission #</DataTableHeaderCell>
+                    <DataTableHeaderCell>Class</DataTableHeaderCell>
+                    <DataTableHeaderCell>Level</DataTableHeaderCell>
+                    <DataTableHeaderCell>Subjects</DataTableHeaderCell>
+                    <DataTableHeaderCell>Status</DataTableHeaderCell>
+                    <DataTableHeaderCell className="text-right">Actions</DataTableHeaderCell>
+                  </tr>
+                </DataTableHead>
+                <DataTableBody>
+                  {pageRows.map((s) => {
+                    const cls = classes.find((c) => c.id === s.classId)
+                    const classLabel = cls?.name ?? '—'
+                    const levelLabel = educationLevelName(
+                      s.educationLevelId || cls?.educationLevelId,
+                    )
+                    const subjectCount = s.subjectIds?.length ?? 0
+                    return (
+                      <DataTableRow key={s.id}>
+                        <DataTableCell>
+                          <Checkbox
+                            checked={selected.includes(s.id)}
+                            onCheckedChange={(checked) => {
+                              setSelected((prev) =>
+                                checked === true
+                                  ? [...prev, s.id]
+                                  : prev.filter((id) => id !== s.id),
+                              )
+                            }}
+                            aria-label={`Select ${fullName(s)}`}
+                          />
+                        </DataTableCell>
+                        <DataTableCell>
+                          <Link
+                            to={`/students/${s.id}`}
+                            className="flex min-w-0 items-center gap-3 font-medium text-primary hover:underline"
+                          >
+                            <Avatar name={fullName(s)} className="h-9 w-9 text-xs" />
+                            <span className="truncate">{fullName(s)}</span>
                           </Link>
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreHorizontal className="h-4 w-4" />
+                        </DataTableCell>
+                        <DataTableCell className="text-muted-foreground">
+                          {s.admissionNumber}
+                        </DataTableCell>
+                        <DataTableCell>{classLabel}</DataTableCell>
+                        <DataTableCell className="text-muted-foreground">
+                          {levelLabel}
+                        </DataTableCell>
+                        <DataTableCell>{subjectCount}</DataTableCell>
+                        <DataTableCell>
+                          <StatusBadge status={s.status} />
+                        </DataTableCell>
+                        <DataTableCell>
+                          <div className="flex justify-end gap-1">
+                            <Button variant="outline" size="sm" className="h-8 gap-1 px-2.5" asChild>
+                              <Link to={`/students/${s.id}`}>
+                                View
+                                <ArrowUpRight className="h-3.5 w-3.5" />
+                              </Link>
                             </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link to={`/students/${s.id}`}>View profile</Link>
-                            </DropdownMenuItem>
-                            {canManage ? (
-                              <DropdownMenuItem onClick={() => openEdit(s)}>
-                                Edit registration
-                              </DropdownMenuItem>
-                            ) : (
-                              <DropdownMenuItem asChild>
-                                <Link to={`/students/${s.id}`}>Update contact info</Link>
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem asChild>
+                                  <Link to={`/students/${s.id}`}>View profile</Link>
+                                </DropdownMenuItem>
+                                {canManage ? (
+                                  <DropdownMenuItem onClick={() => openEdit(s)}>
+                                    Edit registration
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem asChild>
+                                    <Link to={`/students/${s.id}`}>Update contact info</Link>
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </DataTableCell>
+                      </DataTableRow>
+                    )
+                  })}
+                </DataTableBody>
+              </DataTable>
+            </DataTableShell>
 
             <div className="border-t border-border/70 px-4 py-3 sm:px-5">
               <Pagination page={page} pageCount={pageCount} onPageChange={setPage} />

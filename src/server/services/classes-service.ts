@@ -8,7 +8,7 @@ import {
   educationLevelName,
   getEducationLevel,
 } from '@/lib/education-levels'
-import { getDoc, newId, queryCollection, setDoc } from '@/server/repositories/firestore-repo'
+import { getDoc, newId, queryCollection, setDoc, deleteDoc } from '@/server/repositories/firestore-repo'
 import type { ClassCreateInput, ClassUpdateInput } from '@/server/validators/school'
 import type { SchoolClass, Staff, Stream, Student, StudentClassStats } from '@/types'
 import {
@@ -196,6 +196,51 @@ export async function archiveClass(
   return updateClass(session, id, { status: 'ARCHIVED' }, requestId)
 }
 
+/**
+ * Permanently remove a class, its streams, and teacher assignment links.
+ * Blocked while any students still reference the class.
+ */
+export async function deleteClass(
+  session: SessionContext,
+  id: string,
+  requestId?: string,
+): Promise<{ deleted: true; id: string }> {
+  requirePermission(session, 'classes.manage')
+  const current = await getDoc<SchoolClass>('classes', id)
+  if (!current) throw notFound('Class not found')
+
+  const students = await queryCollection<Student>('students', { limit: 500 })
+  const stillAssigned = students.filter((s) => s.classId === id)
+  if (stillAssigned.length > 0) {
+    throw badRequest(
+      `Cannot delete “${current.name}” — ${stillAssigned.length} student(s) are still in this class. Transfer or reassign them first.`,
+    )
+  }
+
+  const streams = await queryCollection<Stream>('streams', { limit: 200 })
+  await Promise.all(
+    streams.filter((s) => s.classId === id).map((s) => deleteDoc('streams', s.id)),
+  )
+
+  if (current.classTeacherId) {
+    await assignClassTeacher(id, current.classTeacherId, undefined)
+  }
+
+  await deleteDoc('classes', id)
+
+  await writeAuditLog({
+    actorId: session.uid,
+    actorRole: session.role,
+    action: 'class.delete',
+    entityType: 'classes',
+    entityId: id,
+    requestId,
+    metadata: { name: current.name },
+  })
+
+  return { deleted: true, id }
+}
+
 /** Prefer the first stream for a class (created automatically with the class). */
 export async function getDefaultStreamForClass(classId: string): Promise<Stream | null> {
   const streams = await queryCollection<Stream>('streams', { limit: 100 })
@@ -249,4 +294,5 @@ export const getClassService = getClass
 export const createClassService = createClass
 export const updateClassService = updateClass
 export const archiveClassService = archiveClass
+export const deleteClassService = deleteClass
 export const getStudentClassStatsService = getStudentClassStats

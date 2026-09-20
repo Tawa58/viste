@@ -10,6 +10,15 @@ import { notify } from '@/lib/notify'
 import { canViewStaffCredentials } from '@/lib/roles'
 import { useAuth } from '@/contexts/auth-context'
 import { StatusBadge } from '@/components/shared/status-badge'
+import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRow,
+  DataTableShell,
+} from '@/components/shared/data-table'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -218,63 +227,84 @@ export function TeachersPage() {
         }
       />
 
-      <Card>
-        <CardContent className="space-y-4 p-4 sm:p-5">
-          <SearchInput value={search} onChange={setSearch} placeholder="Search staff…" />
-          <div className="grid gap-3">
-            {rows.map((s) => {
-              const fullName = `${s.firstName} ${s.lastName}`
-              const cred = credentials.find((c) => c.staffId === s.id)
-              const assigned = classNamesForStaff(s, classes)
-              return (
-                <div
-                  key={s.id}
-                  className="flex flex-col gap-3 rounded-xl border border-border p-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <Avatar name={fullName} src={s.photoUrl} className="h-12 w-12 text-sm" />
-                    <div className="min-w-0">
-                      <Link
-                        to={`/teachers/${s.id}`}
-                        className="font-medium text-primary hover:underline"
-                      >
-                        {fullName}
-                      </Link>
-                      <p className="text-sm text-muted-foreground">
-                        {s.title} · {s.department} · {s.employeeNumber}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Classes: {assigned.length ? assigned.join(', ') : 'None assigned'}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Subjects:{' '}
+      <div className="space-y-4">
+        <SearchInput value={search} onChange={setSearch} placeholder="Search staff…" />
+        {rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No staff match your search.</p>
+        ) : (
+          <DataTableShell>
+            <DataTable>
+              <DataTableHead>
+                <tr>
+                  <DataTableHeaderCell>Name</DataTableHeaderCell>
+                  <DataTableHeaderCell>Title / dept</DataTableHeaderCell>
+                  <DataTableHeaderCell>Classes</DataTableHeaderCell>
+                  <DataTableHeaderCell>Subjects</DataTableHeaderCell>
+                  {showCredentials ? (
+                    <DataTableHeaderCell>Login</DataTableHeaderCell>
+                  ) : null}
+                  <DataTableHeaderCell>Status</DataTableHeaderCell>
+                  <DataTableHeaderCell className="text-right">Actions</DataTableHeaderCell>
+                </tr>
+              </DataTableHead>
+              <DataTableBody>
+                {rows.map((s) => {
+                  const fullName = `${s.firstName} ${s.lastName}`
+                  const cred = credentials.find((c) => c.staffId === s.id)
+                  const assigned = classNamesForStaff(s, classes)
+                  return (
+                    <DataTableRow key={s.id}>
+                      <DataTableCell>
+                        <Link
+                          to={`/teachers/${s.id}`}
+                          className="flex items-center gap-3 font-medium text-primary hover:underline"
+                        >
+                          <Avatar name={fullName} src={s.photoUrl} className="h-9 w-9 text-xs" />
+                          <span>
+                            {fullName}
+                            <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                              {s.employeeNumber}
+                            </span>
+                          </span>
+                        </Link>
+                      </DataTableCell>
+                      <DataTableCell className="text-muted-foreground">
+                        {s.title} · {s.department}
+                      </DataTableCell>
+                      <DataTableCell>
+                        {assigned.length ? assigned.join(', ') : '—'}
+                      </DataTableCell>
+                      <DataTableCell className="text-muted-foreground">
                         {s.subjectIds
                           .map((id) => subjects.find((x) => x.id === id)?.name)
                           .filter(Boolean)
                           .join(', ') || '—'}
-                      </p>
-                      {showCredentials && cred ? (
-                        <p className="mt-1 truncate text-xs font-medium text-foreground/80">
-                          Login: {cred.email}
-                          {cred.password ? ' · Password on sheet' : ''}
-                        </p>
+                      </DataTableCell>
+                      {showCredentials ? (
+                        <DataTableCell className="max-w-[180px] truncate text-xs">
+                          {cred?.email ?? '—'}
+                        </DataTableCell>
                       ) : null}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {showCredentials ? (
-                      <Button variant="outline" size="sm" asChild>
-                        <Link to={`/teachers/${s.id}`}>Credentials</Link>
-                      </Button>
-                    ) : null}
-                    <StatusBadge status={s.status} />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                      <DataTableCell>
+                        <StatusBadge status={s.status} />
+                      </DataTableCell>
+                      <DataTableCell>
+                        <div className="flex justify-end gap-1">
+                          <Button variant="outline" size="sm" asChild>
+                            <Link to={`/teachers/${s.id}`}>
+                              {showCredentials ? 'Access' : 'Open'}
+                            </Link>
+                          </Button>
+                        </div>
+                      </DataTableCell>
+                    </DataTableRow>
+                  )
+                })}
+              </DataTableBody>
+            </DataTable>
+          </DataTableShell>
+        )}
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">

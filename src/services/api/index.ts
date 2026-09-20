@@ -502,6 +502,18 @@ export const classService = USE_MOCK_API
         classes[idx] = { ...classes[idx], status: 'ARCHIVED' }
         return mockRequest({ ...classes[idx] }, 200)
       },
+      remove: async (id: string) => {
+        const idx = classes.findIndex((c) => c.id === id)
+        if (idx < 0) throw new Error('Class not found')
+        const assigned = students.filter((s) => s.classId === id)
+        if (assigned.length > 0) {
+          throw new Error(
+            `Cannot delete — ${assigned.length} student(s) are still in this class.`,
+          )
+        }
+        classes.splice(idx, 1)
+        return mockRequest({ deleted: true as const, id }, 200)
+      },
     }
   : apiClassService
 

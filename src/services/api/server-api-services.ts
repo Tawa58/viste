@@ -164,7 +164,9 @@ export const apiClassService = {
       body: JSON.stringify(patch),
     }),
   archive: (id: string) =>
-    apiFetch<SchoolClass>(`/api/v1/classes/${id}`, { method: 'DELETE' }),
+    apiFetch<SchoolClass>(`/api/v1/classes/${id}?mode=archive`, { method: 'DELETE' }),
+  remove: (id: string) =>
+    apiFetch<{ deleted: true; id: string }>(`/api/v1/classes/${id}`, { method: 'DELETE' }),
 }
 
 export const apiSubjectAdminService = {
