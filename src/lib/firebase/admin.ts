@@ -30,8 +30,23 @@ function readServiceAccount():
 
   const projectId =
     process.env.FIREBASE_ADMIN_PROJECT_ID ?? process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL
-  const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n')
+  let clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL
+  let privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY
+
+  // Vercel / dotenv sometimes keep surrounding quotes
+  const stripQuotes = (v?: string) => {
+    if (!v) return v
+    const t = v.trim()
+    if (
+      (t.startsWith('"') && t.endsWith('"')) ||
+      (t.startsWith("'") && t.endsWith("'"))
+    ) {
+      return t.slice(1, -1)
+    }
+    return t
+  }
+  clientEmail = stripQuotes(clientEmail)
+  privateKey = stripQuotes(privateKey)?.replace(/\\n/g, '\n')
 
   if (!projectId || !clientEmail || !privateKey) return null
   return { projectId, clientEmail, privateKey }
