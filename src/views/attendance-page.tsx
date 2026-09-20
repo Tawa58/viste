@@ -133,6 +133,8 @@ export function AttendancePage() {
   )
 
   const selectedClass = classes.find((c) => c.id === classId)
+  /** Once submitted for this class+date, marks are read-only until the next calendar day. */
+  const registerLocked = Boolean(session)
 
   const stats = useMemo(() => {
     const values = roster.map((s) => marks[s.id] ?? null)
@@ -145,12 +147,20 @@ export function AttendancePage() {
   }, [roster, marks])
 
   function markAll(status: 'PRESENT' | 'ABSENT') {
+    if (registerLocked) return
     const next: Record<string, 'PRESENT' | 'ABSENT'> = {}
     for (const s of roster) next[s.id] = status
     setMarks(next)
   }
 
   async function submitRegister() {
+    if (registerLocked) {
+      notify.error(
+        'Register locked',
+        'This day’s register is already submitted. Take attendance again on the next calendar day.',
+      )
+      return
+    }
     if (!classId || !selectedClass) {
       notify.error('Select a class')
       return
@@ -259,8 +269,12 @@ export function AttendancePage() {
               <Download className="h-4 w-4" />
               Download PDF
             </Button>
-            <Button loading={saving} onClick={() => void submitRegister()}>
-              Submit register
+            <Button
+              loading={saving}
+              disabled={registerLocked || roster.length === 0}
+              onClick={() => void submitRegister()}
+            >
+              {registerLocked ? 'Register submitted' : 'Submit register'}
             </Button>
           </div>
         }
@@ -314,10 +328,22 @@ export function AttendancePage() {
             ) : null}
           </div>
           <div className="flex flex-wrap items-end gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => markAll('PRESENT')}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={registerLocked || roster.length === 0}
+              onClick={() => markAll('PRESENT')}
+            >
               Mark all present
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => markAll('ABSENT')}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={registerLocked || roster.length === 0}
+              onClick={() => markAll('ABSENT')}
+            >
               Mark all absent
             </Button>
           </div>
@@ -325,10 +351,12 @@ export function AttendancePage() {
       </Card>
 
       {session ? (
-        <p className="text-sm text-muted-foreground">
-          Last submitted {new Date(session.submittedAt).toLocaleString()}
+        <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-foreground">
+          <span className="font-semibold">Locked for this day.</span> Submitted{' '}
+          {new Date(session.submittedAt).toLocaleString()}
           {session.submittedByName ? ` by ${session.submittedByName}` : ''} ·{' '}
-          {session.presentCount} present / {session.absentCount} absent
+          {session.presentCount} present / {session.absentCount} absent. You can mark a new
+          register for this class on the next calendar day.
         </p>
       ) : null}
 
@@ -370,6 +398,7 @@ export function AttendancePage() {
                         <Button
                           type="button"
                           size="sm"
+                          disabled={registerLocked}
                           variant={status === 'PRESENT' ? 'default' : 'outline'}
                           className={cn(
                             status === 'PRESENT' && 'bg-success text-success-foreground hover:bg-success/90',
@@ -384,6 +413,7 @@ export function AttendancePage() {
                         <Button
                           type="button"
                           size="sm"
+                          disabled={registerLocked}
                           variant={status === 'ABSENT' ? 'default' : 'outline'}
                           className={cn(
                             status === 'ABSENT' &&

@@ -8,7 +8,7 @@ import {
   assertTeacherOwnsClass,
   listAccessibleStudents,
 } from '@/server/authorization/isolation'
-import { badRequest, forbidden, notFound } from '@/server/errors'
+import { badRequest, conflict, forbidden, notFound } from '@/server/errors'
 import {
   getDoc,
   newId,
@@ -132,6 +132,18 @@ export async function upsertAttendance(
   await assertTeacherOwnsClass(session, input.classId)
 
   const kind = input.kind ?? (input.subjectId ? 'PERIOD' : 'DAILY')
+  if (kind === 'DAILY') {
+    const existingSession = await getDoc<AttendanceSession>(
+      'attendanceSessions',
+      sessionId(input.date, input.classId),
+    )
+    if (existingSession) {
+      throw conflict(
+        `This day’s register for this class is already submitted and locked until the next calendar day.`,
+      )
+    }
+  }
+
   const id =
     kind === 'DAILY'
       ? dailyRecordId(input.date, input.classId, input.studentId)
@@ -179,6 +191,7 @@ export async function upsertAttendance(
 /**
  * Submit a full daily class register (present/absent) in one go.
  * Creates/updates daily attendance rows and an attendanceSessions summary for admins.
+ * Once submitted for a class+date, the register is locked until the next calendar day.
  */
 export async function submitDailyRegister(
   session: SessionContext,
@@ -190,6 +203,14 @@ export async function submitDailyRegister(
 
   const cls = await getDoc<SchoolClass>('classes', input.classId)
   if (!cls) throw notFound('Class not found')
+
+  const sid = sessionId(input.date, input.classId)
+  const already = await getDoc<AttendanceSession>('attendanceSessions', sid)
+  if (already) {
+    throw conflict(
+      `Register for ${cls.name} on ${input.date} is already submitted and locked. It can be taken again on the next calendar day.`,
+    )
+  }
 
   const studentIds = new Set(input.entries.map((e) => e.studentId))
   if (studentIds.size !== input.entries.length) {
@@ -220,7 +241,6 @@ export async function submitDailyRegister(
     (r) => r.status === 'EXCUSED' || r.status === 'AUTHORIZED_ABSENCE',
   ).length
 
-  const sid = sessionId(input.date, input.classId)
   const sessionRow: AttendanceSession = {
     id: sid,
     date: input.date,
