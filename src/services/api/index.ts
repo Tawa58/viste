@@ -207,6 +207,10 @@ class MockAuthService implements AuthService {
 
     return mockRequest({ ...next }, 250)
   }
+
+  async changePassword(_currentPassword: string, _nextPassword: string) {
+    await mockRequest(null, 200)
+  }
 }
 
 class MockStudentService implements StudentService {
@@ -318,6 +322,19 @@ const mockCatalogService = {
   getGuardians: (): Promise<Guardian[]> => mockRequest([...guardians]),
   getGuardian: (id: string) => mockRequest(guardians.find((g) => g.id === id)),
   getStaffMember: (id: string) => mockRequest(staff.find((s) => s.id === id)),
+  updateStaff: async (id: string, patch: Partial<Staff>) => {
+    const idx = staff.findIndex((s) => s.id === id)
+    if (idx < 0) throw new Error('Staff not found')
+    staff[idx] = { ...staff[idx]!, ...patch, id }
+    return mockRequest(staff[idx]!)
+  },
+  deleteStaff: async (id: string) => {
+    const idx = staff.findIndex((s) => s.id === id)
+    if (idx >= 0) staff.splice(idx, 1)
+    const cIdx = staffCredentials.findIndex((c) => c.staffId === id)
+    if (cIdx >= 0) staffCredentials.splice(cIdx, 1)
+    return mockRequest({ deleted: true as const, id })
+  },
   getStaffCredentials: (): Promise<StaffLoginCredential[]> => mockRequest([...staffCredentials]),
   getStaffCredential: (staffId: string) =>
     mockRequest(staffCredentials.find((c) => c.staffId === staffId)),
@@ -505,6 +522,62 @@ const mockCatalogService = {
   getExaminations: (): Promise<Examination[]> => mockRequest(examinations),
   getAssessments: (): Promise<Assessment[]> => mockRequest(assessments),
   getMarks: (): Promise<Mark[]> => mockRequest(marks),
+  submitMonthlyMarks: async (input: {
+    classId: string
+    subjectId: string
+    month: string
+    maxScore?: number
+    publish?: boolean
+    entries: { studentId: string; score: number }[]
+  }) => {
+    const maxScore = input.maxScore ?? 100
+    const assessment: Assessment = {
+      id: `as_monthly_${input.classId}_${input.subjectId}_${input.month}`,
+      name: `Monthly ${input.month}`,
+      type: 'MONTHLY',
+      subjectId: input.subjectId,
+      streamId: 'stream-1',
+      termId: 'term-1',
+      maxScore,
+      status: input.publish ? 'PUBLISHED' : 'DRAFT',
+      classId: input.classId,
+      month: input.month,
+    }
+    assessments.unshift(assessment)
+    const nextMarks = input.entries.map((e) => {
+      const pct = (e.score / maxScore) * 100
+      const grade = pct >= 85 ? 'A' : pct >= 70 ? 'B' : pct >= 60 ? 'C' : pct >= 50 ? 'D' : 'U'
+      const row: Mark = {
+        id: `mk_${assessment.id}_${e.studentId}`,
+        assessmentId: assessment.id,
+        studentId: e.studentId,
+        score: e.score,
+        grade,
+        status: assessment.status,
+      }
+      marks.unshift(row)
+      return row
+    })
+    return mockRequest({ assessment, marks: nextMarks })
+  },
+  getGradingScale: async () =>
+    mockRequest({
+      id: 'default',
+      passMark: 50,
+      bands: [
+        { grade: 'A', minPercent: 85, maxPercent: 100 },
+        { grade: 'B', minPercent: 70, maxPercent: 84 },
+        { grade: 'C', minPercent: 60, maxPercent: 69 },
+        { grade: 'D', minPercent: 50, maxPercent: 59 },
+        { grade: 'E', minPercent: 40, maxPercent: 49 },
+        { grade: 'U', minPercent: 0, maxPercent: 39 },
+      ],
+    }),
+  updateGradingScale: async (input: {
+    passMark: number
+    bands: { grade: string; minPercent: number; maxPercent: number }[]
+  }) => mockRequest({ id: 'default', ...input }),
+  acknowledgePasswordChanged: async () => mockRequest({ cleared: true }),
   getFeeStructures: (): Promise<FeeStructure[]> => mockRequest(feeStructures),
   getInvoices: (): Promise<Invoice[]> => mockRequest(invoices),
   getPayments: (): Promise<Payment[]> => mockRequest(payments),
@@ -530,6 +603,21 @@ const mockCatalogService = {
   getPermissionCatalog: () => mockRequest(permissionCatalog),
   getAuditLogs: (): Promise<AuditLog[]> => mockRequest(auditLogs),
   getResultPortals: (): Promise<ResultPortalView[]> => mockRequest(resultPortals),
+  getResultPortal: async (studentId: string) => {
+    const existing = resultPortals.find((p) => p.studentId === studentId)
+    if (existing) return mockRequest(existing)
+    return mockRequest({
+      studentId,
+      studentName: 'Student',
+      className: '',
+      streamName: '',
+      academicYear: '',
+      term: '',
+      accessState: 'RESULTS_NOT_PUBLISHED' as const,
+      subjects: [],
+      monthly: [],
+    })
+  },
 }
 
 export const catalogService = USE_MOCK_API

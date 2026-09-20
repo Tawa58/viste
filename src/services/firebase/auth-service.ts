@@ -1,7 +1,10 @@
 import {
   createUserWithEmailAndPassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
   signInWithEmailAndPassword,
   signOut,
+  updatePassword,
   updateProfile,
   type User,
 } from 'firebase/auth'
@@ -55,6 +58,22 @@ export class FirebaseAuthService implements AuthService {
       await updateProfile(auth.currentUser, { displayName: patch.name })
     }
     return updateUserProfile(userId, patch)
+  }
+
+  /** Reauthenticate, set a new Firebase password, then clear admin temp-password tag. */
+  async changePassword(currentPassword: string, nextPassword: string): Promise<void> {
+    const auth = getFirebaseAuth()
+    const user = auth.currentUser
+    if (!user?.email) throw new Error('Not signed in')
+    const credential = EmailAuthProvider.credential(user.email, currentPassword)
+    await reauthenticateWithCredential(user, credential)
+    await updatePassword(user, nextPassword)
+    try {
+      const { apiCatalogService } = await import('@/services/api/server-api-services')
+      await apiCatalogService.acknowledgePasswordChanged()
+    } catch (err) {
+      console.error('Could not clear temporary password flag', err)
+    }
   }
 }
 

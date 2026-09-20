@@ -13,6 +13,8 @@ export interface AuthService {
   logout(): Promise<void>
   getDemoCredentials(): typeof demoCredentials
   updateProfile(userId: string, patch: Partial<AuthUser>): Promise<AuthUser>
+  /** Change password and clear admin temporary-password tag when linked to staff. */
+  changePassword?(currentPassword: string, nextPassword: string): Promise<void>
   me?(): Promise<AuthUser>
   /** Current user plus effective RBAC permissions. */
   session?(): Promise<{ user: AuthUser; permissions: string[] }>

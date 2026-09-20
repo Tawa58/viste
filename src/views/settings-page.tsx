@@ -58,7 +58,7 @@ function toForm(user: AuthUser): ProfileForm {
 }
 
 export function SettingsPage() {
-  const { user, updateProfile } = useAuth()
+  const { user, updateProfile, changePassword } = useAuth()
   const [params, setParams] = useSearchParams()
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<ProfileForm | null>(null)
@@ -467,16 +467,29 @@ export function SettingsPage() {
                     notify.error('Enter current and new passwords')
                     return
                   }
+                  if (passwordForm.next.length < 8) {
+                    notify.error('New password must be at least 8 characters')
+                    return
+                  }
                   if (passwordForm.next !== passwordForm.confirm) {
                     notify.error('New passwords do not match')
                     return
                   }
                   void (async () => {
-                    await runMockProcess({
-                      loading: 'Updating password…',
-                      success: 'Password updated',
-                    })
-                    setPasswordForm({ current: '', next: '', confirm: '' })
+                    try {
+                      await notify.process(
+                        () => changePassword(passwordForm.current, passwordForm.next),
+                        {
+                          loading: 'Updating password…',
+                          success:
+                            'Password updated — temporary password tag cleared on the admin login sheet',
+                          error: 'Could not update password',
+                        },
+                      )
+                      setPasswordForm({ current: '', next: '', confirm: '' })
+                    } catch {
+                      /* notify.process already surfaced */
+                    }
                   })()
                 }}
               >
@@ -631,7 +644,6 @@ export function SettingsPage() {
               ['school', 'School profile', 'School name, address, contacts, motto, and branding.'],
               ['academic', 'Academic structure', 'Year structure, promotion rules, and streams.'],
               ['fees', 'Fee policy', 'Currency, receipt numbering, and fee-gate rules.'],
-              ['grading', 'Grading scale', 'Grade bands, pass mark, and report card labels.'],
             ] as const
           ).map(([value, title, text]) => (
             <TabsContent key={value} value={value}>
@@ -675,7 +687,159 @@ export function SettingsPage() {
               </Card>
             </TabsContent>
           ))}
+
+        {schoolAdmin ? (
+          <TabsContent value="grading">
+            <GradingScalePanel />
+          </TabsContent>
+        ) : null}
       </Tabs>
     </div>
+  )
+}
+
+function GradingScalePanel() {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [passMark, setPassMark] = useState(50)
+  const [bands, setBands] = useState<
+    { grade: string; minPercent: number; maxPercent: number }[]
+  >([])
+
+  useEffect(() => {
+    let mounted = true
+    void (async () => {
+      try {
+        const { catalogService } = await import('@/services/api')
+        const scale = await catalogService.getGradingScale()
+        if (!mounted) return
+        setPassMark(scale.passMark)
+        setBands(scale.bands)
+      } catch (err) {
+        console.error(err)
+        notify.error('Could not load grading scale')
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  async function save() {
+    setSaving(true)
+    try {
+      const { catalogService } = await import('@/services/api')
+      const next = await notify.process(
+        () => catalogService.updateGradingScale({ passMark, bands }),
+        {
+          loading: 'Saving grading scale…',
+          success: 'Grading scale saved — new marks will use these bands',
+          error: 'Could not save grading scale',
+        },
+      )
+      setBands(next.bands)
+      setPassMark(next.passMark)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-sm text-muted-foreground">Loading grading scale…</CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Grading scale</CardTitle>
+        <CardDescription>
+          When teachers enter monthly test scores, letter grades are assigned automatically from
+          these percent bands (e.g. 85–100 = A).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2 max-w-xs">
+          <Label>Pass mark (%)</Label>
+          <Input
+            type="number"
+            min={0}
+            max={100}
+            value={passMark}
+            onChange={(e) => setPassMark(Number(e.target.value))}
+          />
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label>Grade bands</Label>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                setBands((prev) => [...prev, { grade: '', minPercent: 0, maxPercent: 0 }])
+              }
+            >
+              Add band
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {bands.map((band, index) => (
+              <div key={index} className="grid grid-cols-[80px_1fr_1fr_auto] gap-2">
+                <Input
+                  placeholder="A"
+                  value={band.grade}
+                  onChange={(e) =>
+                    setBands((prev) =>
+                      prev.map((b, i) => (i === index ? { ...b, grade: e.target.value } : b)),
+                    )
+                  }
+                />
+                <Input
+                  type="number"
+                  placeholder="Min %"
+                  value={band.minPercent}
+                  onChange={(e) =>
+                    setBands((prev) =>
+                      prev.map((b, i) =>
+                        i === index ? { ...b, minPercent: Number(e.target.value) } : b,
+                      ),
+                    )
+                  }
+                />
+                <Input
+                  type="number"
+                  placeholder="Max %"
+                  value={band.maxPercent}
+                  onChange={(e) =>
+                    setBands((prev) =>
+                      prev.map((b, i) =>
+                        i === index ? { ...b, maxPercent: Number(e.target.value) } : b,
+                      ),
+                    )
+                  }
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setBands((prev) => prev.filter((_, i) => i !== index))}
+                >
+                  Remove
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+        <Button loading={saving} onClick={() => void save()}>
+          Save grading scale
+        </Button>
+      </CardContent>
+    </Card>
   )
 }

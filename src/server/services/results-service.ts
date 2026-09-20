@@ -3,11 +3,10 @@ import 'server-only'
 import { writeAuditLog } from '@/server/audit/logger'
 import type { SessionContext } from '@/server/auth/session'
 import { requirePermission } from '@/server/authorization/permissions'
-import { assertCanAccessStudent } from '@/server/authorization/isolation'
-import { badRequest, forbidden, notFound } from '@/server/errors'
-import { getDoc, newId, queryCollection, setDoc } from '@/server/repositories/firestore-repo'
-import { isFeeCleared } from '@/server/services/finance-service'
 import type { MarkUpsertInput, ResultTransitionInput } from '@/server/validators/school'
+import type { monthlyMarksSchema } from '@/server/validators/school'
+import type { z } from 'zod'
+import { getGradingScale, gradeFromScore } from '@/server/services/grading-service'
 import type {
   Assessment,
   Mark,
@@ -15,10 +14,16 @@ import type {
   ResultAccessState,
   ResultPortalView,
   SchoolClass,
+  Staff,
   Stream,
+  Student,
   Subject,
   Term,
 } from '@/types'
+import { getDoc, newId, queryCollection, setDoc } from '@/server/repositories/firestore-repo'
+import { assertCanAccessStudent } from '@/server/authorization/isolation'
+import { badRequest, forbidden, notFound } from '@/server/errors'
+import { isFeeCleared } from '@/server/services/finance-service'
 
 export type MarkDto = Mark
 export type AssessmentDto = Assessment
@@ -83,13 +88,19 @@ export async function upsertMark(
   }
 
   const id = current?.id ?? newId('mk')
+  const scale = await getGradingScale()
+  const grade =
+    input.grade?.trim() ||
+    gradeFromScore(input.score, assessment.maxScore || 100, scale)
   const row: Mark = {
     id,
     assessmentId: input.assessmentId,
     studentId: input.studentId,
     score: input.score,
-    grade: input.grade,
+    grade,
     status: current?.status ?? 'DRAFT',
+    recordedAt: new Date().toISOString(),
+    recordedBy: session.uid,
   }
 
   await setDoc('marks', id, { ...row })
@@ -247,6 +258,43 @@ export async function getResultsPortal(
     })
     .filter((x): x is { name: string; score: number; grade: string } => x !== null)
 
+  const monthlyMap = new Map<
+    string,
+    { month: string; label: string; rows: { subject: string; score: number; grade: string; maxScore: number }[] }
+  >()
+  for (const a of published) {
+    if (a.type !== 'MONTHLY' || !a.month) continue
+    const m = markByAssessment.get(a.id)
+    if (!m || (m.status !== 'PUBLISHED' && m.status !== 'LOCKED')) continue
+    const bucket =
+      monthlyMap.get(a.month) ??
+      ({
+        month: a.month,
+        label: formatMonthLabel(a.month),
+        rows: [],
+      } as {
+        month: string
+        label: string
+        rows: { subject: string; score: number; grade: string; maxScore: number }[]
+      })
+    bucket.rows.push({
+      subject: subjectName.get(a.subjectId) ?? a.subjectId,
+      score: m.score,
+      grade: m.grade,
+      maxScore: a.maxScore,
+    })
+    monthlyMap.set(a.month, bucket)
+  }
+  const monthly = [...monthlyMap.values()]
+    .sort((a, b) => b.month.localeCompare(a.month))
+    .map((block) => ({
+      ...block,
+      average:
+        block.rows.length > 0
+          ? block.rows.reduce((s, r) => s + (r.score / r.maxScore) * 100, 0) / block.rows.length
+          : undefined,
+    }))
+
   const overallAverage =
     subjects.length > 0
       ? subjects.reduce((s, x) => s + x.score, 0) / subjects.length
@@ -256,13 +304,139 @@ export async function getResultsPortal(
     ...base,
     accessState: 'RESULTS_AVAILABLE',
     subjects,
+    monthly,
     overallAverage,
   }
 }
 
+function formatMonthLabel(month: string) {
+  const [y, m] = month.split('-').map(Number)
+  if (!y || !m) return month
+  return new Date(y, m - 1, 1).toLocaleString(undefined, { month: 'long', year: 'numeric' })
+}
+
+async function assertTeacherCanEnter(
+  session: SessionContext,
+  classId: string,
+  subjectId: string,
+) {
+  if (session.role !== 'TEACHER') return
+  const staffId = session.profile.staffId
+  if (!staffId) throw forbidden('Teacher profile is not linked')
+  const staff = await getDoc<Staff>('staff', staffId)
+  if (!staff) throw forbidden('Teacher profile not found')
+  if (!(staff.classIds ?? []).includes(classId)) {
+    throw forbidden('You are not assigned to teach this class')
+  }
+  if (!(staff.subjectIds ?? []).includes(subjectId)) {
+    throw forbidden('You are not assigned to teach this subject')
+  }
+}
+
+/**
+ * Create/update an end-of-month test for a class+subject and save student marks.
+ * Grades are assigned automatically from the school grading scale.
+ */
+export async function submitMonthlyMarks(
+  session: SessionContext,
+  input: z.infer<typeof monthlyMarksSchema>,
+  requestId?: string,
+): Promise<{ assessment: AssessmentDto; marks: MarkDto[] }> {
+  requirePermission(session, 'results.enter')
+  await assertTeacherCanEnter(session, input.classId, input.subjectId)
+
+  const cls = await getDoc<SchoolClass>('classes', input.classId)
+  if (!cls) throw notFound('Class not found')
+  const subject = await getDoc<Subject>('subjects', input.subjectId)
+  if (!subject) throw notFound('Subject not found')
+
+  const students = await queryCollection<Student>('students', {
+    limit: 100,
+    where: [{ field: 'classId', op: '==', value: input.classId }],
+  })
+  const active = students.filter((s) => s.status === 'ACTIVE')
+  const allowed = new Set(active.map((s) => s.id))
+  for (const entry of input.entries) {
+    if (!allowed.has(entry.studentId)) {
+      throw badRequest(`Student ${entry.studentId} is not in this class`)
+    }
+    await assertCanAccessStudent(session, entry.studentId)
+  }
+
+  const streamId = active[0]?.streamId || `stream_${input.classId}`
+  const termId = cls.termId || 'term_current'
+  const assessmentId = `as_monthly_${input.classId}_${input.subjectId}_${input.month}`.replace(
+    /[^a-zA-Z0-9_-]/g,
+    '_',
+  )
+  const status: MarkWorkflowStatus = input.publish ? 'PUBLISHED' : 'DRAFT'
+  const monthLabel = formatMonthLabel(input.month)
+  const assessment: Assessment = {
+    id: assessmentId,
+    name: `${subject.name} · ${monthLabel}`,
+    type: 'MONTHLY',
+    subjectId: input.subjectId,
+    streamId,
+    termId,
+    maxScore: input.maxScore,
+    status,
+    classId: input.classId,
+    month: input.month,
+  }
+  await setDoc('assessments', assessmentId, { ...assessment })
+
+  const scale = await getGradingScale()
+  const marks: MarkDto[] = []
+  for (const entry of input.entries) {
+    const markId = `mk_${assessmentId}_${entry.studentId}`.replace(/[^a-zA-Z0-9_-]/g, '_')
+    const row: Mark = {
+      id: markId,
+      assessmentId,
+      studentId: entry.studentId,
+      score: entry.score,
+      grade: gradeFromScore(entry.score, input.maxScore, scale),
+      status,
+      recordedAt: new Date().toISOString(),
+      recordedBy: session.uid,
+    }
+    await setDoc('marks', markId, { ...row })
+    marks.push(row)
+  }
+
+  await writeAuditLog({
+    actorId: session.uid,
+    actorRole: session.role,
+    action: 'marks.monthly_submit',
+    entityType: 'assessments',
+    entityId: assessmentId,
+    requestId,
+    metadata: {
+      classId: input.classId,
+      subjectId: input.subjectId,
+      month: input.month,
+      count: marks.length,
+      publish: Boolean(input.publish),
+    },
+  })
+
+  return { assessment, marks }
+}
+
 export async function listAssessments(session: SessionContext): Promise<AssessmentDto[]> {
   requirePermission(session, 'results.read')
-  return queryCollection<Assessment>('assessments', { limit: 100 })
+  let rows = await queryCollection<Assessment>('assessments', { limit: 100 })
+  if (session.role === 'TEACHER') {
+    const staffId = session.profile.staffId
+    const staff = staffId ? await getDoc<Staff>('staff', staffId) : null
+    const subjects = new Set(staff?.subjectIds ?? [])
+    const classIds = new Set(staff?.classIds ?? [])
+    rows = rows.filter(
+      (a) =>
+        subjects.has(a.subjectId) &&
+        (!a.classId || classIds.has(a.classId)),
+    )
+  }
+  return rows
 }
 
 export async function listMarks(session: SessionContext): Promise<MarkDto[]> {
@@ -275,6 +449,7 @@ export const getResultsPortalService = getResultsPortal
 export const listAssessmentsService = listAssessments
 export const listMarksService = listMarks
 export const upsertMarkService = upsertMark
+export const submitMonthlyMarksService = submitMonthlyMarks
 
 export async function transitionAssessmentService(
   session: SessionContext,

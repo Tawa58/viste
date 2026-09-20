@@ -40,8 +40,11 @@ import type {
 } from '@/types'
 import { demoCredentials } from '@/mocks/data'
 import {
+  EmailAuthProvider,
+  reauthenticateWithCredential,
   signInWithEmailAndPassword,
   signOut,
+  updatePassword,
   updateProfile,
 } from 'firebase/auth'
 import { getFirebaseAuth } from '@/services/firebase/app'
@@ -83,6 +86,19 @@ export class ApiAuthService implements AuthService {
       body: JSON.stringify(patch),
     })
     return res.user
+  }
+
+  async changePassword(currentPassword: string, nextPassword: string) {
+    const auth = getFirebaseAuth()
+    const user = auth.currentUser
+    if (!user?.email) throw new Error('Not signed in')
+    const credential = EmailAuthProvider.credential(user.email, currentPassword)
+    await reauthenticateWithCredential(user, credential)
+    await updatePassword(user, nextPassword)
+    await apiFetch<{ cleared: boolean }>('/api/v1/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ acknowledge: true }),
+    })
   }
 }
 
@@ -264,10 +280,14 @@ export const apiCatalogService = {
   getStaff: () => apiFetch<Staff[]>('/api/v1/teachers'),
   getGuardians: () => apiFetch<Guardian[]>('/api/v1/parents'),
   getGuardian: (id: string) => apiFetch<Guardian>(`/api/v1/parents/${id}`),
-  getStaffMember: async (id: string) => {
-    const all = await apiFetch<Staff[]>('/api/v1/teachers')
-    return all.find((s) => s.id === id)
-  },
+  getStaffMember: (id: string) => apiFetch<Staff>(`/api/v1/teachers/${id}`),
+  updateStaff: (id: string, patch: Partial<Staff>) =>
+    apiFetch<Staff>(`/api/v1/teachers/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+  deleteStaff: (id: string) =>
+    apiFetch<{ deleted: true; id: string }>(`/api/v1/teachers/${id}`, { method: 'DELETE' }),
   getStaffCredentials: () =>
     apiFetch<StaffLoginCredential[]>('/api/v1/teachers?credentials=1'),
   getStaffCredential: async (staffId: string) => {
@@ -371,6 +391,42 @@ export const apiCatalogService = {
   getExaminations: async (): Promise<Examination[]> => [],
   getAssessments: () => apiFetch<Assessment[]>('/api/v1/results?kind=assessments'),
   getMarks: () => apiFetch<Mark[]>('/api/v1/results?kind=marks'),
+  submitMonthlyMarks: (input: {
+    classId: string
+    subjectId: string
+    month: string
+    maxScore?: number
+    publish?: boolean
+    entries: { studentId: string; score: number }[]
+  }) =>
+    apiFetch<{
+      assessment: Assessment
+      marks: Mark[]
+    }>('/api/v1/results', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  upsertMark: (input: {
+    assessmentId: string
+    studentId: string
+    score: number
+    grade?: string
+  }) =>
+    apiFetch<Mark>('/api/v1/results', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getGradingScale: () => apiFetch<import('@/types').GradingScale>('/api/v1/grading'),
+  updateGradingScale: (input: { passMark: number; bands: import('@/types').GradeBand[] }) =>
+    apiFetch<import('@/types').GradingScale>('/api/v1/grading', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  acknowledgePasswordChanged: () =>
+    apiFetch<{ cleared: boolean }>('/api/v1/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ acknowledge: true }),
+    }),
   getFeeStructures: async (): Promise<FeeStructure[]> => [],
   getInvoices: () => apiFetch<Invoice[]>('/api/v1/invoices'),
   getPayments: () => apiFetch<Payment[]>('/api/v1/payments'),

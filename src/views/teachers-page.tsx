@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { Download, KeyRound, Plus } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Download, KeyRound, Plus, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { ProfilePhotoUpload } from '@/components/shared/profile-photo-upload'
 import { SearchInput } from '@/components/shared/search-input'
@@ -45,6 +45,8 @@ const emptyForm = {
   password: '',
   photoUrl: undefined as string | undefined,
   profilePhotoId: undefined as string | undefined,
+  subjectIds: [] as string[],
+  classIds: [] as string[],
 }
 
 function classNamesForStaff(staff: Staff, classes: SchoolClass[]) {
@@ -171,8 +173,8 @@ export function TeachersPage() {
             department: form.department.trim() || 'General',
             title: form.title.trim() || 'Staff',
             status: 'ACTIVE',
-            subjectIds: [],
-            classIds: [],
+            subjectIds: form.subjectIds,
+            classIds: form.classIds,
             hireDate: new Date().toISOString().slice(0, 10),
             photoUrl: form.photoUrl,
             profilePhotoId: form.profilePhotoId,
@@ -392,10 +394,64 @@ export function TeachersPage() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Saved on the admin login sheet. Marked as a temporary password until they change
-                    it.
+                    it under Settings → Security.
                   </p>
                 </div>
               ) : null}
+            </div>
+            <div className="space-y-2">
+              <Label>Subjects they teach</Label>
+              <div className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+                {subjects.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No subjects in catalog yet.</p>
+                ) : (
+                  subjects.map((sub) => (
+                    <label key={sub.id} className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={form.subjectIds.includes(sub.id)}
+                        onCheckedChange={(checked) =>
+                          setForm((f) => ({
+                            ...f,
+                            subjectIds:
+                              checked === true
+                                ? [...f.subjectIds, sub.id]
+                                : f.subjectIds.filter((id) => id !== sub.id),
+                          }))
+                        }
+                      />
+                      {sub.name}
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Classes they teach</Label>
+              <div className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+                {classes.filter((c) => (c.status ?? 'ACTIVE') === 'ACTIVE').length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No classes yet.</p>
+                ) : (
+                  classes
+                    .filter((c) => (c.status ?? 'ACTIVE') === 'ACTIVE')
+                    .map((cls) => (
+                      <label key={cls.id} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={form.classIds.includes(cls.id)}
+                          onCheckedChange={(checked) =>
+                            setForm((f) => ({
+                              ...f,
+                              classIds:
+                                checked === true
+                                  ? [...f.classIds, cls.id]
+                                  : f.classIds.filter((id) => id !== cls.id),
+                            }))
+                          }
+                        />
+                        {cls.name}
+                      </label>
+                    ))
+                )}
+              </div>
             </div>
           </div>
           <div className="flex justify-end gap-2">
@@ -465,6 +521,7 @@ export function TeachersPage() {
 
 export function TeacherDetailPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { user } = useAuth()
   const showCredentials = user ? canViewStaffCredentials(user.role) : false
   const canConfigureAccess = user
@@ -478,6 +535,10 @@ export function TeacherDetailPage() {
   const [classes, setClasses] = useState<SchoolClass[]>([])
   const [credential, setCredential] = useState<StaffLoginCredential | null | undefined>()
   const [savingPhoto, setSavingPhoto] = useState(false)
+  const [savingAssign, setSavingAssign] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [editSubjectIds, setEditSubjectIds] = useState<string[]>([])
+  const [editClassIds, setEditClassIds] = useState<string[]>([])
 
   useEffect(() => {
     if (!id) return
@@ -491,6 +552,8 @@ export function TeacherDetailPage() {
       setSubjects(sub)
       setClasses(cls)
       setCredential(cred ?? null)
+      setEditSubjectIds(s?.subjectIds ?? [])
+      setEditClassIds(s?.classIds ?? [])
       setLoading(false)
     })
   }, [id, showCredentials])
@@ -506,6 +569,47 @@ export function TeacherDetailPage() {
       if (updated) setMember(updated)
     } finally {
       setSavingPhoto(false)
+    }
+  }
+
+  async function saveAssignments() {
+    if (!member) return
+    setSavingAssign(true)
+    try {
+      const updated = await notify.process(
+        () =>
+          catalogService.updateStaff(member.id, {
+            subjectIds: editSubjectIds,
+            classIds: editClassIds,
+          }),
+        {
+          loading: 'Saving teaching assignments…',
+          success: 'Assignments saved',
+          error: 'Could not save assignments',
+        },
+      )
+      setMember(updated)
+    } finally {
+      setSavingAssign(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!member) return
+    const ok = window.confirm(
+      `Delete ${member.firstName} ${member.lastName}? This removes their login and cannot be undone.`,
+    )
+    if (!ok) return
+    setDeleting(true)
+    try {
+      await notify.process(() => catalogService.deleteStaff(member.id), {
+        loading: 'Deleting teacher…',
+        success: 'Teacher deleted',
+        error: 'Could not delete teacher',
+      })
+      navigate('/teachers')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -525,6 +629,14 @@ export function TeacherDetailPage() {
           { label: 'Teachers', to: '/teachers' },
           { label: member.lastName },
         ]}
+        actions={
+          canConfigureAccess ? (
+            <Button variant="destructive" loading={deleting} onClick={() => void handleDelete()}>
+              <Trash2 className="h-4 w-4" />
+              Delete teacher
+            </Button>
+          ) : null
+        }
       />
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
@@ -574,22 +686,77 @@ export function TeacherDetailPage() {
           ) : null}
 
           <Card>
-            <CardContent className="space-y-2 p-5 text-sm">
-              <p className="font-medium">Subjects assigned</p>
-              {member.subjectIds.length ? (
-                member.subjectIds.map((sid) => (
-                  <p key={sid}>{subjects.find((s) => s.id === sid)?.name}</p>
-                ))
+            <CardContent className="space-y-3 p-5 text-sm">
+              <p className="font-medium">Teaching assignments</p>
+              <p className="text-xs text-muted-foreground">
+                Subjects and classes this teacher can record monthly tests for. Homeroom class
+                teacher links from Classes are also listed below.
+              </p>
+              {canConfigureAccess ? (
+                <>
+                  <div className="space-y-1">
+                    <Label>Subjects</Label>
+                    <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+                      {subjects.map((sub) => (
+                        <label key={sub.id} className="flex items-center gap-2">
+                          <Checkbox
+                            checked={editSubjectIds.includes(sub.id)}
+                            onCheckedChange={(checked) =>
+                              setEditSubjectIds((prev) =>
+                                checked === true
+                                  ? [...prev, sub.id]
+                                  : prev.filter((x) => x !== sub.id),
+                              )
+                            }
+                          />
+                          {sub.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Classes</Label>
+                    <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+                      {classes
+                        .filter((c) => (c.status ?? 'ACTIVE') === 'ACTIVE')
+                        .map((cls) => (
+                          <label key={cls.id} className="flex items-center gap-2">
+                            <Checkbox
+                              checked={editClassIds.includes(cls.id)}
+                              onCheckedChange={(checked) =>
+                                setEditClassIds((prev) =>
+                                  checked === true
+                                    ? [...prev, cls.id]
+                                    : prev.filter((x) => x !== cls.id),
+                                )
+                              }
+                            />
+                            {cls.name}
+                          </label>
+                        ))}
+                    </div>
+                  </div>
+                  <Button size="sm" loading={savingAssign} onClick={() => void saveAssignments()}>
+                    Save assignments
+                  </Button>
+                </>
               ) : (
-                <p className="text-muted-foreground">No subjects assigned yet.</p>
-              )}
-              <p className="mt-3 font-medium">Classes assigned</p>
-              {assignedClasses.length ? (
-                assignedClasses.map((name) => <p key={name}>{name}</p>)
-              ) : (
-                <p className="text-muted-foreground">
-                  None — assign as class teacher on a class.
-                </p>
+                <>
+                  <p className="font-medium">Subjects</p>
+                  {member.subjectIds.length ? (
+                    member.subjectIds.map((sid) => (
+                      <p key={sid}>{subjects.find((s) => s.id === sid)?.name}</p>
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground">No subjects assigned yet.</p>
+                  )}
+                  <p className="mt-3 font-medium">Classes</p>
+                  {assignedClasses.length ? (
+                    assignedClasses.map((name) => <p key={name}>{name}</p>)
+                  ) : (
+                    <p className="text-muted-foreground">No classes assigned yet.</p>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

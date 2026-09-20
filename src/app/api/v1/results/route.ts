@@ -1,11 +1,16 @@
 import { requireSession } from '@/server/auth/session'
 import { jsonOk, withApiHandler } from '@/server/http/handler'
 import { badRequest } from '@/server/errors'
-import { markUpsertSchema, resultTransitionSchema } from '@/server/validators/school'
+import {
+  markUpsertSchema,
+  monthlyMarksSchema,
+  resultTransitionSchema,
+} from '@/server/validators/school'
 import {
   getResultPortalService,
   listAssessmentsService,
   listMarksService,
+  submitMonthlyMarksService,
   transitionAssessmentService,
   upsertMarkService,
 } from '@/server/services/results-service'
@@ -26,6 +31,20 @@ export const GET = withApiHandler(async (request) => {
 export const POST = withApiHandler(async (request, { requestId }) => {
   const session = await requireSession(request)
   const body = await request.json().catch(() => null)
+
+  if (
+    body &&
+    typeof body === 'object' &&
+    Array.isArray((body as { entries?: unknown }).entries) &&
+    'month' in body
+  ) {
+    const parsed = monthlyMarksSchema.safeParse(body)
+    if (!parsed.success) throw badRequest('Invalid monthly marks payload', parsed.error.flatten())
+    return jsonOk(await submitMonthlyMarksService(session, parsed.data, requestId), {
+      status: 201,
+    })
+  }
+
   const parsed = markUpsertSchema.safeParse(body)
   if (!parsed.success) throw badRequest('Invalid mark payload', parsed.error.flatten())
   return jsonOk(await upsertMarkService(session, parsed.data, requestId), { status: 201 })
@@ -34,8 +53,7 @@ export const POST = withApiHandler(async (request, { requestId }) => {
 export const PATCH = withApiHandler(async (request, { requestId }) => {
   const session = await requireSession(request)
   const body = await request.json().catch(() => null)
-  const parsed = resultTransitionSchema
-    .safeParse(body?.status ? body : null)
+  const parsed = resultTransitionSchema.safeParse(body?.status ? body : null)
   const assessmentId = typeof body?.assessmentId === 'string' ? body.assessmentId : ''
   if (!parsed.success || !assessmentId) {
     throw badRequest('Invalid transition payload')

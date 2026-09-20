@@ -338,4 +338,38 @@ export const firestoreCatalogService = {
   async getResultPortals() {
     return []
   },
+  async getResultPortal(studentId: string) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.getResultPortal(studentId)
+  },
+  async submitMonthlyMarks(input: {
+    classId: string
+    subjectId: string
+    month: string
+    maxScore?: number
+    publish?: boolean
+    entries: { studentId: string; score: number }[]
+  }) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.submitMonthlyMarks(input)
+  },
+  async getGradingScale() {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.getGradingScale()
+  },
+  async updateGradingScale(input: {
+    passMark: number
+    bands: { grade: string; minPercent: number; maxPercent: number }[]
+  }) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.updateGradingScale(input)
+  },
+  async updateStaff(id: string, patch: Partial<import('@/types').Staff>) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.updateStaff(id, patch)
+  },
+  async deleteStaff(id: string) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.deleteStaff(id)
+  },
 }

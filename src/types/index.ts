@@ -151,6 +151,21 @@ export interface Staff {
   photoUrl?: string
 }
 
+/** One band in the school grading scale (percent of max score). */
+export interface GradeBand {
+  grade: string
+  minPercent: number
+  maxPercent: number
+}
+
+export interface GradingScale {
+  id: string
+  passMark: number
+  bands: GradeBand[]
+  updatedAt?: string
+  updatedBy?: string
+}
+
 export interface AcademicYear {
   id: string
   name: string
@@ -352,6 +367,10 @@ export interface Assessment {
   termId: string
   maxScore: number
   status: MarkWorkflowStatus
+  /** Class for class-scoped assessments (e.g. monthly tests). */
+  classId?: string
+  /** YYYY-MM for end-of-month tests. */
+  month?: string
 }
 
 export interface Mark {
@@ -361,6 +380,8 @@ export interface Mark {
   score: number
   grade: string
   status: MarkWorkflowStatus
+  recordedAt?: string
+  recordedBy?: string
 }
 
 export interface FeeStructure {
@@ -488,6 +509,13 @@ export interface ResultPortalView {
   term: string
   accessState: ResultAccessState
   subjects: { name: string; score: number; grade: string; comment?: string }[]
+  /** Structured monthly progress for the student portal. */
+  monthly?: {
+    month: string
+    label: string
+    rows: { subject: string; score: number; grade: string; maxScore: number }[]
+    average?: number
+  }[]
   overallAverage?: number
   teacherComment?: string
 }

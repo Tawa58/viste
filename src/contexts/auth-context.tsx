@@ -17,6 +17,7 @@ type AuthContextValue = {
   login: (email: string, password: string, remember?: boolean) => Promise<void>
   logout: () => Promise<void>
   updateProfile: (patch: Partial<AuthUser>) => Promise<AuthUser>
+  changePassword: (currentPassword: string, nextPassword: string) => Promise<void>
   hasPermission: (permission: string) => boolean
 }
 
@@ -152,6 +153,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(next)
         persistUser(next, Boolean(localStorage.getItem(STORAGE_KEY)), permissions)
         return next
+      },
+      async changePassword(currentPassword, nextPassword) {
+        if (!authService.changePassword) {
+          throw new Error('Password change is not available')
+        }
+        await authService.changePassword(currentPassword, nextPassword)
       },
     }),
     [user, permissions, loading],

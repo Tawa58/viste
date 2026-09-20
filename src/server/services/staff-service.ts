@@ -6,10 +6,12 @@ import { writeAuditLog } from '@/server/audit/logger'
 import type { SessionContext } from '@/server/auth/session'
 import { requirePermission } from '@/server/authorization/permissions'
 import { badRequest, conflict, notFound } from '@/server/errors'
-import { getDoc, newId, queryCollection, setDoc } from '@/server/repositories/firestore-repo'
+import { getDoc, newId, queryCollection, setDoc, deleteDoc } from '@/server/repositories/firestore-repo'
 import type { StaffCreateInput } from '@/server/validators/school'
 import type { SchoolClass, Staff, StaffLoginCredential } from '@/types'
 import type { PermissionOverrides } from '@/server/authorization/rbac-map'
+import type { z } from 'zod'
+import type { staffUpdateSchema } from '@/server/validators/school'
 
 export type StaffDto = Staff
 
@@ -47,7 +49,9 @@ export async function syncStaffClassIdsFromClasses(staffId?: string): Promise<vo
 
   await Promise.all(
     staffRows.map(async (row) => {
-      const nextIds = byTeacher.get(row.id) ?? []
+      const teacherClassIds = byTeacher.get(row.id) ?? []
+      // Merge class-teacher classes into teaching classIds — never wipe subject teaching assignments.
+      const nextIds = [...new Set([...(row.classIds ?? []), ...teacherClassIds])]
       const prev = [...(row.classIds ?? [])].sort().join(',')
       const next = [...nextIds].sort().join(',')
       if (prev === next) return
@@ -318,12 +322,125 @@ export async function updateStaffAccess(
   return getStaffAccess(session, staffId)
 }
 
+export async function updateStaff(
+  session: SessionContext,
+  staffId: string,
+  input: z.infer<typeof staffUpdateSchema>,
+  requestId?: string,
+): Promise<StaffDto> {
+  requirePermission(session, 'teachers.manage')
+  const current = await getDoc<Staff>('staff', staffId)
+  if (!current) throw notFound('Staff not found')
+
+  const { password: _pw, ...rest } = input
+  const row: Staff = {
+    ...current,
+    ...rest,
+    id: staffId,
+    subjectIds: rest.subjectIds ?? current.subjectIds ?? [],
+    classIds: rest.classIds ?? current.classIds ?? [],
+  }
+  await setDoc('staff', staffId, { ...row })
+
+  if (rest.email && rest.email.toLowerCase() !== current.email.toLowerCase()) {
+    const cred = await getDoc<StaffCredRow>('staffCredentials', staffId)
+    if (cred?.authUid) {
+      await getAdminAuth().updateUser(cred.authUid, { email: rest.email.toLowerCase() })
+      await setDoc('staffCredentials', staffId, {
+        ...cred,
+        email: rest.email.toLowerCase(),
+      })
+    }
+  }
+
+  await writeAuditLog({
+    actorId: session.uid,
+    actorRole: session.role,
+    action: 'staff.update',
+    entityType: 'staff',
+    entityId: staffId,
+    requestId,
+  })
+  return row
+}
+
+export async function deleteStaff(
+  session: SessionContext,
+  staffId: string,
+  requestId?: string,
+): Promise<{ deleted: true; id: string }> {
+  requirePermission(session, 'teachers.manage')
+  const current = await getDoc<Staff>('staff', staffId)
+  if (!current) throw notFound('Staff not found')
+
+  const cred = await getDoc<StaffCredRow>('staffCredentials', staffId)
+  if (cred?.authUid) {
+    try {
+      await getAdminAuth().deleteUser(cred.authUid)
+    } catch (err) {
+      console.error('deleteStaff auth user failed', err)
+    }
+  }
+
+  // Clear class-teacher links
+  const classes = await queryCollection<SchoolClass>('classes', { limit: 100 })
+  await Promise.all(
+    classes
+      .filter((c) => c.classTeacherId === staffId)
+      .map((c) => setDoc('classes', c.id, { ...c, classTeacherId: undefined })),
+  )
+
+  await deleteDoc('staffCredentials', staffId).catch(() => undefined)
+  await deleteDoc('staff', staffId)
+
+  // Also remove users/{uid} profile if linked
+  if (cred?.authUid) {
+    try {
+      await getAdminDb().collection('users').doc(cred.authUid).delete()
+    } catch {
+      /* ignore */
+    }
+  }
+
+  await writeAuditLog({
+    actorId: session.uid,
+    actorRole: session.role,
+    action: 'staff.delete',
+    entityType: 'staff',
+    entityId: staffId,
+    requestId,
+  })
+  return { deleted: true, id: staffId }
+}
+
+/** Clears the admin “Temp password” tag after the teacher changes their own password. */
+export async function clearTemporaryPasswordFlag(
+  session: SessionContext,
+): Promise<{ cleared: boolean }> {
+  const staffId = session.profile.staffId
+  if (!staffId) return { cleared: false }
+
+  const cred = await getDoc<StaffCredRow>('staffCredentials', staffId)
+  if (!cred) return { cleared: false }
+
+  await setDoc('staffCredentials', staffId, {
+    ...cred,
+    temporaryPassword: false,
+    // Stop showing the old admin-issued secret on the login sheet
+    password: '',
+  })
+  return { cleared: true }
+}
+
 export const listStaffService = listStaff
 export const createStaffService = createStaff
+export const updateStaffService = updateStaff
+export const deleteStaffService = deleteStaff
 export const listStaffCredentialsService = listStaffCredentials
 export const resetStaffPasswordService = resetStaffPassword
 export const getStaffAccessService = getStaffAccess
 export const updateStaffAccessService = updateStaffAccess
+export const clearTemporaryPasswordFlagService = clearTemporaryPasswordFlag
 
 // Guardians lived here briefly — re-export for API routes that still import from staff-service
 export {

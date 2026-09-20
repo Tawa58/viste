@@ -210,7 +210,42 @@ export const markUpsertSchema = z.object({
   assessmentId: idSchema,
   studentId: idSchema,
   score: z.number().min(0).max(1000),
-  grade: z.string().min(1).max(8),
+  /** Optional — server assigns from grading scale when omitted. */
+  grade: z.string().min(1).max(8).optional(),
+})
+
+/** End-of-month class test batch for one subject. */
+export const monthlyMarksSchema = z.object({
+  classId: idSchema,
+  subjectId: idSchema,
+  /** YYYY-MM */
+  month: z.string().regex(/^\d{4}-\d{2}$/),
+  maxScore: z.number().min(1).max(1000).default(100),
+  entries: z
+    .array(
+      z.object({
+        studentId: idSchema,
+        score: z.number().min(0).max(1000),
+      }),
+    )
+    .min(1)
+    .max(200),
+  /** When true, marks + assessment move to PUBLISHED for the student portal. */
+  publish: z.boolean().optional(),
+})
+
+export const gradingScaleSchema = z.object({
+  passMark: z.number().min(0).max(100),
+  bands: z
+    .array(
+      z.object({
+        grade: z.string().min(1).max(8),
+        minPercent: z.number().min(0).max(100),
+        maxPercent: z.number().min(0).max(100),
+      }),
+    )
+    .min(1)
+    .max(20),
 })
 
 /** Allowed forward transitions for mark/assessment workflow. */
@@ -243,6 +278,7 @@ export type GuardianCreateInput = z.infer<typeof guardianCreateSchema>
 export type StaffCreateInput = z.infer<typeof staffCreateSchema>
 export type PaymentCreateInput = z.infer<typeof paymentCreateSchema>
 export type MarkUpsertInput = z.infer<typeof markUpsertSchema>
+export type MonthlyMarksInput = z.infer<typeof monthlyMarksSchema>
 export type ResultTransitionInput = z.infer<typeof resultTransitionSchema>
 export type ClassCreateInput = z.infer<typeof classCreateSchema>
 export type ClassUpdateInput = z.infer<typeof classUpdateSchema>
