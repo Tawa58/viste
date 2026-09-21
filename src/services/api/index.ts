@@ -629,6 +629,56 @@ const mockCatalogService = {
     passMark: number
     bands: { grade: string; minPercent: number; maxPercent: number }[]
   }) => mockRequest({ id: 'default', ...input }),
+  getSchoolProfile: async () =>
+    mockRequest({
+      id: 'schoolProfile' as const,
+      name: 'Viste High School',
+      motto: 'Excellence in learning',
+      address: 'Harare, Zimbabwe',
+      phone: '+263 000 000 000',
+      email: 'info@viste.school',
+      website: '',
+      registrationNumber: '',
+    }),
+  updateSchoolProfile: async (
+    input: Omit<import('@/types').SchoolProfile, 'id' | 'updatedAt' | 'updatedBy'>,
+  ) => mockRequest({ id: 'schoolProfile' as const, ...input }),
+  getFeePolicy: async () =>
+    mockRequest({
+      id: 'feePolicy' as const,
+      currency: 'USD',
+      receiptPrefix: 'VHS',
+      nextReceiptNumber: 1001,
+      blockResultsWhenFeesOutstanding: true,
+      overdueGraceDays: 14,
+    }),
+  updateFeePolicy: async (
+    input: Omit<import('@/types').FeePolicy, 'id' | 'updatedAt' | 'updatedBy'>,
+  ) => mockRequest({ id: 'feePolicy' as const, ...input }),
+  getAcademicSettings: async () => {
+    const year = academicYears.find((y) => y.isCurrent) ?? academicYears[0]
+    const yearTerms = terms.filter((t) => t.academicYearId === year?.id)
+    return mockRequest({
+      year: year ?? {
+        id: 'ay-2025',
+        name: '2025/2026',
+        startDate: '2025-09-01',
+        endDate: '2026-07-31',
+        isCurrent: true,
+      },
+      terms: yearTerms,
+      years: academicYears,
+    })
+  },
+  updateAcademicSettings: async (input: {
+    year: import('@/types').AcademicYear
+    terms: Pick<import('@/types').Term, 'id' | 'name' | 'sequence' | 'startDate' | 'endDate'>[]
+  }) =>
+    mockRequest({
+      year: input.year,
+      terms: input.terms.map((t) => ({ ...t, academicYearId: input.year.id })),
+      years: academicYears,
+    }),
   acknowledgePasswordChanged: async () => mockRequest({ cleared: true }),
   getFeeStructures: (): Promise<FeeStructure[]> => mockRequest(feeStructures),
   getInvoices: (): Promise<Invoice[]> => mockRequest(invoices),

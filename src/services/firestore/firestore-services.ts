@@ -370,6 +370,37 @@ export const firestoreCatalogService = {
     const { apiCatalogService } = await import('@/services/api/server-api-services')
     return apiCatalogService.updateGradingScale(input)
   },
+  async getSchoolProfile() {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.getSchoolProfile()
+  },
+  async updateSchoolProfile(
+    input: Omit<import('@/types').SchoolProfile, 'id' | 'updatedAt' | 'updatedBy'>,
+  ) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.updateSchoolProfile(input)
+  },
+  async getFeePolicy() {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.getFeePolicy()
+  },
+  async updateFeePolicy(
+    input: Omit<import('@/types').FeePolicy, 'id' | 'updatedAt' | 'updatedBy'>,
+  ) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.updateFeePolicy(input)
+  },
+  async getAcademicSettings() {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.getAcademicSettings()
+  },
+  async updateAcademicSettings(input: {
+    year: import('@/types').AcademicYear
+    terms: Pick<import('@/types').Term, 'id' | 'name' | 'sequence' | 'startDate' | 'endDate'>[]
+  }) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.updateAcademicSettings(input)
+  },
   async updateStaff(id: string, patch: Partial<import('@/types').Staff>) {
     const { apiCatalogService } = await import('@/services/api/server-api-services')
     return apiCatalogService.updateStaff(id, patch)

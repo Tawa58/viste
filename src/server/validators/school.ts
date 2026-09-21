@@ -279,6 +279,51 @@ export const profileUpdateSchema = z.object({
       inApp: z.boolean(),
     })
     .optional(),
+  securityPrefs: z
+    .object({
+      requireReauthForFees: z.boolean(),
+    })
+    .optional(),
+})
+
+export const schoolProfileSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  motto: z.string().trim().max(200).optional().or(z.literal('')),
+  address: z.string().trim().min(3).max(500),
+  phone: z.string().trim().min(3).max(40),
+  email: emailSchema,
+  website: z.string().trim().max(200).optional().or(z.literal('')),
+  registrationNumber: z.string().trim().max(80).optional().or(z.literal('')),
+})
+
+export const feePolicySchema = z.object({
+  currency: z.string().trim().min(3).max(8),
+  receiptPrefix: z.string().trim().min(1).max(12),
+  nextReceiptNumber: z.number().int().min(1).max(9_999_999),
+  blockResultsWhenFeesOutstanding: z.boolean(),
+  overdueGraceDays: z.number().int().min(0).max(365),
+})
+
+export const academicSettingsSchema = z.object({
+  year: z.object({
+    id: idSchema,
+    name: z.string().trim().min(2).max(80),
+    startDate: isoDateSchema,
+    endDate: isoDateSchema,
+    isCurrent: z.boolean(),
+  }),
+  terms: z
+    .array(
+      z.object({
+        id: idSchema,
+        name: z.string().trim().min(1).max(80),
+        sequence: z.number().int().min(1).max(6),
+        startDate: isoDateSchema,
+        endDate: isoDateSchema,
+      }),
+    )
+    .min(1)
+    .max(6),
 })
 
 export type StudentCreateInput = z.infer<typeof studentCreateSchema>

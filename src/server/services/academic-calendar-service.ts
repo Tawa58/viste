@@ -128,6 +128,90 @@ export async function ensureCurrentAcademicCalendar(): Promise<AcademicCalendar>
   return { year, terms: ordered }
 }
 
+export type AcademicSettingsDto = {
+  year: AcademicYear
+  terms: Term[]
+  years: AcademicYear[]
+}
+
+export async function getAcademicSettingsService(
+  session: import('@/server/auth/session').SessionContext,
+): Promise<AcademicSettingsDto> {
+  const { requirePermission } = await import('@/server/authorization/permissions')
+  requirePermission(session, 'settings.manage')
+  const calendar = await ensureCurrentAcademicCalendar()
+  const years = await queryCollection<AcademicYear>('academicYears', { limit: 100 })
+  return {
+    year: calendar.year,
+    terms: [...calendar.terms],
+    years: years.sort((a, b) => b.startDate.localeCompare(a.startDate)),
+  }
+}
+
+export async function updateAcademicSettingsService(
+  session: import('@/server/auth/session').SessionContext,
+  input: {
+    year: { id: string; name: string; startDate: string; endDate: string; isCurrent: boolean }
+    terms: { id: string; name: string; sequence: number; startDate: string; endDate: string }[]
+  },
+): Promise<AcademicSettingsDto> {
+  const { requirePermission } = await import('@/server/authorization/permissions')
+  const { badRequest } = await import('@/server/errors')
+  requirePermission(session, 'settings.manage')
+
+  if (!input.year.id || !input.year.name.trim()) throw badRequest('Academic year name is required')
+  if (!input.terms.length) throw badRequest('At least one term is required')
+
+  const year: AcademicYear = {
+    id: input.year.id,
+    name: input.year.name.trim(),
+    startDate: input.year.startDate,
+    endDate: input.year.endDate,
+    isCurrent: Boolean(input.year.isCurrent),
+  }
+
+  if (year.isCurrent) {
+    const allYears = await queryCollection<AcademicYear>('academicYears', { limit: 100 })
+    for (const y of allYears) {
+      if (y.id !== year.id && y.isCurrent) {
+        await setDoc('academicYears', y.id, { ...y, isCurrent: false })
+      }
+    }
+  }
+
+  await setDoc('academicYears', year.id, { ...year })
+
+  const terms: Term[] = []
+  for (const t of input.terms) {
+    const row: Term = {
+      id: t.id,
+      academicYearId: year.id,
+      name: t.name.trim() || `Term ${t.sequence}`,
+      sequence: t.sequence,
+      startDate: t.startDate,
+      endDate: t.endDate,
+    }
+    await setDoc('terms', row.id, { ...row })
+    terms.push(row)
+  }
+
+  await getAdminDb().collection('settings').doc('academicCalendar').set(
+    {
+      ...(year.isCurrent ? { currentAcademicYearId: year.id } : {}),
+      updatedAt: new Date().toISOString(),
+      updatedBy: session.uid,
+    },
+    { merge: true },
+  )
+
+  const years = await queryCollection<AcademicYear>('academicYears', { limit: 100 })
+  return {
+    year,
+    terms: terms.sort((a, b) => a.sequence - b.sequence),
+    years: years.sort((a, b) => b.startDate.localeCompare(a.startDate)),
+  }
+}
+
 export async function resolveTermForSequence(
   academicYearId: string,
   sequence: 1 | 2 | 3,

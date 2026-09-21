@@ -221,8 +221,12 @@ export async function getResultsPortal(
   if (published.length === 0) {
     accessState = 'RESULTS_NOT_PUBLISHED'
   } else {
-    const cleared = await isFeeCleared(studentId)
-    if (!cleared) accessState = 'RESULTS_LOCKED_FEES'
+    const { getFeePolicy } = await import('@/server/services/school-settings-service')
+    const policy = await getFeePolicy()
+    if (policy.blockResultsWhenFeesOutstanding) {
+      const cleared = await isFeeCleared(studentId)
+      if (!cleared) accessState = 'RESULTS_LOCKED_FEES'
+    }
   }
 
   const base = {

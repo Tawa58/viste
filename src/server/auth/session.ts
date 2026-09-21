@@ -105,6 +105,9 @@ async function loadOrCreateProfile(
         sms: data.notificationPrefs?.sms ?? false,
         inApp: data.notificationPrefs?.inApp ?? true,
       },
+      securityPrefs: {
+        requireReauthForFees: data.securityPrefs?.requireReauthForFees ?? false,
+      },
     }
     if (!isBootstrap && !sanitizeRole(data.role)) {
       await ref.set({ role: 'STUDENT' }, { merge: true })

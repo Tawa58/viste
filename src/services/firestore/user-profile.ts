@@ -32,6 +32,9 @@ export async function getOrCreateUserProfile(firebaseUser: User): Promise<AuthUs
         sms: data.notificationPrefs?.sms ?? false,
         inApp: data.notificationPrefs?.inApp ?? true,
       },
+      securityPrefs: {
+        requireReauthForFees: data.securityPrefs?.requireReauthForFees ?? false,
+      },
     }
   }
 

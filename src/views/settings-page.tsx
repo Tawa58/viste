@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Alert } from '@/components/shared/alert'
 import { PageHeader } from '@/components/shared/page-header'
 import { ProfilePhotoUpload } from '@/components/shared/profile-photo-upload'
-import { notify, runMockProcess } from '@/lib/notify'
+import { notify } from '@/lib/notify'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -13,13 +13,21 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/contexts/auth-context'
+import { useTheme } from '@/contexts/theme-provider'
 import {
   canManageSchoolSettings,
   defaultTitleForRole,
   formatRoleLabel,
   isStaffRole,
 } from '@/lib/roles'
-import type { AuthUser } from '@/types'
+import { catalogService } from '@/services/api'
+import type {
+  AcademicYear,
+  AuthUser,
+  FeePolicy,
+  SchoolProfile,
+  Term,
+} from '@/types'
 
 type ProfileForm = {
   name: string
@@ -36,6 +44,7 @@ type ProfileForm = {
   notifyEmail: boolean
   notifySms: boolean
   notifyInApp: boolean
+  requireReauthForFees: boolean
 }
 
 function toForm(user: AuthUser): ProfileForm {
@@ -54,6 +63,7 @@ function toForm(user: AuthUser): ProfileForm {
     notifyEmail: user.notificationPrefs?.email ?? true,
     notifySms: user.notificationPrefs?.sms ?? false,
     notifyInApp: user.notificationPrefs?.inApp ?? true,
+    requireReauthForFees: user.securityPrefs?.requireReauthForFees ?? false,
   }
 }
 
@@ -117,6 +127,9 @@ export function SettingsPage() {
               email: nextForm.notifyEmail,
               sms: nextForm.notifySms,
               inApp: nextForm.notifyInApp,
+            },
+            securityPrefs: {
+              requireReauthForFees: nextForm.requireReauthForFees,
             },
           }),
         {
@@ -462,71 +475,66 @@ export function SettingsPage() {
               <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
                 <div>
                   <p className="text-sm font-medium">Require re-authentication for fee actions</p>
-                  <p className="text-xs text-muted-foreground">Recommended for finance and admin roles</p>
+                  <p className="text-xs text-muted-foreground">
+                    Extra confirmation before recording or reversing payments
+                  </p>
                 </div>
-                <Switch defaultChecked={schoolAdmin || user.role === 'ACCOUNTANT'} />
+                <Switch
+                  checked={form.requireReauthForFees}
+                  onCheckedChange={(checked) =>
+                    setForm((f) => (f ? { ...f, requireReauthForFees: checked } : f))
+                  }
+                />
               </div>
-              <Button
-                onClick={() => {
-                  if (!passwordForm.current || !passwordForm.next) {
-                    notify.error('Enter current and new passwords')
-                    return
-                  }
-                  if (passwordForm.next.length < 8) {
-                    notify.error('New password must be at least 8 characters')
-                    return
-                  }
-                  if (passwordForm.next !== passwordForm.confirm) {
-                    notify.error('New passwords do not match')
-                    return
-                  }
-                  void (async () => {
-                    try {
-                      await notify.process(
-                        () => changePassword(passwordForm.current, passwordForm.next),
-                        {
-                          loading: 'Updating password…',
-                          success:
-                            'Password updated. Your new password is private — only you can use it.',
-                          error: 'Could not update password',
-                        },
-                      )
-                      setPasswordForm({ current: '', next: '', confirm: '' })
-                    } catch {
-                      /* notify.process already surfaced */
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  variant="outline"
+                  disabled={saving}
+                  onClick={() => void saveProfile()}
+                >
+                  Save security preference
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (!passwordForm.current || !passwordForm.next) {
+                      notify.error('Enter current and new passwords')
+                      return
                     }
-                  })()
-                }}
-              >
-                Update password
-              </Button>
+                    if (passwordForm.next.length < 8) {
+                      notify.error('New password must be at least 8 characters')
+                      return
+                    }
+                    if (passwordForm.next !== passwordForm.confirm) {
+                      notify.error('New passwords do not match')
+                      return
+                    }
+                    void (async () => {
+                      try {
+                        await notify.process(
+                          () => changePassword(passwordForm.current, passwordForm.next),
+                          {
+                            loading: 'Updating password…',
+                            success:
+                              'Password updated. Your new password is private — only you can use it.',
+                            error: 'Could not update password',
+                          },
+                        )
+                        setPasswordForm({ current: '', next: '', confirm: '' })
+                      } catch {
+                        /* notify.process already surfaced */
+                      }
+                    })()
+                  }}
+                >
+                  Update password
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="appearance">
-          <Card>
-            <CardHeader>
-              <CardTitle>Appearance</CardTitle>
-              <CardDescription>Theme follows the header switcher for light and dark mode.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Alert title="Theme control" tone="info">
-                Use the sun/moon control in the top bar. School brand colors stay consistent across roles.
-              </Alert>
-              <Button
-                variant="outline"
-                onClick={() =>
-                  void runMockProcess({
-                    loading: 'Resetting appearance…',
-                    success: 'Appearance reset to school defaults',
-                  })
-                }
-              >
-                Reset appearance defaults
-              </Button>
-            </CardContent>
-          </Card>
+          <AppearancePanel />
         </TabsContent>
 
         {user.role === 'TEACHER' && (
@@ -534,42 +542,15 @@ export function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Teaching preferences</CardTitle>
-                <CardDescription>Classroom defaults for attendance and mark entry.</CardDescription>
+                <CardDescription>
+                  Classroom defaults will connect to attendance and mark entry in a later update.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Default class for attendance</Label>
-                    <Select defaultValue="cls-f3">
-                      <option value="cls-f3">Form 3</option>
-                      <option value="cls-f4">Form 4</option>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Mark entry workflow</Label>
-                    <Select defaultValue="draft">
-                      <option value="draft">Save as draft first</option>
-                      <option value="submit">Submit for review</option>
-                    </Select>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
-                  <div>
-                    <p className="text-sm font-medium">Show late students first</p>
-                    <p className="text-xs text-muted-foreground">Prioritise follow-up during roll call</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-                <Button
-                  onClick={() =>
-                    void runMockProcess({
-                      loading: 'Saving teaching settings…',
-                      success: 'Teaching preferences saved',
-                    })
-                  }
-                >
-                  Save teaching settings
-                </Button>
+              <CardContent>
+                <Alert title="Coming soon" tone="info">
+                  Teaching preferences are not stored yet. Use Attendance and Results pages for daily
+                  work.
+                </Alert>
               </CardContent>
             </Card>
           </TabsContent>
@@ -580,34 +561,14 @@ export function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Family preferences</CardTitle>
-                <CardDescription>Parent/guardian contact and result access options.</CardDescription>
+                <CardDescription>
+                  Use Notifications for contact channels. Family-specific options will follow.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Preferred contact method</Label>
-                  <Select defaultValue="email">
-                    <option value="email">Email</option>
-                    <option value="sms">SMS</option>
-                    <option value="call">Phone call</option>
-                  </Select>
-                </div>
-                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
-                  <div>
-                    <p className="text-sm font-medium">Fee balance reminders</p>
-                    <p className="text-xs text-muted-foreground">Weekly summary for linked students</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-                <Button
-                  onClick={() =>
-                    void runMockProcess({
-                      loading: 'Saving family preferences…',
-                      success: 'Family preferences saved',
-                    })
-                  }
-                >
-                  Save family settings
-                </Button>
+              <CardContent>
+                <Alert title="Use Notifications" tone="info">
+                  Turn email, SMS, and in-app alerts on or off from the Notifications tab.
+                </Alert>
               </CardContent>
             </Card>
           </TabsContent>
@@ -618,80 +579,36 @@ export function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Student preferences</CardTitle>
-                <CardDescription>Portal display and result notification options.</CardDescription>
+                <CardDescription>
+                  Result alerts follow your Notifications settings.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
-                  <div>
-                    <p className="text-sm font-medium">Notify when results are published</p>
-                    <p className="text-xs text-muted-foreground">In-app alert only for this demo account</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-                <Button
-                  onClick={() =>
-                    void runMockProcess({
-                      loading: 'Saving student preferences…',
-                      success: 'Student preferences saved',
-                    })
-                  }
-                >
-                  Save student settings
-                </Button>
+              <CardContent>
+                <Alert title="Use Notifications" tone="info">
+                  Enable in-app alerts on the Notifications tab to hear when results are published.
+                </Alert>
               </CardContent>
             </Card>
           </TabsContent>
         )}
 
-        {schoolAdmin &&
-          (
-            [
-              ['school', 'School profile', 'School name, address, contacts, motto, and branding.'],
-              ['academic', 'Academic structure', 'Year structure, promotion rules, and streams.'],
-              ['fees', 'Fee policy', 'Currency, receipt numbering, and fee-gate rules.'],
-            ] as const
-          ).map(([value, title, text]) => (
-            <TabsContent key={value} value={value}>
-              <Card>
-                <CardHeader>
-                  <CardTitle>{title}</CardTitle>
-                  <CardDescription>{text}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Alert title="Admin configuration" tone="info">
-                    Visible to school leadership roles. Persistence arrives with Spring Boot.
-                  </Alert>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Primary setting</Label>
-                      <Input placeholder="Value" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Secondary setting</Label>
-                      <Input placeholder="Value" />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
-                    <div>
-                      <p className="text-sm font-medium">Enable this module</p>
-                      <p className="text-xs text-muted-foreground">Mock toggle for Phase 1</p>
-                    </div>
-                    <Switch defaultChecked />
-                  </div>
-                  <Button
-                    onClick={() =>
-                      void runMockProcess({
-                        loading: `Saving ${title}…`,
-                        success: `${title} saved`,
-                      })
-                    }
-                  >
-                    Save {title}
-                  </Button>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          ))}
+        {schoolAdmin ? (
+          <TabsContent value="school">
+            <SchoolProfilePanel />
+          </TabsContent>
+        ) : null}
+
+        {schoolAdmin ? (
+          <TabsContent value="academic">
+            <AcademicSettingsPanel />
+          </TabsContent>
+        ) : null}
+
+        {schoolAdmin ? (
+          <TabsContent value="fees">
+            <FeePolicyPanel />
+          </TabsContent>
+        ) : null}
 
         {schoolAdmin ? (
           <TabsContent value="grading">
@@ -700,6 +617,509 @@ export function SettingsPage() {
         ) : null}
       </Tabs>
     </div>
+  )
+}
+
+function AppearancePanel() {
+  const { theme, setTheme, resolvedTheme } = useTheme()
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Appearance</CardTitle>
+        <CardDescription>
+          Choose light, dark, or match your device. This preference stays on this browser.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2 max-w-sm">
+          <Label htmlFor="theme-mode">Theme</Label>
+          <Select
+            id="theme-mode"
+            value={theme}
+            onChange={(e) => setTheme(e.target.value as 'light' | 'dark' | 'system')}
+          >
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="system">System ({resolvedTheme})</option>
+          </Select>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          You can also switch themes from the sun/moon control in the top bar.
+        </p>
+        <Button
+          variant="outline"
+          onClick={() => {
+            setTheme('light')
+            notify.success('Appearance reset to light mode')
+          }}
+        >
+          Reset to light mode
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+function SchoolProfilePanel() {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState<Omit<SchoolProfile, 'id' | 'updatedAt' | 'updatedBy'> | null>(
+    null,
+  )
+
+  useEffect(() => {
+    let mounted = true
+    void (async () => {
+      try {
+        const profile = await catalogService.getSchoolProfile()
+        if (!mounted) return
+        setForm({
+          name: profile.name,
+          motto: profile.motto ?? '',
+          address: profile.address,
+          phone: profile.phone,
+          email: profile.email,
+          website: profile.website ?? '',
+          registrationNumber: profile.registrationNumber ?? '',
+        })
+      } catch (err) {
+        console.error(err)
+        notify.error('Could not load school profile')
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  async function save() {
+    if (!form) return
+    if (!form.name.trim() || !form.address.trim() || !form.phone.trim() || !form.email.trim()) {
+      notify.error('Name, address, phone, and email are required')
+      return
+    }
+    setSaving(true)
+    try {
+      const next = await notify.process(() => catalogService.updateSchoolProfile(form), {
+        loading: 'Saving school profile…',
+        success: 'School profile saved',
+        error: 'Could not save school profile',
+      })
+      setForm({
+        name: next.name,
+        motto: next.motto ?? '',
+        address: next.address,
+        phone: next.phone,
+        email: next.email,
+        website: next.website ?? '',
+        registrationNumber: next.registrationNumber ?? '',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading || !form) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-sm text-muted-foreground">Loading school profile…</CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>School profile</CardTitle>
+        <CardDescription>
+          Shown on reports, receipts, and school communications.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2 sm:col-span-2">
+            <Label>School name</Label>
+            <Input
+              value={form.name}
+              onChange={(e) => setForm((f) => (f ? { ...f, name: e.target.value } : f))}
+            />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Motto</Label>
+            <Input
+              value={form.motto ?? ''}
+              onChange={(e) => setForm((f) => (f ? { ...f, motto: e.target.value } : f))}
+            />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Address</Label>
+            <Textarea
+              rows={2}
+              value={form.address}
+              onChange={(e) => setForm((f) => (f ? { ...f, address: e.target.value } : f))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Phone</Label>
+            <Input
+              value={form.phone}
+              onChange={(e) => setForm((f) => (f ? { ...f, phone: e.target.value } : f))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Email</Label>
+            <Input
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm((f) => (f ? { ...f, email: e.target.value } : f))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Website</Label>
+            <Input
+              value={form.website ?? ''}
+              onChange={(e) => setForm((f) => (f ? { ...f, website: e.target.value } : f))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Registration number</Label>
+            <Input
+              value={form.registrationNumber ?? ''}
+              onChange={(e) =>
+                setForm((f) => (f ? { ...f, registrationNumber: e.target.value } : f))
+              }
+            />
+          </div>
+        </div>
+        <Button loading={saving} onClick={() => void save()}>
+          Save school profile
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+function AcademicSettingsPanel() {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [year, setYear] = useState<AcademicYear | null>(null)
+  const [terms, setTerms] = useState<Term[]>([])
+  const [years, setYears] = useState<AcademicYear[]>([])
+
+  useEffect(() => {
+    let mounted = true
+    void (async () => {
+      try {
+        const data = await catalogService.getAcademicSettings()
+        if (!mounted) return
+        setYear(data.year)
+        setTerms(data.terms)
+        setYears(data.years)
+      } catch (err) {
+        console.error(err)
+        notify.error('Could not load academic settings')
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  async function save() {
+    if (!year) return
+    setSaving(true)
+    try {
+      const next = await notify.process(
+        () =>
+          catalogService.updateAcademicSettings({
+            year,
+            terms: terms.map((t) => ({
+              id: t.id,
+              name: t.name,
+              sequence: t.sequence,
+              startDate: t.startDate,
+              endDate: t.endDate,
+            })),
+          }),
+        {
+          loading: 'Saving academic calendar…',
+          success: 'Academic calendar saved',
+          error: 'Could not save academic settings',
+        },
+      )
+      setYear(next.year)
+      setTerms(next.terms)
+      setYears(next.years)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading || !year) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-sm text-muted-foreground">
+          Loading academic calendar…
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Academic structure</CardTitle>
+        <CardDescription>
+          Current year and Term 1–3 dates used when creating classes and recording results.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {years.length > 1 ? (
+          <Alert title={`${years.length} academic years on record`} tone="info">
+            You are editing the current year below. Older years remain available for historical
+            classes.
+          </Alert>
+        ) : null}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Year name</Label>
+            <Input
+              value={year.name}
+              onChange={(e) => setYear((y) => (y ? { ...y, name: e.target.value } : y))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Start date</Label>
+            <Input
+              type="date"
+              value={year.startDate}
+              onChange={(e) => setYear((y) => (y ? { ...y, startDate: e.target.value } : y))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>End date</Label>
+            <Input
+              type="date"
+              value={year.endDate}
+              onChange={(e) => setYear((y) => (y ? { ...y, endDate: e.target.value } : y))}
+            />
+          </div>
+          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 sm:col-span-2">
+            <div>
+              <p className="text-sm font-medium">Mark as current year</p>
+              <p className="text-xs text-muted-foreground">
+                New classes and registers use the current year by default
+              </p>
+            </div>
+            <Switch
+              checked={year.isCurrent}
+              onCheckedChange={(checked) =>
+                setYear((y) => (y ? { ...y, isCurrent: checked } : y))
+              }
+            />
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <Label>Terms</Label>
+          {terms.map((term, index) => (
+            <div
+              key={term.id}
+              className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-[1fr_1fr_1fr]"
+            >
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Name</p>
+                <Input
+                  value={term.name}
+                  onChange={(e) =>
+                    setTerms((prev) =>
+                      prev.map((t, i) => (i === index ? { ...t, name: e.target.value } : t)),
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Start</p>
+                <Input
+                  type="date"
+                  value={term.startDate}
+                  onChange={(e) =>
+                    setTerms((prev) =>
+                      prev.map((t, i) =>
+                        i === index ? { ...t, startDate: e.target.value } : t,
+                      ),
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">End</p>
+                <Input
+                  type="date"
+                  value={term.endDate}
+                  onChange={(e) =>
+                    setTerms((prev) =>
+                      prev.map((t, i) => (i === index ? { ...t, endDate: e.target.value } : t)),
+                    )
+                  }
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <Button loading={saving} onClick={() => void save()}>
+          Save academic calendar
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+function FeePolicyPanel() {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState<Omit<FeePolicy, 'id' | 'updatedAt' | 'updatedBy'> | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+    void (async () => {
+      try {
+        const policy = await catalogService.getFeePolicy()
+        if (!mounted) return
+        setForm({
+          currency: policy.currency,
+          receiptPrefix: policy.receiptPrefix,
+          nextReceiptNumber: policy.nextReceiptNumber,
+          blockResultsWhenFeesOutstanding: policy.blockResultsWhenFeesOutstanding,
+          overdueGraceDays: policy.overdueGraceDays,
+        })
+      } catch (err) {
+        console.error(err)
+        notify.error('Could not load fee policy')
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  async function save() {
+    if (!form) return
+    setSaving(true)
+    try {
+      const next = await notify.process(() => catalogService.updateFeePolicy(form), {
+        loading: 'Saving fee policy…',
+        success: 'Fee policy saved',
+        error: 'Could not save fee policy',
+      })
+      setForm({
+        currency: next.currency,
+        receiptPrefix: next.receiptPrefix,
+        nextReceiptNumber: next.nextReceiptNumber,
+        blockResultsWhenFeesOutstanding: next.blockResultsWhenFeesOutstanding,
+        overdueGraceDays: next.overdueGraceDays,
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading || !form) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-sm text-muted-foreground">Loading fee policy…</CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Fee policy</CardTitle>
+        <CardDescription>
+          Currency, receipt numbering, and whether unpaid fees block published results.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Currency</Label>
+            <Select
+              value={form.currency}
+              onChange={(e) => setForm((f) => (f ? { ...f, currency: e.target.value } : f))}
+            >
+              <option value="USD">USD</option>
+              <option value="ZWL">ZWL</option>
+              <option value="ZAR">ZAR</option>
+              <option value="GBP">GBP</option>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Receipt prefix</Label>
+            <Input
+              value={form.receiptPrefix}
+              onChange={(e) =>
+                setForm((f) => (f ? { ...f, receiptPrefix: e.target.value.toUpperCase() } : f))
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Next receipt number</Label>
+            <Input
+              type="number"
+              min={1}
+              value={form.nextReceiptNumber}
+              onChange={(e) =>
+                setForm((f) =>
+                  f ? { ...f, nextReceiptNumber: Number(e.target.value) || 1 } : f,
+                )
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Overdue grace (days)</Label>
+            <Input
+              type="number"
+              min={0}
+              max={365}
+              value={form.overdueGraceDays}
+              onChange={(e) =>
+                setForm((f) =>
+                  f ? { ...f, overdueGraceDays: Number(e.target.value) || 0 } : f,
+                )
+              }
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+          <div>
+            <p className="text-sm font-medium">Block results when fees are outstanding</p>
+            <p className="text-xs text-muted-foreground">
+              Parents and students see a fees lock until balances are cleared
+            </p>
+          </div>
+          <Switch
+            checked={form.blockResultsWhenFeesOutstanding}
+            onCheckedChange={(checked) =>
+              setForm((f) =>
+                f ? { ...f, blockResultsWhenFeesOutstanding: checked } : f,
+              )
+            }
+          />
+        </div>
+        <Button loading={saving} onClick={() => void save()}>
+          Save fee policy
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -715,7 +1135,6 @@ function GradingScalePanel() {
     let mounted = true
     void (async () => {
       try {
-        const { catalogService } = await import('@/services/api')
         const scale = await catalogService.getGradingScale()
         if (!mounted) return
         setPassMark(scale.passMark)
@@ -735,7 +1154,6 @@ function GradingScalePanel() {
   async function save() {
     setSaving(true)
     try {
-      const { catalogService } = await import('@/services/api')
       const next = await notify.process(
         () => catalogService.updateGradingScale({ passMark, bands }),
         {

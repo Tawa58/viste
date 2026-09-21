@@ -65,6 +65,35 @@ export interface AuthUser {
     sms: boolean
     inApp: boolean
   }
+  securityPrefs?: {
+    requireReauthForFees: boolean
+  }
+}
+
+/** School identity shown on reports, receipts, and the console. */
+export interface SchoolProfile {
+  id: 'schoolProfile'
+  name: string
+  motto?: string
+  address: string
+  phone: string
+  email: string
+  website?: string
+  registrationNumber?: string
+  updatedAt?: string
+  updatedBy?: string
+}
+
+/** Fee and receipt policy for the school. */
+export interface FeePolicy {
+  id: 'feePolicy'
+  currency: string
+  receiptPrefix: string
+  nextReceiptNumber: number
+  blockResultsWhenFeesOutstanding: boolean
+  overdueGraceDays: number
+  updatedAt?: string
+  updatedBy?: string
 }
 
 export interface Student {

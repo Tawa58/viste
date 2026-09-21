@@ -457,6 +457,37 @@ export const apiCatalogService = {
       method: 'PUT',
       body: JSON.stringify(input),
     }),
+  getSchoolProfile: () =>
+    apiFetch<import('@/types').SchoolProfile>('/api/v1/settings/school'),
+  updateSchoolProfile: (input: Omit<import('@/types').SchoolProfile, 'id' | 'updatedAt' | 'updatedBy'>) =>
+    apiFetch<import('@/types').SchoolProfile>('/api/v1/settings/school', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  getFeePolicy: () => apiFetch<import('@/types').FeePolicy>('/api/v1/settings/fees'),
+  updateFeePolicy: (input: Omit<import('@/types').FeePolicy, 'id' | 'updatedAt' | 'updatedBy'>) =>
+    apiFetch<import('@/types').FeePolicy>('/api/v1/settings/fees', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  getAcademicSettings: () =>
+    apiFetch<{
+      year: import('@/types').AcademicYear
+      terms: import('@/types').Term[]
+      years: import('@/types').AcademicYear[]
+    }>('/api/v1/settings/academic'),
+  updateAcademicSettings: (input: {
+    year: import('@/types').AcademicYear
+    terms: Pick<import('@/types').Term, 'id' | 'name' | 'sequence' | 'startDate' | 'endDate'>[]
+  }) =>
+    apiFetch<{
+      year: import('@/types').AcademicYear
+      terms: import('@/types').Term[]
+      years: import('@/types').AcademicYear[]
+    }>('/api/v1/settings/academic', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
   acknowledgePasswordChanged: () =>
     apiFetch<{ cleared: boolean }>('/api/v1/auth/change-password', {
       method: 'POST',
