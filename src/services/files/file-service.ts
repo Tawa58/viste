@@ -78,7 +78,11 @@ async function prepareUploadPayload(input: UploadFileInput) {
   let height: number | undefined
 
   if (shouldCompress) {
-    const compressed = await compressImage(input.file, validated.fileName)
+    const compressed = await compressImage(input.file, validated.fileName, {
+      square: input.fileType === 'profile_photo' || input.fileType === 'staff_photo',
+      maxEdge:
+        input.fileType === 'profile_photo' || input.fileType === 'staff_photo' ? 512 : undefined,
+    })
     blob = compressed.blob
     mimeType = compressed.mimeType
     fileName = compressed.fileName

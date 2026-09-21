@@ -18,7 +18,7 @@ import { SchoolLogo } from '@/components/shared/school-logo'
 import { ThemeToggle } from '@/components/shared/theme-toggle'
 import { PageTransition } from '@/components/shared/page-transition'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
-import { Avatar } from '@/components/ui/avatar'
+import { ResolvedAvatar } from '@/components/shared/resolved-avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -269,7 +269,22 @@ export function AppShell() {
               collapsed && 'justify-center',
             )}
           >
-            <Avatar name={user?.name ?? 'User'} src={user?.avatarUrl} />
+            <ResolvedAvatar
+              name={user?.name ?? 'User'}
+              src={user?.avatarUrl}
+              fileId={user?.avatarFileId}
+              access={
+                user
+                  ? {
+                      userId: user.id,
+                      role: user.role,
+                      staffId: user.staffId,
+                      studentId: user.studentId,
+                      guardianId: user.guardianId,
+                    }
+                  : null
+              }
+            />
             {!collapsed && (
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-black dark:text-foreground">
@@ -449,7 +464,22 @@ export function AppShell() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="gap-2 px-2">
-                    <Avatar name={user?.name ?? 'User'} src={user?.avatarUrl} />
+                    <ResolvedAvatar
+                      name={user?.name ?? 'User'}
+                      src={user?.avatarUrl}
+                      fileId={user?.avatarFileId}
+                      access={
+                        user
+                          ? {
+                              userId: user.id,
+                              role: user.role,
+                              staffId: user.staffId,
+                              studentId: user.studentId,
+                              guardianId: user.guardianId,
+                            }
+                          : null
+                      }
+                    />
                     <span className="hidden text-left lg:block">
                       <span className="block text-sm font-semibold leading-none">
                         {user?.name}
@@ -485,7 +515,7 @@ export function AppShell() {
         </main>
 
         <footer className="border-t border-border px-4 py-4 text-center text-xs text-muted-foreground sm:px-6">
-          Viste High School Management System · Firebase Auth + Firestore ·{' '}
+          Viste High School Management System ·{' '}
           <Link to="/settings" className="underline-offset-2 hover:underline">
             Settings
           </Link>

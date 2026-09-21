@@ -1,24 +1,22 @@
 import { useId, useRef, useState } from 'react'
 import { Camera, ImagePlus, Trash2 } from 'lucide-react'
-import { Avatar } from '@/components/ui/avatar'
+import { ResolvedAvatar } from '@/components/shared/resolved-avatar'
 import { Button } from '@/components/ui/button'
-import { FileSyncBadge } from '@/components/shared/file-sync-badge'
 import { notify } from '@/lib/notify'
 import { cn } from '@/lib/utils'
+import { useFileObjectUrl } from '@/hooks/use-file-object-url'
 import {
   fileService,
   FileValidationError,
   type FileAccessContext,
   type FileCategory,
   type FileOwnerType,
-  type FileSyncStatus,
 } from '@/services/files'
 
 const ACCEPT = 'image/jpeg,image/png,image/webp'
 
 export function ProfilePhotoUpload({
   name,
-  /** Local preview URL for immediate display. */
   previewUrl,
   fileId,
   onChange,
@@ -29,12 +27,12 @@ export function ProfilePhotoUpload({
   disabled = false,
   size = 'lg',
   className,
-  hint = 'JPG, PNG or WebP · compressed to Firestore (not Firebase Storage)',
+  hint = '',
 }: {
   name: string
   previewUrl?: string | null
   fileId?: string | null
-  /** Receives Firestore file id + preview. Large bytes are never stored on the school record. */
+  /** Receives file id + local preview for immediate display. */
   onChange: (next: { fileId: string; previewUrl: string } | undefined) => void
   access: FileAccessContext
   ownerId: string
@@ -48,9 +46,16 @@ export function ProfilePhotoUpload({
   const inputId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
-  const [syncStatus, setSyncStatus] = useState<FileSyncStatus | null>(
-    fileId ? 'synced' : null,
+  const [localPreview, setLocalPreview] = useState<string | undefined>()
+  const stablePreview =
+    previewUrl && !previewUrl.startsWith('blob:') && !previewUrl.startsWith('data:')
+      ? previewUrl
+      : undefined
+  const { url: resolvedUrl } = useFileObjectUrl(
+    localPreview || stablePreview ? null : fileId,
+    access,
   )
+  const displayUrl = localPreview || stablePreview || resolvedUrl || previewUrl || undefined
 
   async function handleFile(file: File | undefined) {
     if (!file || disabled) return
@@ -71,19 +76,17 @@ export function ProfilePhotoUpload({
             access,
           ),
         {
-          loading: 'Uploading photo to Firestore…',
-          success: 'Profile photo saved',
+          loading: 'Saving photo…',
+          success: 'Photo saved',
           error: 'Could not upload photo',
         },
       )
-      setSyncStatus(result.metadata.syncStatus)
+      const preview = result.previewUrl ?? URL.createObjectURL(file)
+      setLocalPreview(preview)
       onChange({
         fileId: result.metadata.id,
-        previewUrl: result.previewUrl ?? URL.createObjectURL(file),
+        previewUrl: preview,
       })
-      if (result.queuedOffline) {
-        notify.info('Saved offline', 'Photo will sync to Firestore when you are back online.')
-      }
     } catch (error) {
       if (error instanceof FileValidationError) {
         notify.error(error.message)
@@ -102,18 +105,23 @@ export function ProfilePhotoUpload({
         // still clear local reference
       }
     }
+    setLocalPreview(undefined)
     onChange(undefined)
-    setSyncStatus(null)
-    notify.success('Profile photo removed')
+    notify.success('Photo removed')
   }
 
   return (
     <div className={cn('flex items-center gap-4', className)}>
       <div className="relative shrink-0">
-        <Avatar
+        <ResolvedAvatar
           name={name}
-          src={previewUrl}
-          className={cn(size === 'lg' ? 'h-20 w-20 text-lg' : 'h-14 w-14 text-sm')}
+          src={displayUrl}
+          fileId={null}
+          access={access}
+          className={cn(
+            size === 'lg' ? 'h-20 w-20 text-lg' : 'h-14 w-14 text-sm',
+            'ring-2 ring-background',
+          )}
         />
         <label
           htmlFor={inputId}
@@ -139,11 +147,7 @@ export function ProfilePhotoUpload({
 
       <div className="min-w-0 space-y-2">
         <p className="text-sm font-medium">Profile photo</p>
-        <p className="text-xs text-muted-foreground">{hint}</p>
-        {syncStatus ? <FileSyncBadge status={syncStatus} /> : null}
-        {fileId ? (
-          <p className="truncate text-[11px] text-muted-foreground">Ref: {fileId}</p>
-        ) : null}
+        {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
@@ -154,9 +158,9 @@ export function ProfilePhotoUpload({
             onClick={() => inputRef.current?.click()}
           >
             {!busy ? <ImagePlus className="h-3.5 w-3.5" /> : null}
-            {fileId || previewUrl ? 'Replace photo' : 'Upload photo'}
+            {fileId || displayUrl ? 'Change photo' : 'Upload photo'}
           </Button>
-          {(fileId || previewUrl) && (
+          {(fileId || displayUrl) && (
             <Button
               type="button"
               variant="ghost"

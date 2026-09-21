@@ -167,12 +167,12 @@ export function LoginPage() {
             </div>
             <div>
               <p className="text-sm font-semibold">
-                {USE_MOCK_API ? 'Mock authentication' : 'Firebase Authentication'}
+                {USE_MOCK_API ? 'Demo sign-in' : 'School portal sign-in'}
               </p>
               <p className="text-xs text-muted-foreground">
                 {USE_MOCK_API
-                  ? 'Using local mock users for UI development.'
-                  : 'Sign in with your Firebase Auth email and password. School data is stored in Firestore.'}
+                  ? 'Using local demo users for UI development.'
+                  : 'Sign in with the email and password issued by your school.'}
               </p>
             </div>
           </div>

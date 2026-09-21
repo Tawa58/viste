@@ -159,7 +159,7 @@ export const staffCreateSchema = z.object({
   hireDate: isoDateSchema,
   /** Optional — server auto-generates a temporary password when omitted. */
   password: z.string().min(8).max(128).optional(),
-  profilePhotoId: idSchema.optional(),
+  profilePhotoId: idSchema.nullable().optional(),
 })
 
 export const staffUpdateSchema = staffCreateSchema
@@ -167,6 +167,7 @@ export const staffUpdateSchema = staffCreateSchema
   .partial()
   .extend({
     password: z.string().min(8).max(128).optional(),
+    profilePhotoId: idSchema.nullable().optional(),
   })
 
 export const staffSuspendSchema = z.object({
@@ -270,7 +271,7 @@ export const profileUpdateSchema = z.object({
   preferredLanguage: z.enum(['en', 'sn', 'nd']).optional(),
   timezone: z.string().max(80).optional(),
   avatarUrl: z.string().url().optional().nullable(),
-  avatarFileId: z.string().optional().nullable(),
+  avatarFileId: idSchema.nullable().optional(),
   notificationPrefs: z
     .object({
       email: z.boolean(),

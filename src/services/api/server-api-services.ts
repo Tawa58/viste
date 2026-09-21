@@ -358,14 +358,13 @@ export const apiCatalogService = {
     }),
   reactivateStaff: (staffId: string) =>
     apiFetch<Staff>(`/api/v1/teachers/${staffId}/suspension`, { method: 'DELETE' }),
-  updateStaffPhoto: async (
-    id: string,
-    patch: { profilePhotoId?: string | null; photoUrl?: string | null },
-  ) => {
-    const member = await apiCatalogService.getStaffMember(id)
-    if (!member) return undefined
-    return { ...member, ...patch } as Staff
-  },
+  updateStaffPhoto: (id: string, patch: { profilePhotoId?: string | null; photoUrl?: string | null }) =>
+    apiFetch<Staff>(`/api/v1/teachers/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        profilePhotoId: patch.profilePhotoId ?? null,
+      }),
+    }),
   createStaff: (input: Omit<Staff, 'id'> & { password?: string }) =>
     apiFetch<Staff>('/api/v1/teachers', {
       method: 'POST',

@@ -161,13 +161,14 @@ export async function createStaff(
   requirePermission(session, 'teachers.manage')
   const password = input.password?.trim() || generateTemporaryPassword()
   if (password.length < 8) throw badRequest('Password must be at least 8 characters')
-  const { password: _ignored, ...rest } = input
+  const { password: _ignored, profilePhotoId, ...rest } = input
   const id = newId('st')
   const row: Staff = {
     ...rest,
     id,
     classIds: rest.classIds ?? [],
     subjectIds: rest.subjectIds ?? [],
+    ...(profilePhotoId ? { profilePhotoId } : {}),
   }
 
   let authUid: string
@@ -386,13 +387,19 @@ export async function updateStaff(
   const current = await getDoc<Staff>('staff', staffId)
   if (!current) throw notFound('Staff not found')
 
-  const { password: _pw, ...rest } = input
+  const { password: _pw, profilePhotoId, ...rest } = input
   const row: Staff = {
     ...current,
     ...rest,
     id: staffId,
     subjectIds: rest.subjectIds ?? current.subjectIds ?? [],
     classIds: rest.classIds ?? current.classIds ?? [],
+  }
+  if (profilePhotoId === null) {
+    delete row.profilePhotoId
+    delete row.photoUrl
+  } else if (profilePhotoId) {
+    row.profilePhotoId = profilePhotoId
   }
   // Keep suspension metadata consistent with status (use dedicated suspend/reactivate APIs for full control).
   if (row.status === 'ACTIVE') {

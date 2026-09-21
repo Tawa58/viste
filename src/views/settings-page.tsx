@@ -49,8 +49,8 @@ function toForm(user: AuthUser): ProfileForm {
     bio: user.bio ?? '',
     preferredLanguage: user.preferredLanguage ?? 'en',
     timezone: user.timezone ?? 'Africa/Harare',
-    avatarUrl: user.avatarUrl,
-    avatarFileId: user.avatarFileId,
+    avatarUrl: user.avatarUrl ?? undefined,
+    avatarFileId: user.avatarFileId ?? undefined,
     notifyEmail: user.notificationPrefs?.email ?? true,
     notifySms: user.notificationPrefs?.sms ?? false,
     notifyInApp: user.notificationPrefs?.inApp ?? true,
@@ -147,12 +147,12 @@ export function SettingsPage() {
       await notify.process(
         () =>
           updateProfile({
-            avatarUrl: next?.previewUrl,
-            avatarFileId: next?.fileId,
+            avatarFileId: next?.fileId ?? null,
+            avatarUrl: null,
           }),
         {
-          loading: 'Updating photo…',
-          success: 'Profile photo saved',
+          loading: 'Saving photo…',
+          success: 'Photo saved',
           error: 'Could not update photo',
         },
       )
@@ -215,6 +215,7 @@ export function SettingsPage() {
                   ownerId={user.staffId ?? user.studentId ?? user.id}
                   ownerType={user.staffId ? 'staff' : user.studentId ? 'student' : 'user'}
                   fileType={user.staffId ? 'staff_photo' : 'profile_photo'}
+                  hint="Upload a clear headshot — it shows on your profile and in staff lists."
                   onChange={(next) => void savePhoto(next)}
                 />
 

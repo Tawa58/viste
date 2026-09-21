@@ -9,19 +9,36 @@ export interface CompressedImage {
 /**
  * Resize + compress images for Firestore storage.
  * Prefers WebP when supported, otherwise JPEG.
+ * Pass `square: true` for profile photos so avatars crop cleanly.
  */
 export async function compressImage(
   file: File | Blob,
   originalName: string,
-  options?: { maxEdge?: number; quality?: number },
+  options?: { maxEdge?: number; quality?: number; square?: boolean },
 ): Promise<CompressedImage> {
   const maxEdge = options?.maxEdge ?? 1024
   const quality = options?.quality ?? 0.82
+  const square = options?.square ?? false
 
   const bitmap = await createImageBitmap(file)
-  const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height))
-  const width = Math.max(1, Math.round(bitmap.width * scale))
-  const height = Math.max(1, Math.round(bitmap.height * scale))
+  let sourceX = 0
+  let sourceY = 0
+  let sourceSize = Math.min(bitmap.width, bitmap.height)
+  let width: number
+  let height: number
+
+  if (square) {
+    sourceX = Math.max(0, Math.floor((bitmap.width - sourceSize) / 2))
+    sourceY = Math.max(0, Math.floor((bitmap.height - sourceSize) / 2))
+    const edge = Math.min(maxEdge, sourceSize)
+    width = edge
+    height = edge
+  } else {
+    sourceSize = 0
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height))
+    width = Math.max(1, Math.round(bitmap.width * scale))
+    height = Math.max(1, Math.round(bitmap.height * scale))
+  }
 
   const canvas = document.createElement('canvas')
   canvas.width = width
@@ -31,7 +48,11 @@ export async function compressImage(
     bitmap.close()
     throw new Error('Could not process image')
   }
-  ctx.drawImage(bitmap, 0, 0, width, height)
+  if (square) {
+    ctx.drawImage(bitmap, sourceX, sourceY, sourceSize, sourceSize, 0, 0, width, height)
+  } else {
+    ctx.drawImage(bitmap, 0, 0, width, height)
+  }
   bitmap.close()
 
   const preferWebp = supportsWebp()

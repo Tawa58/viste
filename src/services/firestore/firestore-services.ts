@@ -143,8 +143,14 @@ export const firestoreCatalogService = {
   ) {
     const next: Partial<Staff> = {}
     if (patch.profilePhotoId) next.profilePhotoId = patch.profilePhotoId
-    if (patch.profilePhotoId === null) next.profilePhotoId = undefined
-    if (patch.photoUrl) next.photoUrl = patch.photoUrl
+    if (patch.profilePhotoId === null) {
+      next.profilePhotoId = undefined
+      next.photoUrl = undefined
+    }
+    // Never keep ephemeral blob preview URLs on the staff record.
+    if (patch.photoUrl && !patch.photoUrl.startsWith('blob:') && !patch.photoUrl.startsWith('data:')) {
+      next.photoUrl = patch.photoUrl
+    }
     if (patch.photoUrl === null) next.photoUrl = undefined
     return firestoreSchool.updateStaff(id, next)
   },

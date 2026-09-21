@@ -19,7 +19,7 @@ import {
   DataTableRow,
   DataTableShell,
 } from '@/components/shared/data-table'
-import { Avatar } from '@/components/ui/avatar'
+import { ResolvedAvatar } from '@/components/shared/resolved-avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -44,8 +44,6 @@ const emptyForm = {
   email: '',
   phone: '',
   password: '',
-  photoUrl: undefined as string | undefined,
-  profilePhotoId: undefined as string | undefined,
   subjectIds: [] as string[],
   classIds: [] as string[],
 }
@@ -94,6 +92,13 @@ function downloadCredentialsCsv(
 export function TeachersPage() {
   const { user, hasPermission } = useAuth()
   const showCredentials = user ? canViewStaffCredentials(user.role) : false
+  const fileAccess = user
+    ? {
+        userId: user.id,
+        role: user.role,
+        staffId: user.staffId,
+      }
+    : null
   const canManageTeachers =
     showCredentials ||
     hasPermission('teachers.manage') ||
@@ -189,8 +194,6 @@ export function TeachersPage() {
             subjectIds: form.subjectIds,
             classIds: form.classIds,
             hireDate: new Date().toISOString().slice(0, 10),
-            photoUrl: form.photoUrl,
-            profilePhotoId: form.profilePhotoId,
             ...(password ? { password } : {}),
           }),
         {
@@ -323,7 +326,13 @@ export function TeachersPage() {
                           to={`/teachers/${s.id}`}
                           className="flex items-center gap-3 font-medium text-primary hover:underline"
                         >
-                          <Avatar name={fullName} src={s.photoUrl} className="h-9 w-9 text-xs" />
+                          <ResolvedAvatar
+                            name={fullName}
+                            src={s.photoUrl}
+                            fileId={s.profilePhotoId}
+                            access={fileAccess}
+                            className="h-9 w-9 text-xs"
+                          />
                           <span>
                             {fullName}
                             <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
@@ -404,30 +413,10 @@ export function TeachersPage() {
           <DialogHeader>
             <DialogTitle>Add staff member</DialogTitle>
             <DialogDescription>
-              Creates a staff profile and portal login for the teacher.
+              Creates a staff profile and portal login. The teacher can add their own photo later from Settings.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <ProfilePhotoUpload
-              name={`${form.firstName || 'New'} ${form.lastName || 'Staff'}`}
-              previewUrl={form.photoUrl}
-              fileId={form.profilePhotoId}
-              access={{
-                userId: user?.id ?? 'anonymous',
-                role: user?.role ?? 'SCHOOL_ADMIN',
-                staffId: user?.staffId,
-              }}
-              ownerId="pending-staff"
-              ownerType="staff"
-              fileType="staff_photo"
-              onChange={(next) =>
-                setForm((f) => ({
-                  ...f,
-                  photoUrl: next?.previewUrl,
-                  profilePhotoId: next?.fileId,
-                }))
-              }
-            />
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>First name</Label>
@@ -679,6 +668,16 @@ export function TeacherDetailPage() {
   const navigate = useNavigate()
   const { user, hasPermission } = useAuth()
   const showCredentials = user ? canViewStaffCredentials(user.role) : false
+  const fileAccess = user
+    ? {
+        userId: user.id,
+        role: user.role,
+        staffId: user.staffId,
+      }
+    : {
+        userId: 'anonymous',
+        role: 'SCHOOL_ADMIN' as const,
+      }
   const canConfigureAccess =
     showCredentials ||
     hasPermission('teachers.manage') ||
@@ -724,11 +723,25 @@ export function TeacherDetailPage() {
     if (!member) return
     setSavingPhoto(true)
     try {
-      const updated = await catalogService.updateStaffPhoto(member.id, {
-        profilePhotoId: next?.fileId ?? null,
-        photoUrl: next?.previewUrl ?? null,
-      })
-      if (updated) setMember(updated)
+      const updated = await notify.process(
+        () =>
+          catalogService.updateStaffPhoto(member.id, {
+            profilePhotoId: next?.fileId ?? null,
+            photoUrl: null,
+          }),
+        {
+          loading: 'Saving photo…',
+          success: 'Photo updated',
+          error: 'Could not save photo',
+        },
+      )
+      if (updated) {
+        setMember({
+          ...updated,
+          photoUrl: next?.previewUrl,
+          profilePhotoId: next?.fileId,
+        })
+      }
     } finally {
       setSavingPhoto(false)
     }
@@ -902,16 +915,13 @@ export function TeacherDetailPage() {
               name={fullName}
               previewUrl={member.photoUrl}
               fileId={member.profilePhotoId}
-              access={{
-                userId: user?.id ?? 'anonymous',
-                role: user?.role ?? 'SCHOOL_ADMIN',
-                staffId: user?.staffId ?? member.id,
-              }}
+              access={fileAccess}
               ownerId={member.id}
               ownerType="staff"
               fileType="staff_photo"
-              onChange={(next) => void handlePhotoChange(next)}
+              hint="Teachers can also set this from Settings after they sign in."
               disabled={savingPhoto}
+              onChange={(next) => void handlePhotoChange(next)}
             />
             <div className="space-y-2 border-t border-border pt-4 text-sm">
               <p>Employee #: {member.employeeNumber}</p>

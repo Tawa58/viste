@@ -46,9 +46,9 @@ export interface AuthUser {
   name: string
   email: string
   role: UserRole
-  avatarUrl?: string
+  avatarUrl?: string | null
   /** Firestore file id for avatar when using chunked file storage. */
-  avatarFileId?: string
+  avatarFileId?: string | null
   phone?: string
   title?: string
   department?: string

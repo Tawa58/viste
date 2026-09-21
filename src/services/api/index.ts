@@ -216,8 +216,14 @@ class MockAuthService implements AuthService {
         if (next.title) member.title = next.title
         if (next.department) member.department = next.department
         if (next.employeeNumber) member.employeeNumber = next.employeeNumber
-        if (next.avatarUrl) member.photoUrl = next.avatarUrl
-        else if (Object.prototype.hasOwnProperty.call(patch, 'avatarUrl')) {
+        if (next.avatarFileId) member.profilePhotoId = next.avatarFileId
+        else if (Object.prototype.hasOwnProperty.call(patch, 'avatarFileId')) {
+          delete member.profilePhotoId
+          delete member.photoUrl
+        }
+        if (next.avatarUrl && !next.avatarUrl.startsWith('blob:') && !next.avatarUrl.startsWith('data:')) {
+          member.photoUrl = next.avatarUrl
+        } else if (Object.prototype.hasOwnProperty.call(patch, 'avatarUrl')) {
           delete member.photoUrl
         }
       }

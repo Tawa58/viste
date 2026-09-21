@@ -16,6 +16,7 @@ export async function getOrCreateUserProfile(firebaseUser: User): Promise<AuthUs
       email: (data.email ?? firebaseUser.email ?? '').toLowerCase(),
       role: (data.role as UserRole) ?? 'SCHOOL_ADMIN',
       avatarUrl: data.avatarUrl ?? firebaseUser.photoURL ?? undefined,
+      avatarFileId: data.avatarFileId,
       phone: data.phone,
       title: data.title ?? 'School Administrator',
       department: data.department ?? 'Administration',
