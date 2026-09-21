@@ -92,8 +92,13 @@ function downloadCredentialsCsv(
 }
 
 export function TeachersPage() {
-  const { user } = useAuth()
+  const { user, hasPermission } = useAuth()
   const showCredentials = user ? canViewStaffCredentials(user.role) : false
+  const canManageTeachers =
+    hasPermission('teachers.manage') ||
+    user?.role === 'SUPER_ADMIN' ||
+    user?.role === 'SCHOOL_ADMIN' ||
+    user?.role === 'PRINCIPAL'
   const [loading, setLoading] = useState(true)
   const [staff, setStaff] = useState<Staff[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
@@ -104,6 +109,12 @@ export function TeachersPage() {
   const [credOpen, setCredOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(emptyForm)
+  const [suspendTarget, setSuspendTarget] = useState<Staff | null>(null)
+  const [suspending, setSuspending] = useState(false)
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null)
+  const [suspendReason, setSuspendReason] = useState('')
+  const [suspendEndsAt, setSuspendEndsAt] = useState('')
+  const [suspendIndefinite, setSuspendIndefinite] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -196,6 +207,55 @@ export function TeachersPage() {
       setOpen(false)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleSuspendFromList() {
+    if (!suspendTarget) return
+    const reason = suspendReason.trim()
+    if (reason.length < 3) {
+      notify.error('Enter a suspension reason (at least 3 characters)')
+      return
+    }
+    if (!suspendIndefinite && !suspendEndsAt) {
+      notify.error('Pick an end date, or mark the suspension as indefinite')
+      return
+    }
+    setSuspending(true)
+    try {
+      const updated = await notify.process(
+        () =>
+          catalogService.suspendStaff(suspendTarget.id, {
+            reason,
+            endsAt: suspendIndefinite ? null : suspendEndsAt,
+          }),
+        {
+          loading: 'Suspending teacher…',
+          success: 'Teacher suspended — they cannot sign in',
+          error: 'Could not suspend teacher',
+        },
+      )
+      setStaff((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
+      setSuspendTarget(null)
+      setSuspendReason('')
+      setSuspendEndsAt('')
+      setSuspendIndefinite(false)
+    } finally {
+      setSuspending(false)
+    }
+  }
+
+  async function handleReactivateFromList(member: Staff) {
+    setReactivatingId(member.id)
+    try {
+      const updated = await notify.process(() => catalogService.reactivateStaff(member.id), {
+        loading: 'Reactivating teacher…',
+        success: 'Teacher reactivated',
+        error: 'Could not reactivate teacher',
+      })
+      setStaff((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
+    } finally {
+      setReactivatingId(null)
     }
   }
 
@@ -297,6 +357,31 @@ export function TeachersPage() {
                       </DataTableCell>
                       <DataTableCell>
                         <div className="flex justify-end gap-1">
+                          {canManageTeachers ? (
+                            s.status === 'INACTIVE' || s.suspension ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                loading={reactivatingId === s.id}
+                                onClick={() => void handleReactivateFromList(s)}
+                              >
+                                Activate
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSuspendTarget(s)
+                                  setSuspendReason('')
+                                  setSuspendEndsAt('')
+                                  setSuspendIndefinite(false)
+                                }}
+                              >
+                                Suspend
+                              </Button>
+                            )
+                          ) : null}
                           <Button variant="outline" size="sm" asChild>
                             <Link to={`/teachers/${s.id}`}>
                               {showCredentials ? 'Access' : 'Open'}
@@ -520,6 +605,70 @@ export function TeachersPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={Boolean(suspendTarget)}
+        onOpenChange={(next) => {
+          if (!next) setSuspendTarget(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Suspend {suspendTarget ? `${suspendTarget.firstName} ${suspendTarget.lastName}` : 'teacher'}
+            </DialogTitle>
+            <DialogDescription>
+              They will not be able to sign in or use the portal until the period ends or you
+              reactivate them.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Reason</Label>
+              <Textarea
+                value={suspendReason}
+                onChange={(e) => setSuspendReason(e.target.value)}
+                placeholder="e.g. Disciplinary review, leave without notice…"
+                rows={3}
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={suspendIndefinite}
+                onCheckedChange={(v) => {
+                  const on = v === true
+                  setSuspendIndefinite(on)
+                  if (on) setSuspendEndsAt('')
+                }}
+              />
+              Indefinite (until an admin reactivates)
+            </label>
+            {!suspendIndefinite ? (
+              <div className="space-y-2">
+                <Label>Suspension ends on</Label>
+                <Input
+                  type="date"
+                  value={suspendEndsAt}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setSuspendEndsAt(e.target.value)}
+                />
+              </div>
+            ) : null}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setSuspendTarget(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                loading={suspending}
+                onClick={() => void handleSuspendFromList()}
+              >
+                Suspend teacher
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -527,13 +676,13 @@ export function TeachersPage() {
 export function TeacherDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, hasPermission } = useAuth()
   const showCredentials = user ? canViewStaffCredentials(user.role) : false
-  const canConfigureAccess = user
-    ? user.role === 'SUPER_ADMIN' ||
-      user.role === 'SCHOOL_ADMIN' ||
-      user.role === 'PRINCIPAL'
-    : false
+  const canConfigureAccess =
+    hasPermission('teachers.manage') ||
+    user?.role === 'SUPER_ADMIN' ||
+    user?.role === 'SCHOOL_ADMIN' ||
+    user?.role === 'PRINCIPAL'
   const [loading, setLoading] = useState(true)
   const [member, setMember] = useState<Staff | undefined>()
   const [subjects, setSubjects] = useState<Subject[]>([])
@@ -718,6 +867,33 @@ export function TeacherDetailPage() {
         }
       />
       <div className="grid gap-4 lg:grid-cols-2">
+        {canConfigureAccess ? (
+          <Card className="lg:col-span-2">
+            <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-medium">Account access</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {isSuspended
+                    ? 'This teacher is suspended and cannot sign in.'
+                    : 'Suspend to block login for a period, or leave active.'}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {isSuspended ? (
+                  <Button loading={reactivating} onClick={() => void handleReactivate()}>
+                    <CheckCircle2 className="h-4 w-4" />
+                    Activate teacher
+                  </Button>
+                ) : (
+                  <Button variant="destructive" onClick={() => setSuspendOpen(true)}>
+                    <Ban className="h-4 w-4" />
+                    Suspend teacher
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
         <Card>
           <CardContent className="space-y-5 p-5">
             <ProfilePhotoUpload
