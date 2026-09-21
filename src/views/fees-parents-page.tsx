@@ -1,17 +1,37 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { Banknote, CircleAlert, Download, Receipt, Wallet } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { LoadingState } from '@/components/shared/loading-state'
+import { SearchInput } from '@/components/shared/search-input'
 import { StatCard } from '@/components/shared/stat-card'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Alert } from '@/components/shared/alert'
+import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRow,
+  DataTableShell,
+} from '@/components/shared/data-table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Banknote, CircleAlert, Receipt, Wallet } from 'lucide-react'
-import { catalogService, studentService } from '@/services/api'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { catalogService, classService, studentService } from '@/services/api'
 import { notify, runMockProcess } from '@/lib/notify'
+import { downloadParentsPdf, type ParentPdfVariant } from '@/lib/parents-pdf'
+import { educationLevelName } from '@/lib/education-levels'
 import { formatCurrency, formatDate, formatDateTime, fullName } from '@/lib/utils'
-import type { FeeStructure, Invoice, Payment, Student, Guardian } from '@/types'
+import type { FeeStructure, Invoice, Payment, SchoolClass, Student, Guardian } from '@/types'
 
 export function FeesPage() {
   const [loading, setLoading] = useState(true)
@@ -190,20 +210,27 @@ export function ParentsPage() {
   const [loading, setLoading] = useState(true)
   const [guardians, setGuardians] = useState<Guardian[]>([])
   const [students, setStudents] = useState<Student[]>([])
+  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     let mounted = true
-    Promise.all([catalogService.getGuardians(), studentService.list()])
-      .then(([g, s]) => {
+    Promise.all([
+      catalogService.getGuardians(),
+      studentService.list(),
+      classService.list().catch(() => [] as SchoolClass[]),
+    ])
+      .then(([g, s, c]) => {
         if (!mounted) return
         setGuardians(g)
         setStudents(s)
+        setClasses(c)
       })
       .catch((err) => {
         console.error(err)
         notify.error(
           'Could not load parents',
-          'Firestore rules are blocking reads. Publish open rules from firestore.rules in the Firebase Console.',
+          'Check that you are signed in and try again.',
         )
       })
       .finally(() => {
@@ -214,47 +241,143 @@ export function ParentsPage() {
     }
   }, [])
 
-  if (loading) return <LoadingState message="Loading guardians…" />
+  const levelByStudentId = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const s of students) {
+      const cls = classes.find((c) => c.id === s.classId)
+      map[s.id] =
+        educationLevelName(s.educationLevelId || cls?.educationLevelId) ||
+        cls?.name ||
+        '—'
+    }
+    return map
+  }, [students, classes])
+
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return guardians
+      .filter((g) => {
+        if (!q) return true
+        const hay = `${g.firstName} ${g.lastName} ${g.phone} ${g.email} ${g.relationship}`.toLowerCase()
+        return hay.includes(q)
+      })
+      .sort((a, b) =>
+        `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`),
+      )
+  }, [guardians, search])
+
+  function pdfRows() {
+    return rows.map((g) => ({
+      guardian: g,
+      children: students.filter((s) => g.studentIds.includes(s.id)),
+      levelByStudentId,
+    }))
+  }
+
+  function handleDownload(variant: ParentPdfVariant) {
+    try {
+      downloadParentsPdf({ variant, rows: pdfRows() })
+    } catch (err) {
+      notify.error(err instanceof Error ? err.message : 'Could not open PDF')
+    }
+  }
+
+  if (loading) return <LoadingState message="Loading parents…" />
 
   return (
     <div>
       <PageHeader
         title="Parents / Guardians"
-        description="Guardian contacts and linked students."
+        description="Contact directory for parents and guardians linked to students."
         breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Parents/Guardians' }]}
+        actions={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="h-4 w-4" />
+                Download PDF
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel>Export options</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handleDownload('contacts')}>
+                Contacts only (no address)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDownload('names_address')}>
+                Names and addresses
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDownload('names_contacts')}>
+                Names and contacts
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDownload('names_contacts_children')}>
+                Names, contacts, children and levels
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
       />
-      <div className="grid gap-4 md:grid-cols-2">
-        {guardians.map((g) => (
-          <Card key={g.id}>
-            <CardContent className="space-y-2 p-5">
-              <Link to={`/parents/${g.id}`} className="font-display text-lg font-semibold text-primary">
-                {g.firstName} {g.lastName}
-              </Link>
-              <p className="text-sm text-muted-foreground">
-                {g.relationship} · {g.occupation}
-              </p>
-              <p className="text-sm">
-                {g.email} · {g.phone}
-              </p>
-              <p className="text-sm text-muted-foreground">{g.address}</p>
-              <div className="flex flex-wrap gap-2 pt-2">
-                {g.studentIds.map((id) => {
-                  const s = students.find((x) => x.id === id)
-                  return s ? (
-                    <Link
-                      key={id}
-                      to={`/students/${id}`}
-                      className="rounded-full bg-secondary px-2.5 py-1 text-xs"
-                    >
-                      {fullName(s)}
-                    </Link>
-                  ) : null
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+
+      <div className="mb-4 max-w-md">
+        <SearchInput
+          id="parents-search"
+          name="parents-search"
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by name, phone, or email…"
+        />
       </div>
+
+      {rows.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+          No parents found. Add a guardian when registering a student.
+        </p>
+      ) : (
+        <DataTableShell>
+          <DataTable>
+            <DataTableHead>
+              <tr>
+                <DataTableHeaderCell>Name</DataTableHeaderCell>
+                <DataTableHeaderCell>Relationship</DataTableHeaderCell>
+                <DataTableHeaderCell>Phone</DataTableHeaderCell>
+                <DataTableHeaderCell>Email</DataTableHeaderCell>
+                <DataTableHeaderCell>Children</DataTableHeaderCell>
+              </tr>
+            </DataTableHead>
+            <DataTableBody>
+              {rows.map((g) => {
+                const children = students.filter((s) => g.studentIds.includes(s.id))
+                return (
+                  <DataTableRow key={g.id}>
+                    <DataTableCell>
+                      <Link
+                        to={`/parents/${g.id}`}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        {g.firstName} {g.lastName}
+                      </Link>
+                    </DataTableCell>
+                    <DataTableCell className="text-muted-foreground">
+                      {g.relationship || '—'}
+                    </DataTableCell>
+                    <DataTableCell className="text-sm">{g.phone || '—'}</DataTableCell>
+                    <DataTableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
+                      {g.email || '—'}
+                    </DataTableCell>
+                    <DataTableCell className="text-xs text-muted-foreground">
+                      {children.length
+                        ? children
+                            .map((s) => `${fullName(s)} · ${levelByStudentId[s.id] || '—'}`)
+                            .join(', ')
+                        : '—'}
+                    </DataTableCell>
+                  </DataTableRow>
+                )
+              })}
+            </DataTableBody>
+          </DataTable>
+        </DataTableShell>
+      )}
     </div>
   )
 }
@@ -264,6 +387,7 @@ export function ParentDetailPage() {
   const [loading, setLoading] = useState(true)
   const [guardian, setGuardian] = useState<Guardian | undefined>()
   const [students, setStudents] = useState<Student[]>([])
+  const [classes, setClasses] = useState<SchoolClass[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
 
   useEffect(() => {
@@ -271,10 +395,12 @@ export function ParentDetailPage() {
     Promise.all([
       catalogService.getGuardian(id),
       studentService.list(),
+      classService.list().catch(() => [] as SchoolClass[]),
       catalogService.getInvoices(),
-    ]).then(([g, s, inv]) => {
+    ]).then(([g, s, c, inv]) => {
       setGuardian(g)
       setStudents(s.filter((x) => g?.studentIds.includes(x.id)))
+      setClasses(c)
       setInvoices(inv.filter((i) => g?.studentIds.includes(i.studentId)))
       setLoading(false)
     })
@@ -286,46 +412,86 @@ export function ParentDetailPage() {
   const outstanding = invoices.reduce((sum, i) => sum + (i.total - i.paid), 0)
 
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader
         title={`${guardian.firstName} ${guardian.lastName}`}
-        description={`${guardian.relationship} · ${guardian.email}`}
+        description={`${guardian.relationship || 'Guardian'} · ${guardian.phone || guardian.email || 'No contact on file'}`}
         breadcrumbs={[
           { label: 'Home', to: '/dashboard' },
           { label: 'Parents', to: '/parents' },
           { label: guardian.lastName },
         ]}
       />
-      <div className="grid gap-4 md:grid-cols-3">
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
         <Card>
           <CardHeader>
             <CardTitle>Contact</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1 text-sm">
-            <p>{guardian.phone}</p>
-            <p>{guardian.address}</p>
-            <p>{guardian.occupation}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Linked students</CardTitle>
-          </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            {students.map((s) => (
-              <Link key={s.id} to={`/students/${s.id}`} className="block text-primary">
-                {fullName(s)}
-              </Link>
-            ))}
+            <p>
+              <span className="text-muted-foreground">Phone: </span>
+              {guardian.phone || '—'}
+            </p>
+            <p>
+              <span className="text-muted-foreground">Email: </span>
+              {guardian.email || '—'}
+            </p>
+            <p>
+              <span className="text-muted-foreground">Address: </span>
+              {guardian.address || '—'}
+            </p>
+            {guardian.occupation ? (
+              <p>
+                <span className="text-muted-foreground">Occupation: </span>
+                {guardian.occupation}
+              </p>
+            ) : null}
+            <p className="pt-2 text-xs text-muted-foreground">
+              Fee outstanding across linked students:{' '}
+              <span className="font-medium text-foreground">{formatCurrency(outstanding)}</span>
+            </p>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader>
-            <CardTitle>Fee summary</CardTitle>
+            <CardTitle>Children</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="font-display text-2xl font-semibold">{formatCurrency(outstanding)}</p>
-            <p className="text-sm text-muted-foreground">Combined outstanding</p>
+            {students.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No students linked to this parent.</p>
+            ) : (
+              <ul className="divide-y divide-border/70">
+                {students.map((s) => {
+                  const cls = classes.find((c) => c.id === s.classId)
+                  const level =
+                    educationLevelName(s.educationLevelId || cls?.educationLevelId) ||
+                    cls?.name ||
+                    '—'
+                  return (
+                    <li key={s.id} className="flex items-baseline justify-between gap-3 py-2.5">
+                      <div className="min-w-0">
+                        <Link
+                          to={`/students/${s.id}`}
+                          className="text-sm font-medium text-primary hover:underline"
+                        >
+                          {fullName(s)}
+                        </Link>
+                        <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+                          {level}
+                          {cls?.name ? ` · ${cls.name}` : ''}
+                          {s.studentNumber || s.admissionNumber
+                            ? ` · ${s.studentNumber || s.admissionNumber}`
+                            : ''}
+                        </p>
+                      </div>
+                      <StatusBadge status={s.status} />
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </div>

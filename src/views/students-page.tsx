@@ -244,11 +244,13 @@ export function StudentsPage() {
         sportIds: form.sportIds,
         clubIds: form.clubIds,
         houseId: form.houseId || undefined,
-        guardianIds: form.guardianIds,
+        // Create never links existing parents — only optional newGuardians below.
+        guardianIds: editing ? form.guardianIds : [],
         // Blank on create → server assigns VHS-{year}-{001} for both numbers
         studentNumber: editing ? form.studentNumber.trim() : '',
         admissionNumber: editing ? form.admissionNumber.trim() : '',
         newGuardians:
+          !editing &&
           form.newGuardian &&
           form.newGuardian.firstName.trim() &&
           form.newGuardian.lastName.trim() &&

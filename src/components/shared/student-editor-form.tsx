@@ -107,7 +107,7 @@ export function StudentEditorForm({
   sports = [],
   clubs = [],
   houses = [],
-  guardians,
+  guardians = [],
   fullAccess,
   numberPreview,
   className,
@@ -121,13 +121,15 @@ export function StudentEditorForm({
   sports?: Sport[]
   clubs?: ClubActivity[]
   houses?: House[]
-  guardians: Guardian[]
+  /** Kept for API compatibility; existing guardians are no longer linked from this form. */
+  guardians?: Guardian[]
   /** Admin/registrar: full fields. Teacher: phone + address only. */
   fullAccess: boolean
   /** Preview of auto-assigned VHS number on create. */
   numberPreview?: string
   className?: string
 }) {
+  void guardians
   const classStreams = useMemo(
     () => streams.filter((s) => s.classId === values.classId),
     [streams, values.classId],
@@ -152,7 +154,7 @@ export function StudentEditorForm({
     onChange({ ...values, [key]: value })
   }
 
-  function toggleId(key: 'subjectIds' | 'sportIds' | 'clubIds' | 'guardianIds', id: string) {
+  function toggleId(key: 'subjectIds' | 'sportIds' | 'clubIds', id: string) {
     const current = values[key]
     setField(
       key,
@@ -528,44 +530,17 @@ export function StudentEditorForm({
             Parents / guardians
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Link existing guardians or add one during registration.
+            {mode === 'create'
+              ? 'Add a parent or guardian for this student. Existing parents are not linked from here.'
+              : 'Guardian links are managed on the student profile Guardians tab.'}
           </p>
-        </div>
-        <div className="grid gap-2">
-          {guardians.map((g) => {
-            const checked = values.guardianIds.includes(g.id)
-            return (
-              <label
-                key={g.id}
-                className={cn(
-                  'flex cursor-pointer items-start gap-2.5 rounded-xl border px-3 py-2.5 text-sm transition',
-                  checked ? 'border-primary/30 bg-primary/5' : 'border-border/70 bg-card',
-                )}
-              >
-                <Checkbox
-                  checked={checked}
-                  onCheckedChange={() => toggleId('guardianIds', g.id)}
-                  className="mt-0.5"
-                />
-                <span>
-                  <span className="font-medium">
-                    {g.firstName} {g.lastName}
-                  </span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">
-                    {g.relationship} · {g.phone}
-                    {g.email ? ` · ${g.email}` : ''}
-                  </span>
-                </span>
-              </label>
-            )
-          })}
         </div>
 
         {mode === 'create' ? (
           values.newGuardian ? (
             <div className="space-y-3 rounded-xl border border-dashed border-border p-3">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium">New guardian</p>
+                <p className="text-sm font-medium">New parent / guardian</p>
                 <button
                   type="button"
                   className="text-xs text-muted-foreground hover:text-foreground"
@@ -652,7 +627,12 @@ export function StudentEditorForm({
               + Add a new parent / guardian
             </button>
           )
-        ) : null}
+        ) : (
+          <p className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+            Open the student&apos;s Guardians tab to view or edit linked parents. New students get a
+            fresh guardian form — existing parents are not selected from a shared list.
+          </p>
+        )}
       </section>
     </div>
   )
