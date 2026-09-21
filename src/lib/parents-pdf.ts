@@ -1,3 +1,5 @@
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
 import type { Guardian, Student } from '@/types'
 import { educationLevelName } from '@/lib/education-levels'
 import { fullName } from '@/lib/utils'
@@ -22,23 +24,50 @@ const VARIANT_TITLES: Record<ParentPdfVariant, string> = {
   names_contacts_children: 'Parents with contacts, children, and levels',
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-}
-
 function childLine(s: Student, levelByStudentId: Record<string, string>) {
   const level =
-    levelByStudentId[s.id] ||
-    educationLevelName(s.educationLevelId) ||
-    '—'
+    levelByStudentId[s.id] || educationLevelName(s.educationLevelId) || '—'
   return `${fullName(s)} (${level})`
 }
 
-/** Opens a print-ready parent list (browser → Save as PDF). */
+function headersFor(variant: ParentPdfVariant): string[] {
+  switch (variant) {
+    case 'contacts':
+      return ['#', 'Name', 'Phone', 'Email']
+    case 'names_address':
+      return ['#', 'Name', 'Address']
+    case 'names_contacts':
+      return ['#', 'Name', 'Phone', 'Email']
+    case 'names_contacts_children':
+      return ['#', 'Name', 'Phone', 'Email', 'Children & levels']
+  }
+}
+
+function bodyFor(variant: ParentPdfVariant, rows: ParentPdfRow[]): string[][] {
+  return rows.map((row, i) => {
+    const name = `${row.guardian.firstName} ${row.guardian.lastName}`.trim()
+    const phone = row.guardian.phone || '—'
+    const email = row.guardian.email || '—'
+    const address = row.guardian.address || '—'
+    const children =
+      row.children.length > 0
+        ? row.children.map((s) => childLine(s, row.levelByStudentId)).join('; ')
+        : '—'
+
+    switch (variant) {
+      case 'contacts':
+        return [String(i + 1), name, phone, email]
+      case 'names_address':
+        return [String(i + 1), name, address]
+      case 'names_contacts':
+        return [String(i + 1), name, phone, email]
+      case 'names_contacts_children':
+        return [String(i + 1), name, phone, email, children]
+    }
+  })
+}
+
+/** Builds a real PDF file and triggers a browser download. */
 export function downloadParentsPdf(opts: {
   schoolName?: string
   variant: ParentPdfVariant
@@ -47,110 +76,47 @@ export function downloadParentsPdf(opts: {
   const school = opts.schoolName ?? 'Viste High School'
   const title = VARIANT_TITLES[opts.variant]
   const date = new Date().toISOString().slice(0, 10)
+  const landscape = opts.variant === 'names_contacts_children'
 
-  const headers: string[] = (() => {
-    switch (opts.variant) {
-      case 'contacts':
-        return ['#', 'Name', 'Phone', 'Email']
-      case 'names_address':
-        return ['#', 'Name', 'Address']
-      case 'names_contacts':
-        return ['#', 'Name', 'Phone', 'Email']
-      case 'names_contacts_children':
-        return ['#', 'Name', 'Phone', 'Email', 'Children & levels']
-    }
-  })()
+  const doc = new jsPDF({
+    orientation: landscape ? 'landscape' : 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  })
 
-  const bodyRows = opts.rows
-    .map((row, i) => {
-      const name = `${row.guardian.firstName} ${row.guardian.lastName}`.trim()
-      const phone = row.guardian.phone || '—'
-      const email = row.guardian.email || '—'
-      const address = row.guardian.address || '—'
-      const children =
-        row.children.length > 0
-          ? row.children.map((s) => childLine(s, row.levelByStudentId)).join('; ')
-          : '—'
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(14)
+  doc.text(school, 14, 16)
 
-      switch (opts.variant) {
-        case 'contacts':
-          return `<tr>
-            <td>${i + 1}</td>
-            <td>${escapeHtml(name)}</td>
-            <td>${escapeHtml(phone)}</td>
-            <td>${escapeHtml(email)}</td>
-          </tr>`
-        case 'names_address':
-          return `<tr>
-            <td>${i + 1}</td>
-            <td>${escapeHtml(name)}</td>
-            <td>${escapeHtml(address)}</td>
-          </tr>`
-        case 'names_contacts':
-          return `<tr>
-            <td>${i + 1}</td>
-            <td>${escapeHtml(name)}</td>
-            <td>${escapeHtml(phone)}</td>
-            <td>${escapeHtml(email)}</td>
-          </tr>`
-        case 'names_contacts_children':
-          return `<tr>
-            <td>${i + 1}</td>
-            <td>${escapeHtml(name)}</td>
-            <td>${escapeHtml(phone)}</td>
-            <td>${escapeHtml(email)}</td>
-            <td>${escapeHtml(children)}</td>
-          </tr>`
-      }
-    })
-    .join('')
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(11)
+  doc.text(title, 14, 23)
 
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>${escapeHtml(title)} — ${escapeHtml(date)}</title>
-  <style>
-    body { font-family: Georgia, 'Times New Roman', serif; color: #111; margin: 24px; }
-    h1 { font-size: 20px; margin: 0 0 4px; }
-    h2 { font-size: 15px; font-weight: normal; margin: 0 0 16px; color: #444; }
-    .meta { font-size: 12px; margin-bottom: 16px; line-height: 1.5; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; }
-    th { background: #f3f3f3; }
-    @media print {
-      body { margin: 12mm; }
-      button { display: none !important; }
-    }
-  </style>
-</head>
-<body>
-  <button onclick="window.print()" style="margin-bottom:12px;padding:8px 12px;">Print / Save as PDF</button>
-  <h1>${escapeHtml(school)}</h1>
-  <h2>${escapeHtml(title)}</h2>
-  <div class="meta">
-    <div><strong>Generated:</strong> ${escapeHtml(date)}</div>
-    <div><strong>Records:</strong> ${opts.rows.length}</div>
-  </div>
-  <table>
-    <thead>
-      <tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr>
-    </thead>
-    <tbody>${bodyRows}</tbody>
-  </table>
-  <script>window.onload = function () { setTimeout(function () { window.print(); }, 250); };</script>
-</body>
-</html>`
+  doc.setFontSize(9)
+  doc.setTextColor(80)
+  doc.text(`Generated: ${date}  ·  Records: ${opts.rows.length}`, 14, 29)
+  doc.setTextColor(0)
 
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const win = window.open(url, '_blank')
-  if (!win) {
-    // Popup blocked — force download of HTML the user can open/print
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `parents-${opts.variant}-${date}.html`
-    a.click()
-  }
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  autoTable(doc, {
+    startY: 34,
+    head: [headersFor(opts.variant)],
+    body: bodyFor(opts.variant, opts.rows),
+    styles: {
+      fontSize: 8,
+      cellPadding: 2.5,
+      overflow: 'linebreak',
+      valign: 'top',
+    },
+    headStyles: {
+      fillColor: [243, 243, 243],
+      textColor: [17, 17, 17],
+      fontStyle: 'bold',
+    },
+    columnStyles: {
+      0: { cellWidth: 10 },
+    },
+    margin: { left: 14, right: 14 },
+  })
+
+  doc.save(`parents-${opts.variant}-${date}.pdf`)
 }
