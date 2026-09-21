@@ -95,6 +95,7 @@ export function TeachersPage() {
   const { user, hasPermission } = useAuth()
   const showCredentials = user ? canViewStaffCredentials(user.role) : false
   const canManageTeachers =
+    showCredentials ||
     hasPermission('teachers.manage') ||
     user?.role === 'SUPER_ADMIN' ||
     user?.role === 'SCHOOL_ADMIN' ||
@@ -679,6 +680,7 @@ export function TeacherDetailPage() {
   const { user, hasPermission } = useAuth()
   const showCredentials = user ? canViewStaffCredentials(user.role) : false
   const canConfigureAccess =
+    showCredentials ||
     hasPermission('teachers.manage') ||
     user?.role === 'SUPER_ADMIN' ||
     user?.role === 'SCHOOL_ADMIN' ||

@@ -49,8 +49,12 @@ function loginErrorMessage(err: unknown): string {
   }
   if (err && typeof err === 'object' && 'code' in err) {
     const code = String((err as { code: string }).code)
+    const message =
+      'message' in err && typeof (err as { message: unknown }).message === 'string'
+        ? (err as { message: string }).message
+        : ''
     if (code === 'ACCOUNT_SUSPENDED') {
-      return (err as Error).message || 'Your account is currently suspended.'
+      return message || 'Your account is currently suspended.'
     }
     if (code === 'auth/user-disabled') {
       return 'Your account is currently suspended. Contact your school administrator.'
