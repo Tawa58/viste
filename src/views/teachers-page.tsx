@@ -116,6 +116,7 @@ export function TeachersPage() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [suspendTarget, setSuspendTarget] = useState<Staff | null>(null)
+  const [accessTarget, setAccessTarget] = useState<Staff | null>(null)
   const [suspending, setSuspending] = useState(false)
   const [reactivatingId, setReactivatingId] = useState<string | null>(null)
   const [suspendReason, setSuspendReason] = useState('')
@@ -392,11 +393,19 @@ export function TeachersPage() {
                               </Button>
                             )
                           ) : null}
-                          <Button variant="outline" size="sm" asChild>
-                            <Link to={`/teachers/${s.id}`}>
-                              {showCredentials ? 'Access' : 'Open'}
-                            </Link>
-                          </Button>
+                          {showCredentials ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setAccessTarget(s)}
+                            >
+                              Access
+                            </Button>
+                          ) : (
+                            <Button variant="outline" size="sm" asChild>
+                              <Link to={`/teachers/${s.id}`}>Open</Link>
+                            </Button>
+                          )}
                         </div>
                       </DataTableCell>
                     </DataTableRow>
@@ -593,6 +602,37 @@ export function TeachersPage() {
               )
             })}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(accessTarget)}
+        onOpenChange={(next) => {
+          if (!next) setAccessTarget(null)
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              Access
+              {accessTarget
+                ? ` · ${accessTarget.firstName} ${accessTarget.lastName}`
+                : ''}
+            </DialogTitle>
+            <DialogDescription>
+              Choose which modules and actions this teacher can use. Open their profile from their
+              name in the list if you need photo, assignments, or account status.
+            </DialogDescription>
+          </DialogHeader>
+          {accessTarget ? (
+            <TeacherAccessPanel
+              key={accessTarget.id}
+              staffId={accessTarget.id}
+              staffName={`${accessTarget.firstName} ${accessTarget.lastName}`}
+              plain
+              onSaved={() => setAccessTarget(null)}
+            />
+          ) : null}
         </DialogContent>
       </Dialog>
 
@@ -1120,9 +1160,13 @@ type StaffAccessPayload = {
 function TeacherAccessPanel({
   staffId,
   staffName,
+  plain = false,
+  onSaved,
 }: {
   staffId: string
   staffName: string
+  plain?: boolean
+  onSaved?: () => void
 }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -1131,6 +1175,7 @@ function TeacherAccessPanel({
 
   useEffect(() => {
     let mounted = true
+    setLoading(true)
     catalogService
       .getStaffAccess(staffId)
       .then((data) => {
@@ -1163,6 +1208,7 @@ function TeacherAccessPanel({
       )
       setAccess(next)
       setSelected(next.selected)
+      onSaved?.()
     } finally {
       setSaving(false)
     }
@@ -1173,19 +1219,11 @@ function TeacherAccessPanel({
     setSelected([...access.roleDefaults].filter((p) => access.assignable.includes(p)))
   }
 
-  if (loading) {
-    return (
-      <Card>
-        <CardContent className="p-5 text-sm text-muted-foreground">Loading access…</CardContent>
-      </Card>
-    )
-  }
-
-  if (!access) return null
-
-  return (
-    <Card>
-      <CardContent className="space-y-4 p-5">
+  const body = loading ? (
+    <p className="text-sm text-muted-foreground">Loading access…</p>
+  ) : !access ? null : (
+    <div className="space-y-4">
+      {!plain ? (
         <div>
           <p className="font-medium">What this teacher can see & do</p>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -1193,37 +1231,49 @@ function TeacherAccessPanel({
             classes. Changes apply on their next request (within ~20 seconds).
           </p>
         </div>
-        {access.groups.map((group) => (
-          <div key={group.label}>
-            <p className="mb-2 text-sm font-semibold">{group.label}</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {group.permissions.map((perm) => (
-                <label key={perm} className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={selected.includes(perm)}
-                    onCheckedChange={(checked) => {
-                      setSelected((prev) =>
-                        checked === true
-                          ? [...new Set([...prev, perm])]
-                          : prev.filter((p) => p !== perm),
-                      )
-                    }}
-                  />
-                  <span className="font-mono text-xs">{perm}</span>
-                </label>
-              ))}
-            </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          They only see students in their assigned classes. Changes apply within about 20 seconds.
+        </p>
+      )}
+      {access.groups.map((group) => (
+        <div key={group.label}>
+          <p className="mb-2 text-sm font-semibold">{group.label}</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {group.permissions.map((perm) => (
+              <label key={perm} className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={selected.includes(perm)}
+                  onCheckedChange={(checked) => {
+                    setSelected((prev) =>
+                      checked === true
+                        ? [...new Set([...prev, perm])]
+                        : prev.filter((p) => p !== perm),
+                    )
+                  }}
+                />
+                <span className="font-mono text-xs">{perm}</span>
+              </label>
+            ))}
           </div>
-        ))}
-        <div className="flex flex-wrap gap-2">
-          <Button loading={saving} onClick={() => void save()}>
-            Save access
-          </Button>
-          <Button type="button" variant="outline" onClick={resetToDefaults}>
-            Reset to teacher defaults
-          </Button>
         </div>
-      </CardContent>
+      ))}
+      <div className="flex flex-wrap gap-2">
+        <Button loading={saving} onClick={() => void save()}>
+          Save access
+        </Button>
+        <Button type="button" variant="outline" onClick={resetToDefaults}>
+          Reset to teacher defaults
+        </Button>
+      </div>
+    </div>
+  )
+
+  if (plain) return body
+
+  return (
+    <Card>
+      <CardContent className="space-y-4 p-5">{body}</CardContent>
     </Card>
   )
 }
