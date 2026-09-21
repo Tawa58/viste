@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Field } from '@/components/ui/field'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -413,7 +414,7 @@ export function ClassesPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
-            <div className="space-y-2">
+            <Field>
               <Label htmlFor="class-name">Class name</Label>
               <Input
                 id="class-name"
@@ -421,8 +422,8 @@ export function ClassesPage() {
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="Form 1A"
               />
-            </div>
-            <div className="space-y-2">
+            </Field>
+            <Field>
               <Label htmlFor="class-level">Education level</Label>
               <Select
                 id="class-level"
@@ -446,9 +447,9 @@ export function ClassesPage() {
                   </option>
                 ))}
               </Select>
-            </div>
+            </Field>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
+              <Field>
                 <Label htmlFor="class-year">Academic year</Label>
                 <Input
                   id="class-year"
@@ -463,8 +464,8 @@ export function ClassesPage() {
                 <p className="text-xs text-muted-foreground">
                   Set automatically to the school’s current academic year.
                 </p>
-              </div>
-              <div className="space-y-2">
+              </Field>
+              <Field>
                 <Label htmlFor="class-term">Term</Label>
                 <Select
                   id="class-term"
@@ -480,9 +481,9 @@ export function ClassesPage() {
                   <option value="2">Term 2</option>
                   <option value="3">Term 3</option>
                 </Select>
-              </div>
+              </Field>
             </div>
-            <div className="space-y-2">
+            <Field>
               <Label htmlFor="class-teacher">Class teacher</Label>
               <Select
                 id="class-teacher"
@@ -503,7 +504,7 @@ export function ClassesPage() {
                   No active staff yet. Register teachers under Teachers & Staff first.
                 </p>
               ) : null}
-            </div>
+            </Field>
             <div className="space-y-2">
               <Label>Subjects undertaken by this class</Label>
               <div className="grid max-h-48 gap-2 overflow-y-auto rounded-xl border border-border p-3 sm:grid-cols-2">
@@ -543,7 +544,7 @@ export function ClassesPage() {
                 {educationLevelName(form.educationLevelId)}
               </p>
             </div>
-            <div className="space-y-2">
+            <Field>
               <Label htmlFor="class-notes">Description / notes</Label>
               <Textarea
                 id="class-notes"
@@ -552,7 +553,7 @@ export function ClassesPage() {
                 rows={3}
                 placeholder="Optional notes about this class"
               />
-            </div>
+            </Field>
           </div>
           <Button loading={saving} onClick={() => void saveClass()}>
             {editing ? 'Save changes' : 'Create class'}

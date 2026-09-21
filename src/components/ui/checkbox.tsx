@@ -2,13 +2,19 @@ import * as React from 'react'
 import * as CheckboxPrimitive from '@radix-ui/react-checkbox'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useFieldId } from '@/components/ui/field'
 
 export function Checkbox({
   className,
+  id,
+  name,
   ...props
-}: React.ComponentProps<typeof CheckboxPrimitive.Root>) {
+}: React.ComponentProps<typeof CheckboxPrimitive.Root> & { name?: string }) {
+  const fieldId = useFieldId(id)
   return (
     <CheckboxPrimitive.Root
+      id={fieldId}
+      name={name ?? fieldId}
       className={cn(
         'peer h-4 w-4 shrink-0 rounded border border-input bg-card shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground',
         className,

@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Field } from '@/components/ui/field'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { catalogService, classService } from '@/services/api'
@@ -426,35 +427,35 @@ export function TeachersPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
+              <Field>
                 <Label>First name</Label>
                 <Input
                   value={form.firstName}
                   onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
                 />
-              </div>
-              <div className="space-y-2">
+              </Field>
+              <Field>
                 <Label>Last name</Label>
                 <Input
                   value={form.lastName}
                   onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
                 />
-              </div>
-              <div className="space-y-2">
+              </Field>
+              <Field>
                 <Label>Title</Label>
                 <Input
                   value={form.title}
                   onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                 />
-              </div>
-              <div className="space-y-2">
+              </Field>
+              <Field>
                 <Label>Department</Label>
                 <Input
                   value={form.department}
                   onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
                 />
-              </div>
-              <div className="space-y-2">
+              </Field>
+              <Field>
                 <Label>Email (login)</Label>
                 <Input
                   type="email"
@@ -462,16 +463,16 @@ export function TeachersPage() {
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                   placeholder="name@viste.school"
                 />
-              </div>
-              <div className="space-y-2">
+              </Field>
+              <Field>
                 <Label>Phone</Label>
                 <Input
                   value={form.phone}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                 />
-              </div>
+              </Field>
               {showCredentials ? (
-                <div className="space-y-2 sm:col-span-2">
+                <Field className="sm:col-span-2">
                   <Label>Portal password (optional)</Label>
                   <Input
                     type="text"
@@ -484,10 +485,10 @@ export function TeachersPage() {
                     Saved on the admin login sheet. Marked as a temporary password until they change
                     it under Settings → Security.
                   </p>
-                </div>
+                </Field>
               ) : null}
             </div>
-            <div className="space-y-2">
+            <Field>
               <Label>Subjects they teach</Label>
               <div className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
                 {subjects.length === 0 ? (
@@ -512,7 +513,7 @@ export function TeachersPage() {
                   ))
                 )}
               </div>
-            </div>
+            </Field>
             <div className="space-y-2">
               <Label>Classes they teach</Label>
               <div className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
@@ -652,7 +653,7 @@ export function TeachersPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
+            <Field>
               <Label>Reason</Label>
               <Textarea
                 value={suspendReason}
@@ -660,7 +661,7 @@ export function TeachersPage() {
                 placeholder="e.g. Disciplinary review, leave without notice…"
                 rows={3}
               />
-            </div>
+            </Field>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox
                 checked={suspendIndefinite}
@@ -673,7 +674,7 @@ export function TeachersPage() {
               Indefinite (until an admin reactivates)
             </label>
             {!suspendIndefinite ? (
-              <div className="space-y-2">
+              <Field>
                 <Label>Suspension ends on</Label>
                 <Input
                   type="date"
@@ -681,7 +682,7 @@ export function TeachersPage() {
                   min={new Date().toISOString().slice(0, 10)}
                   onChange={(e) => setSuspendEndsAt(e.target.value)}
                 />
-              </div>
+              </Field>
             ) : null}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setSuspendTarget(null)}>
@@ -1074,7 +1075,7 @@ export function TeacherDetailPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
+            <Field>
               <Label>Reason</Label>
               <Textarea
                 value={suspendReason}
@@ -1082,7 +1083,7 @@ export function TeacherDetailPage() {
                 placeholder="e.g. Disciplinary review, leave without notice…"
                 rows={3}
               />
-            </div>
+            </Field>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox
                 checked={suspendIndefinite}
@@ -1095,7 +1096,7 @@ export function TeacherDetailPage() {
               Indefinite (until an admin reactivates)
             </label>
             {!suspendIndefinite ? (
-              <div className="space-y-2">
+              <Field>
                 <Label>Suspension ends on</Label>
                 <Input
                   type="date"
@@ -1103,7 +1104,7 @@ export function TeacherDetailPage() {
                   min={new Date().toISOString().slice(0, 10)}
                   onChange={(e) => setSuspendEndsAt(e.target.value)}
                 />
-              </div>
+              </Field>
             ) : null}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setSuspendOpen(false)}>

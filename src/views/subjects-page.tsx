@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Field } from '@/components/ui/field'
 import { Select } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useAuth } from '@/contexts/auth-context'
@@ -216,30 +217,30 @@ export function SubjectsPage() {
           </DialogHeader>
           <div className="grid gap-3">
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
+              <Field>
                 <Label>Code</Label>
                 <Input
                   value={form.code}
                   onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
                   placeholder="MATH"
                 />
-              </div>
-              <div className="space-y-2">
+              </Field>
+              <Field>
                 <Label>Category</Label>
                 <Input
                   value={form.category}
                   onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
                 />
-              </div>
+              </Field>
             </div>
-            <div className="space-y-2">
+            <Field>
               <Label>Name</Label>
               <Input
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               />
-            </div>
-            <div className="space-y-2">
+            </Field>
+            <Field>
               <Label>Education levels</Label>
               <div className="grid max-h-40 grid-cols-2 gap-2 overflow-y-auto rounded-xl border border-border p-3">
                 {EDUCATION_LEVELS.map((l) => (
@@ -255,7 +256,7 @@ export function SubjectsPage() {
               <p className="text-xs text-muted-foreground">
                 Leave empty to offer this subject at every level.
               </p>
-            </div>
+            </Field>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox
                 checked={form.active}

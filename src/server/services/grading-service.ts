@@ -116,8 +116,18 @@ async function readStored(): Promise<StoredScales | undefined> {
 
 export async function getGradingScales(): Promise<GradingScalesBundle> {
   const stored = await readStored()
+  const legacyForm14 =
+    stored?.FORM_1_4 ??
+    (stored?.bands
+      ? {
+          passMark: stored.passMark,
+          bands: stored.bands,
+          updatedAt: stored.updatedAt,
+          updatedBy: stored.updatedBy,
+        }
+      : undefined)
   return {
-    FORM_1_4: normalizeScale('FORM_1_4', stored?.FORM_1_4 ?? (stored?.bands ? stored : undefined)),
+    FORM_1_4: normalizeScale('FORM_1_4', legacyForm14),
     FORM_5_6: normalizeScale('FORM_5_6', stored?.FORM_5_6),
   }
 }

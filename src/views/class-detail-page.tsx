@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Field } from '@/components/ui/field'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/auth-context'
@@ -402,14 +403,14 @@ export function ClassDetailPage() {
             <DialogDescription>Update class details without renaming history records.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
-            <div className="space-y-2">
+            <Field>
               <Label>Class name</Label>
               <Input
                 value={editForm.name}
                 onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
               />
-            </div>
-            <div className="space-y-2">
+            </Field>
+            <Field>
               <Label>Education level</Label>
               <Select
                 value={editForm.educationLevelId}
@@ -421,9 +422,9 @@ export function ClassDetailPage() {
                   </option>
                 ))}
               </Select>
-            </div>
+            </Field>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
+              <Field>
                 <Label>Academic year</Label>
                 <Input
                   value={
@@ -433,8 +434,8 @@ export function ClassDetailPage() {
                   }
                   disabled
                 />
-              </div>
-              <div className="space-y-2">
+              </Field>
+              <Field>
                 <Label>Term</Label>
                 <Select
                   value={String(editForm.termSequence)}
@@ -449,9 +450,9 @@ export function ClassDetailPage() {
                   <option value="2">Term 2</option>
                   <option value="3">Term 3</option>
                 </Select>
-              </div>
+              </Field>
             </div>
-            <div className="space-y-2">
+            <Field>
               <Label>Class teacher</Label>
               <Select
                 value={editForm.classTeacherId}
@@ -464,7 +465,7 @@ export function ClassDetailPage() {
                   </option>
                 ))}
               </Select>
-            </div>
+            </Field>
             <div className="space-y-2">
               <Label>Subjects</Label>
               <div className="grid max-h-40 gap-2 overflow-y-auto rounded-xl border border-border p-3 sm:grid-cols-2">
@@ -496,14 +497,14 @@ export function ClassDetailPage() {
                   })}
               </div>
             </div>
-            <div className="space-y-2">
+            <Field>
               <Label>Notes</Label>
               <Textarea
                 value={editForm.description}
                 onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
                 rows={3}
               />
-            </div>
+            </Field>
           </div>
           <Button loading={saving} onClick={() => void saveEdit()}>
             Save changes
@@ -521,7 +522,7 @@ export function ClassDetailPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
-            <div className="space-y-2">
+            <Field>
               <Label>New class</Label>
               <Select value={toClassId} onChange={(e) => setToClassId(e.target.value)}>
                 {allClasses.map((c) => (
@@ -530,15 +531,15 @@ export function ClassDetailPage() {
                   </option>
                 ))}
               </Select>
-            </div>
-            <div className="space-y-2">
+            </Field>
+            <Field>
               <Label>Reason / notes</Label>
               <Textarea
                 value={transferReason}
                 onChange={(e) => setTransferReason(e.target.value)}
                 rows={3}
               />
-            </div>
+            </Field>
           </div>
           <Button loading={saving} disabled={!toClassId} onClick={() => void confirmTransfer()}>
             Confirm transfer

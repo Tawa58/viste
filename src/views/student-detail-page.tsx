@@ -33,6 +33,7 @@ import { catalogService, studentService } from '@/services/api'
 import { formatCurrency, formatDate, fullName } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Field } from '@/components/ui/field'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import type {
@@ -661,7 +662,7 @@ export function StudentDetailPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
-            <div className="space-y-2">
+            <Field>
               <Label>Type</Label>
               <Select
                 value={exemptionForm.type}
@@ -677,8 +678,8 @@ export function StudentDetailPage() {
                 <option value="ACTIVITY">Activity exemption</option>
                 <option value="OTHER">Other</option>
               </Select>
-            </div>
-            <div className="space-y-2">
+            </Field>
+            <Field>
               <Label>Subject / activity / requirement</Label>
               <Input
                 value={exemptionForm.targetLabel}
@@ -687,17 +688,17 @@ export function StudentDetailPage() {
                 }
                 placeholder="e.g. Physical Education"
               />
-            </div>
-            <div className="space-y-2">
+            </Field>
+            <Field>
               <Label>Reason</Label>
               <Textarea
                 value={exemptionForm.reason}
                 onChange={(e) => setExemptionForm((f) => ({ ...f, reason: e.target.value }))}
                 rows={2}
               />
-            </div>
+            </Field>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
+              <Field>
                 <Label>Start date</Label>
                 <Input
                   type="date"
@@ -706,24 +707,24 @@ export function StudentDetailPage() {
                     setExemptionForm((f) => ({ ...f, startDate: e.target.value }))
                   }
                 />
-              </div>
-              <div className="space-y-2">
+              </Field>
+              <Field>
                 <Label>End date</Label>
                 <Input
                   type="date"
                   value={exemptionForm.endDate}
                   onChange={(e) => setExemptionForm((f) => ({ ...f, endDate: e.target.value }))}
                 />
-              </div>
+              </Field>
             </div>
-            <div className="space-y-2">
+            <Field>
               <Label>Notes</Label>
               <Textarea
                 value={exemptionForm.notes}
                 onChange={(e) => setExemptionForm((f) => ({ ...f, notes: e.target.value }))}
                 rows={2}
               />
-            </div>
+            </Field>
           </div>
           <Button loading={saving} onClick={() => void saveExemption()}>
             Save exemption
@@ -740,7 +741,7 @@ export function StudentDetailPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
-            <div className="space-y-2">
+            <Field>
               <Label>New class</Label>
               <Select value={toClassId} onChange={(e) => setToClassId(e.target.value)}>
                 {classes
@@ -751,15 +752,15 @@ export function StudentDetailPage() {
                     </option>
                   ))}
               </Select>
-            </div>
-            <div className="space-y-2">
+            </Field>
+            <Field>
               <Label>Reason / notes</Label>
               <Textarea
                 value={transferReason}
                 onChange={(e) => setTransferReason(e.target.value)}
                 rows={3}
               />
-            </div>
+            </Field>
           </div>
           <Button loading={saving} disabled={!toClassId} onClick={() => void confirmTransfer()}>
             Confirm transfer

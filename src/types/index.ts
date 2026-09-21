@@ -208,7 +208,7 @@ export interface GradeBand {
 export type GradingTrack = 'FORM_1_4' | 'FORM_5_6'
 
 export interface GradingScale {
-  id: string
+  id: GradingTrack
   track: GradingTrack
   label: string
   passMark: number

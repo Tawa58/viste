@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Field } from '@/components/ui/field'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -175,15 +176,15 @@ export function AnnouncementsPage() {
             <DialogTitle>Create announcement</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-2">
+            <Field>
               <Label>Title</Label>
               <Input />
-            </div>
-            <div className="space-y-2">
+            </Field>
+            <Field>
               <Label>Body</Label>
               <Textarea />
-            </div>
-            <div className="space-y-2">
+            </Field>
+            <Field>
               <Label>Audience</Label>
               <Select defaultValue="Parents">
                 <option>Parents</option>
@@ -191,7 +192,7 @@ export function AnnouncementsPage() {
                 <option>Teachers</option>
                 <option>All</option>
               </Select>
-            </div>
+            </Field>
             <Button
               loading={saving}
               onClick={() => {

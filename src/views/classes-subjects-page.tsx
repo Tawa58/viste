@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Field } from '@/components/ui/field'
 import { catalogService, studentService } from '@/services/api'
 import { runMockProcess } from '@/lib/notify'
 import type { AcademicYear, SchoolClass, Staff, Stream, Student, Subject, Term } from '@/types'
@@ -108,14 +109,14 @@ export function ClassesPage() {
             <DialogTitle>Class / stream form</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3">
-            <div className="space-y-2">
+            <Field>
               <Label>Class name</Label>
               <Input placeholder="Form 3" />
-            </div>
-            <div className="space-y-2">
+            </Field>
+            <Field>
               <Label>Stream</Label>
               <Input placeholder="3A" />
-            </div>
+            </Field>
           </div>
           <Button
             loading={saving}

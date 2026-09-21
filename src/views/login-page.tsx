@@ -17,6 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Field } from '@/components/ui/field'
 import { useAuth } from '@/contexts/auth-context'
 import { authService } from '@/services/api'
 import { USE_MOCK_API } from '@/services/api/client'
@@ -194,7 +195,7 @@ export function LoginPage() {
             </CardHeader>
             <CardContent>
               <form className="space-y-4" onSubmit={handleSubmit}>
-                <div className="space-y-2">
+                <Field>
                   <Label htmlFor="email">Email / username</Label>
                   <Input
                     id="email"
@@ -208,9 +209,9 @@ export function LoginPage() {
                       {form.formState.errors.email.message}
                     </p>
                   )}
-                </div>
+                </Field>
 
-                <div className="space-y-2">
+                <Field>
                   <Label htmlFor="password">Password</Label>
                   <div className="relative">
                     <Input
@@ -236,7 +237,7 @@ export function LoginPage() {
                       {form.formState.errors.password.message}
                     </p>
                   )}
-                </div>
+                </Field>
 
                 <div className="flex items-center justify-between gap-3">
                   <label className="flex items-center gap-2 text-sm">

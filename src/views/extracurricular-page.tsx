@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Field } from '@/components/ui/field'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -141,14 +142,14 @@ export function SportsPage() {
             <DialogTitle>{editing ? 'Edit sport' : 'Add sport'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3">
-            <div className="space-y-2">
+            <Field>
               <Label>Name</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div className="space-y-2">
+            </Field>
+            <Field>
               <Label>Description</Label>
               <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
-            </div>
+            </Field>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={active} onCheckedChange={(v) => setActive(v === true)} />
               Active
@@ -334,11 +335,11 @@ export function ClubsPage() {
             <DialogTitle>{editing ? 'Edit' : 'Add'} club / activity</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3">
-            <div className="space-y-2">
+            <Field>
               <Label>Name</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div className="space-y-2">
+            </Field>
+            <Field>
               <Label>Type</Label>
               <Select value={type} onChange={(e) => setType(e.target.value as ClubActivityType)}>
                 <option value="CLUB">Club</option>
@@ -346,11 +347,11 @@ export function ClubsPage() {
                 <option value="ACTIVITY">Activity</option>
                 <option value="OTHER">Other</option>
               </Select>
-            </div>
-            <div className="space-y-2">
+            </Field>
+            <Field>
               <Label>Description</Label>
               <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
-            </div>
+            </Field>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={active} onCheckedChange={(v) => setActive(v === true)} />
               Active
@@ -367,10 +368,10 @@ export function ClubsPage() {
           <DialogHeader>
             <DialogTitle>Add house</DialogTitle>
           </DialogHeader>
-          <div className="space-y-2">
+          <Field>
             <Label>House name</Label>
             <Input value={houseName} onChange={(e) => setHouseName(e.target.value)} />
-          </div>
+          </Field>
           <Button loading={saving} onClick={() => void saveHouse()}>
             Add house
           </Button>

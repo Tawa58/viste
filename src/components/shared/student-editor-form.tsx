@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Field } from '@/components/ui/field'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { educationLevelName, resolveEducationLevelId } from '@/lib/education-levels'
@@ -167,22 +168,22 @@ export function StudentEditorForm({
           managed by school admin.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
+          <Field>
             <Label>Phone</Label>
             <Input
               value={values.phone}
               onChange={(e) => setField('phone', e.target.value)}
               placeholder="+263 …"
             />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
+          </Field>
+          <Field className="sm:col-span-2">
             <Label>Address</Label>
             <Textarea
               value={values.address}
               onChange={(e) => setField('address', e.target.value)}
               rows={3}
             />
-          </div>
+          </Field>
         </div>
       </div>
     )
@@ -200,30 +201,30 @@ export function StudentEditorForm({
           Personal information
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
+          <Field>
             <Label>First name</Label>
             <Input
               value={values.firstName}
               onChange={(e) => setField('firstName', e.target.value)}
               required
             />
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field>
             <Label>Last name</Label>
             <Input
               value={values.lastName}
               onChange={(e) => setField('lastName', e.target.value)}
               required
             />
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field>
             <Label>Middle name</Label>
             <Input
               value={values.middleName}
               onChange={(e) => setField('middleName', e.target.value)}
             />
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field>
             <Label>Gender</Label>
             <Select
               value={values.gender}
@@ -232,16 +233,16 @@ export function StudentEditorForm({
               <option value="Male">Male</option>
               <option value="Female">Female</option>
             </Select>
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field>
             <Label>Date of birth</Label>
             <Input
               type="date"
               value={values.dateOfBirth}
               onChange={(e) => setField('dateOfBirth', e.target.value)}
             />
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field>
             <Label>Status</Label>
             <Select
               value={values.status}
@@ -255,27 +256,27 @@ export function StudentEditorForm({
               <option value="ARCHIVED">Archived</option>
               <option value="INACTIVE">Inactive</option>
             </Select>
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field>
             <Label>Email</Label>
             <Input
               type="email"
               value={values.email}
               onChange={(e) => setField('email', e.target.value)}
             />
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field>
             <Label>Phone</Label>
             <Input value={values.phone} onChange={(e) => setField('phone', e.target.value)} />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
+          </Field>
+          <Field className="sm:col-span-2">
             <Label>Address</Label>
             <Textarea
               value={values.address}
               onChange={(e) => setField('address', e.target.value)}
               rows={2}
             />
-          </div>
+          </Field>
         </div>
       </section>
 
@@ -334,23 +335,23 @@ export function StudentEditorForm({
           </div>
 
           {levelId ? (
-            <div className="space-y-2">
+            <Field>
               <Label>Education level</Label>
               <Input value={educationLevelName(levelId)} disabled />
-            </div>
+            </Field>
           ) : null}
 
-          <div className="space-y-2">
+          <Field>
             <Label>Admission date</Label>
             <Input
               type="date"
               value={values.admissionDate}
               onChange={(e) => setField('admissionDate', e.target.value)}
             />
-          </div>
+          </Field>
 
           {mode === 'create' ? (
-            <div className="space-y-2 sm:col-span-2">
+            <Field className="sm:col-span-2">
               <Label>Student / admission number</Label>
               <Input
                 value={numberPreview || 'VHS-YYYY-001'}
@@ -361,30 +362,30 @@ export function StudentEditorForm({
                 Assigned automatically as <span className="font-mono">VHS-{'{year}'}-001</span> based
                 on admission year. Same value is used for student number and admission number.
               </p>
-            </div>
+            </Field>
           ) : (
             <>
-              <div className="space-y-2">
+              <Field>
                 <Label>Admission number</Label>
                 <Input
                   value={values.admissionNumber}
                   onChange={(e) => setField('admissionNumber', e.target.value)}
                   className="font-mono"
                 />
-              </div>
-              <div className="space-y-2">
+              </Field>
+              <Field>
                 <Label>Student number</Label>
                 <Input
                   value={values.studentNumber}
                   onChange={(e) => setField('studentNumber', e.target.value)}
                   className="font-mono"
                 />
-              </div>
+              </Field>
             </>
           )}
 
           {classStreams.length > 1 ? (
-            <div className="space-y-2">
+            <Field>
               <Label>Stream</Label>
               <Select
                 value={values.streamId}
@@ -398,7 +399,7 @@ export function StudentEditorForm({
                   </option>
                 ))}
               </Select>
-            </div>
+            </Field>
           ) : null}
         </div>
       </section>
@@ -501,7 +502,7 @@ export function StudentEditorForm({
             </div>
           ) : null}
           {houses.filter((h) => h.active).length > 0 ? (
-            <div className="space-y-2">
+            <Field>
               <Label>House</Label>
               <Select
                 value={values.houseId}
@@ -516,7 +517,7 @@ export function StudentEditorForm({
                     </option>
                   ))}
               </Select>
-            </div>
+            </Field>
           ) : null}
         </section>
       )}
@@ -696,48 +697,48 @@ export function GuardianEditorForm({
 
   return (
     <div className={cn('grid gap-3 sm:grid-cols-2', className)}>
-      <div className="space-y-2">
+      <Field>
         <Label>First name</Label>
         <Input value={values.firstName} onChange={(e) => setField('firstName', e.target.value)} />
-      </div>
-      <div className="space-y-2">
+      </Field>
+      <Field>
         <Label>Last name</Label>
         <Input value={values.lastName} onChange={(e) => setField('lastName', e.target.value)} />
-      </div>
-      <div className="space-y-2">
+      </Field>
+      <Field>
         <Label>Relationship</Label>
         <Input
           value={values.relationship}
           onChange={(e) => setField('relationship', e.target.value)}
         />
-      </div>
-      <div className="space-y-2">
+      </Field>
+      <Field>
         <Label>Occupation</Label>
         <Input
           value={values.occupation}
           onChange={(e) => setField('occupation', e.target.value)}
         />
-      </div>
-      <div className="space-y-2">
+      </Field>
+      <Field>
         <Label>Email</Label>
         <Input
           type="email"
           value={values.email}
           onChange={(e) => setField('email', e.target.value)}
         />
-      </div>
-      <div className="space-y-2">
+      </Field>
+      <Field>
         <Label>Phone</Label>
         <Input value={values.phone} onChange={(e) => setField('phone', e.target.value)} />
-      </div>
-      <div className="space-y-2 sm:col-span-2">
+      </Field>
+      <Field className="sm:col-span-2">
         <Label>Address</Label>
         <Textarea
           value={values.address}
           onChange={(e) => setField('address', e.target.value)}
           rows={2}
         />
-      </div>
+      </Field>
       <label className="flex items-center gap-2 text-sm sm:col-span-2">
         <Checkbox
           checked={values.emergencyContact === true}

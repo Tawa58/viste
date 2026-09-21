@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Field } from '@/components/ui/field'
 import { Select } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
@@ -25,6 +26,8 @@ import type {
   AcademicYear,
   AuthUser,
   FeePolicy,
+  GradingScalesBundle,
+  GradingTrack,
   SchoolProfile,
   Term,
 } from '@/types'
@@ -233,15 +236,15 @@ export function SettingsPage() {
                 />
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-2 sm:col-span-2">
+                  <Field className="sm:col-span-2">
                     <Label htmlFor="profile-name">Full name</Label>
                     <Input
                       id="profile-name"
                       value={form.name}
                       onChange={(e) => setForm((f) => (f ? { ...f, name: e.target.value } : f))}
                     />
-                  </div>
-                  <div className="space-y-2">
+                  </Field>
+                  <Field>
                     <Label htmlFor="profile-email">Work email</Label>
                     <Input
                       id="profile-email"
@@ -249,31 +252,31 @@ export function SettingsPage() {
                       value={form.email}
                       onChange={(e) => setForm((f) => (f ? { ...f, email: e.target.value } : f))}
                     />
-                  </div>
-                  <div className="space-y-2">
+                  </Field>
+                  <Field>
                     <Label htmlFor="profile-phone">Phone</Label>
                     <Input
                       id="profile-phone"
                       value={form.phone}
                       onChange={(e) => setForm((f) => (f ? { ...f, phone: e.target.value } : f))}
                     />
-                  </div>
-                  <div className="space-y-2">
+                  </Field>
+                  <Field>
                     <Label htmlFor="profile-title">Title / position</Label>
                     <Input
                       id="profile-title"
                       value={form.title}
                       onChange={(e) => setForm((f) => (f ? { ...f, title: e.target.value } : f))}
                     />
-                  </div>
-                  <div className="space-y-2">
+                  </Field>
+                  <Field>
                     <Label>Role</Label>
                     <Input value={formatRoleLabel(user.role)} disabled />
-                  </div>
+                  </Field>
 
                   {staff && (
                     <>
-                      <div className="space-y-2">
+                      <Field>
                         <Label htmlFor="profile-dept">Department</Label>
                         <Input
                           id="profile-dept"
@@ -282,8 +285,8 @@ export function SettingsPage() {
                             setForm((f) => (f ? { ...f, department: e.target.value } : f))
                           }
                         />
-                      </div>
-                      <div className="space-y-2">
+                      </Field>
+                      <Field>
                         <Label htmlFor="profile-emp">Employee number</Label>
                         <Input
                           id="profile-emp"
@@ -292,11 +295,11 @@ export function SettingsPage() {
                             setForm((f) => (f ? { ...f, employeeNumber: e.target.value } : f))
                           }
                         />
-                      </div>
+                      </Field>
                     </>
                   )}
 
-                  <div className="space-y-2">
+                  <Field>
                     <Label htmlFor="profile-lang">Preferred language</Label>
                     <Select
                       id="profile-lang"
@@ -316,8 +319,8 @@ export function SettingsPage() {
                       <option value="sn">Shona</option>
                       <option value="nd">Ndebele</option>
                     </Select>
-                  </div>
-                  <div className="space-y-2">
+                  </Field>
+                  <Field>
                     <Label htmlFor="profile-tz">Timezone</Label>
                     <Select
                       id="profile-tz"
@@ -330,8 +333,8 @@ export function SettingsPage() {
                       <option value="Africa/Johannesburg">Africa/Johannesburg</option>
                       <option value="UTC">UTC</option>
                     </Select>
-                  </div>
-                  <div className="space-y-2 sm:col-span-2">
+                  </Field>
+                  <Field className="sm:col-span-2">
                     <Label htmlFor="profile-bio">About / notes</Label>
                     <Textarea
                       id="profile-bio"
@@ -340,7 +343,7 @@ export function SettingsPage() {
                       onChange={(e) => setForm((f) => (f ? { ...f, bio: e.target.value } : f))}
                       placeholder="Short professional summary for your profile"
                     />
-                  </div>
+                  </Field>
                 </div>
 
                 <div className="flex justify-end gap-2">
@@ -443,7 +446,7 @@ export function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2 sm:col-span-2">
+                <Field className="sm:col-span-2">
                   <Label>Current password</Label>
                   <Input
                     type="password"
@@ -452,16 +455,16 @@ export function SettingsPage() {
                       setPasswordForm((f) => ({ ...f, current: e.target.value }))
                     }
                   />
-                </div>
-                <div className="space-y-2">
+                </Field>
+                <Field>
                   <Label>New password</Label>
                   <Input
                     type="password"
                     value={passwordForm.next}
                     onChange={(e) => setPasswordForm((f) => ({ ...f, next: e.target.value }))}
                   />
-                </div>
-                <div className="space-y-2">
+                </Field>
+                <Field>
                   <Label>Confirm new password</Label>
                   <Input
                     type="password"
@@ -470,7 +473,7 @@ export function SettingsPage() {
                       setPasswordForm((f) => ({ ...f, confirm: e.target.value }))
                     }
                   />
-                </div>
+                </Field>
               </div>
               <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
                 <div>
@@ -632,7 +635,7 @@ function AppearancePanel() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2 max-w-sm">
+        <Field className="max-w-sm">
           <Label htmlFor="theme-mode">Theme</Label>
           <Select
             id="theme-mode"
@@ -643,7 +646,7 @@ function AppearancePanel() {
             <option value="dark">Dark</option>
             <option value="system">System ({resolvedTheme})</option>
           </Select>
-        </div>
+        </Field>
         <p className="text-xs text-muted-foreground">
           You can also switch themes from the sun/moon control in the top bar.
         </p>
@@ -740,51 +743,51 @@ function SchoolProfilePanel() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2 sm:col-span-2">
+          <Field className="sm:col-span-2">
             <Label>School name</Label>
             <Input
               value={form.name}
               onChange={(e) => setForm((f) => (f ? { ...f, name: e.target.value } : f))}
             />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
+          </Field>
+          <Field className="sm:col-span-2">
             <Label>Motto</Label>
             <Input
               value={form.motto ?? ''}
               onChange={(e) => setForm((f) => (f ? { ...f, motto: e.target.value } : f))}
             />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
+          </Field>
+          <Field className="sm:col-span-2">
             <Label>Address</Label>
             <Textarea
               rows={2}
               value={form.address}
               onChange={(e) => setForm((f) => (f ? { ...f, address: e.target.value } : f))}
             />
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field>
             <Label>Phone</Label>
             <Input
               value={form.phone}
               onChange={(e) => setForm((f) => (f ? { ...f, phone: e.target.value } : f))}
             />
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field>
             <Label>Email</Label>
             <Input
               type="email"
               value={form.email}
               onChange={(e) => setForm((f) => (f ? { ...f, email: e.target.value } : f))}
             />
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field>
             <Label>Website</Label>
             <Input
               value={form.website ?? ''}
               onChange={(e) => setForm((f) => (f ? { ...f, website: e.target.value } : f))}
             />
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field>
             <Label>Registration number</Label>
             <Input
               value={form.registrationNumber ?? ''}
@@ -792,7 +795,7 @@ function SchoolProfilePanel() {
                 setForm((f) => (f ? { ...f, registrationNumber: e.target.value } : f))
               }
             />
-          </div>
+          </Field>
         </div>
         <Button loading={saving} onClick={() => void save()}>
           Save school profile
@@ -886,29 +889,29 @@ function AcademicSettingsPanel() {
           </Alert>
         ) : null}
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2 sm:col-span-2">
+          <Field className="sm:col-span-2">
             <Label>Year name</Label>
             <Input
               value={year.name}
               onChange={(e) => setYear((y) => (y ? { ...y, name: e.target.value } : y))}
             />
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field>
             <Label>Start date</Label>
             <Input
               type="date"
               value={year.startDate}
               onChange={(e) => setYear((y) => (y ? { ...y, startDate: e.target.value } : y))}
             />
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field>
             <Label>End date</Label>
             <Input
               type="date"
               value={year.endDate}
               onChange={(e) => setYear((y) => (y ? { ...y, endDate: e.target.value } : y))}
             />
-          </div>
+          </Field>
           <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 sm:col-span-2">
             <div>
               <p className="text-sm font-medium">Mark as current year</p>
@@ -1050,7 +1053,7 @@ function FeePolicyPanel() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
+          <Field>
             <Label>Currency</Label>
             <Select
               value={form.currency}
@@ -1061,8 +1064,8 @@ function FeePolicyPanel() {
               <option value="ZAR">ZAR</option>
               <option value="GBP">GBP</option>
             </Select>
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field>
             <Label>Receipt prefix</Label>
             <Input
               value={form.receiptPrefix}
@@ -1070,8 +1073,8 @@ function FeePolicyPanel() {
                 setForm((f) => (f ? { ...f, receiptPrefix: e.target.value.toUpperCase() } : f))
               }
             />
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field>
             <Label>Next receipt number</Label>
             <Input
               type="number"
@@ -1083,8 +1086,8 @@ function FeePolicyPanel() {
                 )
               }
             />
-          </div>
-          <div className="space-y-2">
+          </Field>
+          <Field>
             <Label>Overdue grace (days)</Label>
             <Input
               type="number"
@@ -1097,7 +1100,7 @@ function FeePolicyPanel() {
                 )
               }
             />
-          </div>
+          </Field>
         </div>
         <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
           <div>
@@ -1126,8 +1129,8 @@ function FeePolicyPanel() {
 function GradingScalePanel() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [track, setTrack] = useState<import('@/types').GradingTrack>('FORM_1_4')
-  const [scales, setScales] = useState<import('@/types').GradingScalesBundle | null>(null)
+  const [track, setTrack] = useState<GradingTrack>('FORM_1_4')
+  const [scales, setScales] = useState<GradingScalesBundle | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -1169,7 +1172,7 @@ function GradingScalePanel() {
     }
     setSaving(true)
     try {
-      const next = await notify.process(
+      const next = (await notify.process(
         () =>
           catalogService.updateGradingScale({
             track,
@@ -1181,7 +1184,7 @@ function GradingScalePanel() {
           success: `${active.label} saved — monthly and term exams use these bands`,
           error: 'Could not save grading scale',
         },
-      )
+      )) as GradingScalesBundle
       setScales(next)
     } finally {
       setSaving(false)
@@ -1245,7 +1248,7 @@ function GradingScalePanel() {
             : 'Used for Form 5 and 6 classes (A-Level track).'}
         </Alert>
 
-        <div className="space-y-2 max-w-xs">
+        <Field className="max-w-xs">
           <Label>Pass mark (%)</Label>
           <Input
             type="number"
@@ -1254,7 +1257,7 @@ function GradingScalePanel() {
             value={active.passMark}
             onChange={(e) => updateActive({ passMark: Number(e.target.value) })}
           />
-        </div>
+        </Field>
 
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
