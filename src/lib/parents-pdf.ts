@@ -138,14 +138,19 @@ export function downloadParentsPdf(opts: {
     </thead>
     <tbody>${bodyRows}</tbody>
   </table>
+  <script>window.onload = function () { setTimeout(function () { window.print(); }, 250); };</script>
 </body>
 </html>`
 
-  const win = window.open('', '_blank', 'noopener,noreferrer,width=960,height=720')
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const win = window.open(url, '_blank')
   if (!win) {
-    throw new Error('Pop-up blocked — allow pop-ups to download the PDF')
+    // Popup blocked — force download of HTML the user can open/print
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `parents-${opts.variant}-${date}.html`
+    a.click()
   }
-  win.document.open()
-  win.document.write(html)
-  win.document.close()
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
