@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Download, KeyRound, Plus, Trash2, Ban, CheckCircle2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
-import { ProfilePhotoUpload } from '@/components/shared/profile-photo-upload'
 import { SearchInput } from '@/components/shared/search-input'
 import { LoadingState } from '@/components/shared/loading-state'
 import { LoginCredentialsCard } from '@/components/shared/login-credentials-card'
@@ -729,7 +728,6 @@ export function TeacherDetailPage() {
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [classes, setClasses] = useState<SchoolClass[]>([])
   const [credential, setCredential] = useState<StaffLoginCredential | null | undefined>()
-  const [savingPhoto, setSavingPhoto] = useState(false)
   const [savingAssign, setSavingAssign] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [suspendOpen, setSuspendOpen] = useState(false)
@@ -758,34 +756,6 @@ export function TeacherDetailPage() {
       setLoading(false)
     })
   }, [id, showCredentials])
-
-  async function handlePhotoChange(next: { fileId: string; previewUrl: string } | undefined) {
-    if (!member) return
-    setSavingPhoto(true)
-    try {
-      const updated = await notify.process(
-        () =>
-          catalogService.updateStaffPhoto(member.id, {
-            profilePhotoId: next?.fileId ?? null,
-            photoUrl: null,
-          }),
-        {
-          loading: 'Saving photo…',
-          success: 'Photo updated',
-          error: 'Could not save photo',
-        },
-      )
-      if (updated) {
-        setMember({
-          ...updated,
-          photoUrl: next?.previewUrl,
-          profilePhotoId: next?.fileId,
-        })
-      }
-    } finally {
-      setSavingPhoto(false)
-    }
-  }
 
   async function saveAssignments() {
     if (!member) return
@@ -951,18 +921,21 @@ export function TeacherDetailPage() {
         ) : null}
         <Card>
           <CardContent className="space-y-5 p-5">
-            <ProfilePhotoUpload
-              name={fullName}
-              previewUrl={member.photoUrl}
-              fileId={member.profilePhotoId}
-              access={fileAccess}
-              ownerId={member.id}
-              ownerType="staff"
-              fileType="staff_photo"
-              hint="Teachers can also set this from Settings after they sign in."
-              disabled={savingPhoto}
-              onChange={(next) => void handlePhotoChange(next)}
-            />
+            <div className="flex items-center gap-4">
+              <ResolvedAvatar
+                name={fullName}
+                src={member.photoUrl}
+                fileId={member.profilePhotoId}
+                access={fileAccess}
+                className="h-20 w-20 text-lg ring-2 ring-background"
+              />
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Profile photo</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Only the teacher can change their photo from Settings.
+                </p>
+              </div>
+            </div>
             <div className="space-y-2 border-t border-border pt-4 text-sm">
               <p>Employee #: {member.employeeNumber}</p>
               <p>Email: {member.email}</p>
