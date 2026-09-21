@@ -364,6 +364,7 @@ export const firestoreCatalogService = {
     return apiCatalogService.getGradingScale()
   },
   async updateGradingScale(input: {
+    track: import('@/types').GradingTrack
     passMark: number
     bands: { grade: string; minPercent: number; maxPercent: number }[]
   }) {

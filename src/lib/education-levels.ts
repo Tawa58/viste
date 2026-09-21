@@ -43,6 +43,22 @@ export function educationBand(id: string | undefined | null): EducationBand | un
   return getEducationLevel(id)?.band
 }
 
+/** Mark scheme track for high-school forms (O-Level vs A-Level). */
+export type GradingTrackId = 'FORM_1_4' | 'FORM_5_6'
+
+export function gradingTrackForLevel(
+  educationLevelId: string | undefined | null,
+): GradingTrackId {
+  const id = (educationLevelId ?? '').toLowerCase()
+  if (id === 'form-5' || id === 'form-6') return 'FORM_5_6'
+  // Form 1–4 and any other secondary default to the Form 1–4 scheme
+  return 'FORM_1_4'
+}
+
+export function gradingTrackLabel(track: GradingTrackId) {
+  return track === 'FORM_5_6' ? 'Form 5–6 (A-Level)' : 'Form 1–4 (O-Level)'
+}
+
 /** Resolve level id from legacy free-text `level` field on older class docs. */
 export function resolveEducationLevelId(raw: string | undefined | null): string | undefined {
   if (!raw) return undefined

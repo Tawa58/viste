@@ -6,6 +6,7 @@ import {
   getGradingScaleService,
   updateGradingScaleService,
 } from '@/server/services/grading-service'
+import { rateLimit } from '@/server/http/rate-limit'
 
 export const GET = withApiHandler(async (request) => {
   const session = await requireSession(request)
@@ -14,6 +15,7 @@ export const GET = withApiHandler(async (request) => {
 
 export const PUT = withApiHandler(async (request) => {
   const session = await requireSession(request)
+  rateLimit(`settings:grading:${session.uid}`, 30, 60_000)
   const body = await request.json().catch(() => null)
   const parsed = gradingScaleSchema.safeParse(body)
   if (!parsed.success) throw badRequest('Invalid grading scale', parsed.error.flatten())

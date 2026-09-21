@@ -244,6 +244,7 @@ export const monthlyMarksSchema = z.object({
 })
 
 export const gradingScaleSchema = z.object({
+  track: z.enum(['FORM_1_4', 'FORM_5_6']),
   passMark: z.number().min(0).max(100),
   bands: z
     .array(

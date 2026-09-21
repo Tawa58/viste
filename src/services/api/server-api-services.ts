@@ -451,9 +451,14 @@ export const apiCatalogService = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  getGradingScale: () => apiFetch<import('@/types').GradingScale>('/api/v1/grading'),
-  updateGradingScale: (input: { passMark: number; bands: import('@/types').GradeBand[] }) =>
-    apiFetch<import('@/types').GradingScale>('/api/v1/grading', {
+  getGradingScale: () =>
+    apiFetch<import('@/types').GradingScalesBundle>('/api/v1/grading'),
+  updateGradingScale: (input: {
+    track: import('@/types').GradingTrack
+    passMark: number
+    bands: import('@/types').GradeBand[]
+  }) =>
+    apiFetch<import('@/types').GradingScalesBundle>('/api/v1/grading', {
       method: 'PUT',
       body: JSON.stringify(input),
     }),

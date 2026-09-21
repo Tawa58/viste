@@ -614,21 +614,81 @@ const mockCatalogService = {
   },
   getGradingScale: async () =>
     mockRequest({
-      id: 'default',
-      passMark: 50,
-      bands: [
-        { grade: 'A', minPercent: 85, maxPercent: 100 },
-        { grade: 'B', minPercent: 70, maxPercent: 84 },
-        { grade: 'C', minPercent: 60, maxPercent: 69 },
-        { grade: 'D', minPercent: 50, maxPercent: 59 },
-        { grade: 'E', minPercent: 40, maxPercent: 49 },
-        { grade: 'U', minPercent: 0, maxPercent: 39 },
-      ],
+      FORM_1_4: {
+        id: 'FORM_1_4' as const,
+        track: 'FORM_1_4' as const,
+        label: 'Form 1–4 (O-Level)',
+        passMark: 50,
+        bands: [
+          { grade: 'A', minPercent: 80, maxPercent: 100 },
+          { grade: 'B', minPercent: 70, maxPercent: 79 },
+          { grade: 'C', minPercent: 60, maxPercent: 69 },
+          { grade: 'D', minPercent: 50, maxPercent: 59 },
+          { grade: 'E', minPercent: 40, maxPercent: 49 },
+          { grade: 'U', minPercent: 0, maxPercent: 39 },
+        ],
+      },
+      FORM_5_6: {
+        id: 'FORM_5_6' as const,
+        track: 'FORM_5_6' as const,
+        label: 'Form 5–6 (A-Level)',
+        passMark: 50,
+        bands: [
+          { grade: 'A', minPercent: 75, maxPercent: 100 },
+          { grade: 'B', minPercent: 65, maxPercent: 74 },
+          { grade: 'C', minPercent: 55, maxPercent: 64 },
+          { grade: 'D', minPercent: 45, maxPercent: 54 },
+          { grade: 'E', minPercent: 35, maxPercent: 44 },
+          { grade: 'U', minPercent: 0, maxPercent: 34 },
+        ],
+      },
     }),
   updateGradingScale: async (input: {
+    track: import('@/types').GradingTrack
     passMark: number
     bands: { grade: string; minPercent: number; maxPercent: number }[]
-  }) => mockRequest({ id: 'default', ...input }),
+  }) => {
+    const base = {
+      FORM_1_4: {
+        id: 'FORM_1_4' as const,
+        track: 'FORM_1_4' as const,
+        label: 'Form 1–4 (O-Level)',
+        passMark: 50,
+        bands: [
+          { grade: 'A', minPercent: 80, maxPercent: 100 },
+          { grade: 'B', minPercent: 70, maxPercent: 79 },
+          { grade: 'C', minPercent: 60, maxPercent: 69 },
+          { grade: 'D', minPercent: 50, maxPercent: 59 },
+          { grade: 'E', minPercent: 40, maxPercent: 49 },
+          { grade: 'U', minPercent: 0, maxPercent: 39 },
+        ],
+      },
+      FORM_5_6: {
+        id: 'FORM_5_6' as const,
+        track: 'FORM_5_6' as const,
+        label: 'Form 5–6 (A-Level)',
+        passMark: 50,
+        bands: [
+          { grade: 'A', minPercent: 75, maxPercent: 100 },
+          { grade: 'B', minPercent: 65, maxPercent: 74 },
+          { grade: 'C', minPercent: 55, maxPercent: 64 },
+          { grade: 'D', minPercent: 45, maxPercent: 54 },
+          { grade: 'E', minPercent: 35, maxPercent: 44 },
+          { grade: 'U', minPercent: 0, maxPercent: 34 },
+        ],
+      },
+    }
+    return mockRequest({
+      ...base,
+      [input.track]: {
+        id: input.track,
+        track: input.track,
+        label: input.track === 'FORM_5_6' ? 'Form 5–6 (A-Level)' : 'Form 1–4 (O-Level)',
+        passMark: input.passMark,
+        bands: input.bands,
+      },
+    })
+  },
   getSchoolProfile: async () =>
     mockRequest({
       id: 'schoolProfile' as const,

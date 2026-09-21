@@ -6,7 +6,7 @@ import { requirePermission } from '@/server/authorization/permissions'
 import type { MarkUpsertInput, ResultTransitionInput } from '@/server/validators/school'
 import type { monthlyMarksSchema } from '@/server/validators/school'
 import type { z } from 'zod'
-import { getGradingScale, gradeFromScore } from '@/server/services/grading-service'
+import { getGradingScaleForEducationLevel, gradeFromScore } from '@/server/services/grading-service'
 import type {
   Assessment,
   Mark,
@@ -88,7 +88,13 @@ export async function upsertMark(
   }
 
   const id = current?.id ?? newId('mk')
-  const scale = await getGradingScale()
+  const student = await getDoc<Student>('students', input.studentId)
+  const klass = student
+    ? await getDoc<SchoolClass>('classes', student.classId)
+    : null
+  const scale = await getGradingScaleForEducationLevel(
+    student?.educationLevelId || klass?.educationLevelId,
+  )
   const grade =
     input.grade?.trim() ||
     gradeFromScore(input.score, assessment.maxScore || 100, scale)
@@ -389,16 +395,26 @@ export async function submitMonthlyMarks(
   }
   await setDoc('assessments', assessmentId, { ...assessment })
 
-  const scale = await getGradingScale()
+  const classScale = await getGradingScaleForEducationLevel(cls.educationLevelId)
+  const scaleByLevel = new Map<string, Awaited<ReturnType<typeof getGradingScaleForEducationLevel>>>()
   const marks: MarkDto[] = []
   for (const entry of input.entries) {
     const markId = `mk_${assessmentId}_${entry.studentId}`.replace(/[^a-zA-Z0-9_-]/g, '_')
+    const student = active.find((s) => s.id === entry.studentId)
+    const levelKey = student?.educationLevelId || cls.educationLevelId || 'form-1'
+    let studentScale = scaleByLevel.get(levelKey)
+    if (!studentScale) {
+      studentScale = student?.educationLevelId
+        ? await getGradingScaleForEducationLevel(student.educationLevelId)
+        : classScale
+      scaleByLevel.set(levelKey, studentScale)
+    }
     const row: Mark = {
       id: markId,
       assessmentId,
       studentId: entry.studentId,
       score: entry.score,
-      grade: gradeFromScore(entry.score, input.maxScore, scale),
+      grade: gradeFromScore(entry.score, input.maxScore, studentScale),
       status,
       recordedAt: new Date().toISOString(),
       recordedBy: session.uid,

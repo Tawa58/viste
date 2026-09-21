@@ -1126,22 +1126,19 @@ function FeePolicyPanel() {
 function GradingScalePanel() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [passMark, setPassMark] = useState(50)
-  const [bands, setBands] = useState<
-    { grade: string; minPercent: number; maxPercent: number }[]
-  >([])
+  const [track, setTrack] = useState<import('@/types').GradingTrack>('FORM_1_4')
+  const [scales, setScales] = useState<import('@/types').GradingScalesBundle | null>(null)
 
   useEffect(() => {
     let mounted = true
     void (async () => {
       try {
-        const scale = await catalogService.getGradingScale()
+        const data = await catalogService.getGradingScale()
         if (!mounted) return
-        setPassMark(scale.passMark)
-        setBands(scale.bands)
+        setScales(data)
       } catch (err) {
         console.error(err)
-        notify.error('Could not load grading scale')
+        notify.error('Could not load grading scales')
       } finally {
         if (mounted) setLoading(false)
       }
@@ -1151,28 +1148,64 @@ function GradingScalePanel() {
     }
   }, [])
 
+  const active = scales?.[track]
+
+  function updateActive(
+    patch: Partial<{ passMark: number; bands: { grade: string; minPercent: number; maxPercent: number }[] }>,
+  ) {
+    if (!scales || !active) return
+    setScales({
+      ...scales,
+      [track]: { ...active, ...patch },
+    })
+  }
+
   async function save() {
+    if (!active) return
+    const labels = active.bands.map((b) => b.grade.trim().toUpperCase()).filter(Boolean)
+    if (labels.length < 1) {
+      notify.error('Add at least one grade band')
+      return
+    }
     setSaving(true)
     try {
       const next = await notify.process(
-        () => catalogService.updateGradingScale({ passMark, bands }),
+        () =>
+          catalogService.updateGradingScale({
+            track,
+            passMark: active.passMark,
+            bands: active.bands,
+          }),
         {
-          loading: 'Saving grading scale…',
-          success: 'Grading scale saved — new marks will use these bands',
+          loading: `Saving ${active.label}…`,
+          success: `${active.label} saved — monthly and term exams use these bands`,
           error: 'Could not save grading scale',
         },
       )
-      setBands(next.bands)
-      setPassMark(next.passMark)
+      setScales(next)
     } finally {
       setSaving(false)
     }
   }
 
-  if (loading) {
+  function ensureStandardBands() {
+    updateActive({
+      bands: [
+        { grade: 'A', minPercent: track === 'FORM_5_6' ? 75 : 80, maxPercent: 100 },
+        { grade: 'B', minPercent: track === 'FORM_5_6' ? 65 : 70, maxPercent: track === 'FORM_5_6' ? 74 : 79 },
+        { grade: 'C', minPercent: track === 'FORM_5_6' ? 55 : 60, maxPercent: track === 'FORM_5_6' ? 64 : 69 },
+        { grade: 'D', minPercent: track === 'FORM_5_6' ? 45 : 50, maxPercent: track === 'FORM_5_6' ? 54 : 59 },
+        { grade: 'E', minPercent: track === 'FORM_5_6' ? 35 : 40, maxPercent: track === 'FORM_5_6' ? 44 : 49 },
+        { grade: 'U', minPercent: 0, maxPercent: track === 'FORM_5_6' ? 34 : 39 },
+      ],
+      passMark: 50,
+    })
+  }
+
+  if (loading || !active) {
     return (
       <Card>
-        <CardContent className="p-6 text-sm text-muted-foreground">Loading grading scale…</CardContent>
+        <CardContent className="p-6 text-sm text-muted-foreground">Loading grading scales…</CardContent>
       </Card>
     )
   }
@@ -1180,47 +1213,82 @@ function GradingScalePanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Grading scale</CardTitle>
+        <CardTitle>High school grading</CardTitle>
         <CardDescription>
-          When teachers enter monthly test scores, letter grades are assigned automatically from
-          these percent bands (e.g. 85–100 = A).
+          Set separate A–U percent bands for Form 1–4 and Form 5–6. Monthly tests and end-of-term
+          exams assign letter grades from the scheme that matches the student&apos;s form.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5">
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              ['FORM_1_4', 'Form 1–4'],
+              ['FORM_5_6', 'Form 5–6'],
+            ] as const
+          ).map(([id, label]) => (
+            <Button
+              key={id}
+              type="button"
+              size="sm"
+              variant={track === id ? 'default' : 'outline'}
+              onClick={() => setTrack(id)}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+
+        <Alert title={active.label} tone="info">
+          {track === 'FORM_1_4'
+            ? 'Used for Form 1, 2, 3 and 4 classes (O-Level track).'
+            : 'Used for Form 5 and 6 classes (A-Level track).'}
+        </Alert>
+
         <div className="space-y-2 max-w-xs">
           <Label>Pass mark (%)</Label>
           <Input
             type="number"
             min={0}
             max={100}
-            value={passMark}
-            onChange={(e) => setPassMark(Number(e.target.value))}
+            value={active.passMark}
+            onChange={(e) => updateActive({ passMark: Number(e.target.value) })}
           />
         </div>
+
         <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <Label>Grade bands</Label>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                setBands((prev) => [...prev, { grade: '', minPercent: 0, maxPercent: 0 }])
-              }
-            >
-              Add band
-            </Button>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Label>Grade bands (A, B, C, D, E, U)</Label>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={ensureStandardBands}>
+                Reset A–U defaults
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  updateActive({
+                    bands: [...active.bands, { grade: '', minPercent: 0, maxPercent: 0 }],
+                  })
+                }
+              >
+                Add band
+              </Button>
+            </div>
           </div>
           <div className="space-y-2">
-            {bands.map((band, index) => (
+            {active.bands.map((band, index) => (
               <div key={index} className="grid grid-cols-[80px_1fr_1fr_auto] gap-2">
                 <Input
                   placeholder="A"
                   value={band.grade}
                   onChange={(e) =>
-                    setBands((prev) =>
-                      prev.map((b, i) => (i === index ? { ...b, grade: e.target.value } : b)),
-                    )
+                    updateActive({
+                      bands: active.bands.map((b, i) =>
+                        i === index ? { ...b, grade: e.target.value.toUpperCase() } : b,
+                      ),
+                    })
                   }
                 />
                 <Input
@@ -1228,11 +1296,11 @@ function GradingScalePanel() {
                   placeholder="Min %"
                   value={band.minPercent}
                   onChange={(e) =>
-                    setBands((prev) =>
-                      prev.map((b, i) =>
+                    updateActive({
+                      bands: active.bands.map((b, i) =>
                         i === index ? { ...b, minPercent: Number(e.target.value) } : b,
                       ),
-                    )
+                    })
                   }
                 />
                 <Input
@@ -1240,18 +1308,22 @@ function GradingScalePanel() {
                   placeholder="Max %"
                   value={band.maxPercent}
                   onChange={(e) =>
-                    setBands((prev) =>
-                      prev.map((b, i) =>
+                    updateActive({
+                      bands: active.bands.map((b, i) =>
                         i === index ? { ...b, maxPercent: Number(e.target.value) } : b,
                       ),
-                    )
+                    })
                   }
                 />
                 <Button
                   type="button"
                   size="sm"
                   variant="ghost"
-                  onClick={() => setBands((prev) => prev.filter((_, i) => i !== index))}
+                  onClick={() =>
+                    updateActive({
+                      bands: active.bands.filter((_, i) => i !== index),
+                    })
+                  }
                 >
                   Remove
                 </Button>
@@ -1259,8 +1331,9 @@ function GradingScalePanel() {
             ))}
           </div>
         </div>
+
         <Button loading={saving} onClick={() => void save()}>
-          Save grading scale
+          Save {track === 'FORM_1_4' ? 'Form 1–4' : 'Form 5–6'} scale
         </Button>
       </CardContent>
     </Card>

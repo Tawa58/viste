@@ -204,12 +204,22 @@ export interface GradeBand {
   maxPercent: number
 }
 
+/** High-school mark schemes: O-Level (Form 1–4) and A-Level (Form 5–6). */
+export type GradingTrack = 'FORM_1_4' | 'FORM_5_6'
+
 export interface GradingScale {
   id: string
+  track: GradingTrack
+  label: string
   passMark: number
   bands: GradeBand[]
   updatedAt?: string
   updatedBy?: string
+}
+
+export interface GradingScalesBundle {
+  FORM_1_4: GradingScale
+  FORM_5_6: GradingScale
 }
 
 export interface AcademicYear {
