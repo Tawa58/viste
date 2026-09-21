@@ -20,6 +20,8 @@ import { Label } from '@/components/ui/label'
 import { useAuth } from '@/contexts/auth-context'
 import { authService } from '@/services/api'
 import { USE_MOCK_API } from '@/services/api/client'
+import { ApiClientError } from '@/services/api/http-client'
+import { notify } from '@/lib/notify'
 import { cn } from '@/lib/utils'
 
 const loginSchema = z.object({
@@ -32,7 +34,7 @@ type LoginValues = z.infer<typeof loginSchema>
 
 const MIN_LOADING_MS = 900
 const SUCCESS_HOLD_MS = 1400
-const ERROR_HOLD_MS = 1800
+const ERROR_HOLD_MS = 2200
 
 function wait(ms: number) {
   return new Promise<void>((resolve) => {
@@ -40,11 +42,38 @@ function wait(ms: number) {
   })
 }
 
+function loginErrorMessage(err: unknown): string {
+  if (err instanceof ApiClientError) {
+    if (err.code === 'ACCOUNT_SUSPENDED') return err.message
+    return err.message || 'Invalid email or password'
+  }
+  if (err && typeof err === 'object' && 'code' in err) {
+    const code = String((err as { code: string }).code)
+    if (code === 'ACCOUNT_SUSPENDED') {
+      return (err as Error).message || 'Your account is currently suspended.'
+    }
+    if (code === 'auth/user-disabled') {
+      return 'Your account is currently suspended. Contact your school administrator.'
+    }
+    if (
+      code === 'auth/wrong-password' ||
+      code === 'auth/invalid-credential' ||
+      code === 'auth/user-not-found'
+    ) {
+      return 'Invalid email or password'
+    }
+  }
+  if (err instanceof Error && err.message) return err.message
+  return 'Invalid email or password'
+}
+
 export function LoginPage() {
-  const { user, login } = useAuth()
+  const { user, login, requestPasswordReset } = useAuth()
   const navigate = useNavigate()
   const [showPassword, setShowPassword] = useState(false)
   const [authStatus, setAuthStatus] = useState<LoginAuthStatus>('idle')
+  const [feedbackMessage, setFeedbackMessage] = useState<string | undefined>()
+  const [resetting, setResetting] = useState(false)
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -55,14 +84,13 @@ export function LoginPage() {
     },
   })
 
-  const busy = authStatus !== 'idle'
+  const busy = authStatus !== 'idle' || resetting
 
-  // Allow success animation to finish before auto-redirect from auth context
   if (user && authStatus === 'idle') return <Navigate to="/dashboard" replace />
 
   async function onSubmit(values: LoginValues) {
     const startedAt = Date.now()
-    // Force a paint before the auth call so the loader is never skipped
+    setFeedbackMessage(undefined)
     flushSync(() => {
       setAuthStatus('loading')
     })
@@ -76,19 +104,40 @@ export function LoginPage() {
       })
       await wait(SUCCESS_HOLD_MS)
       navigate('/dashboard', { replace: true })
-    } catch {
+    } catch (err) {
       const remaining = MIN_LOADING_MS - (Date.now() - startedAt)
       if (remaining > 0) await wait(remaining)
+      const message = loginErrorMessage(err)
       flushSync(() => {
+        setFeedbackMessage(message)
         setAuthStatus('error')
       })
       await wait(ERROR_HOLD_MS)
       setAuthStatus('idle')
+      setFeedbackMessage(undefined)
     }
   }
 
   function handleSubmit(e: FormEvent) {
     void form.handleSubmit(onSubmit)(e)
+  }
+
+  async function handleForgotPassword() {
+    const email = form.getValues('email').trim()
+    if (!email) {
+      form.setError('email', { message: 'Enter your email first' })
+      return
+    }
+    setResetting(true)
+    try {
+      await notify.process(() => requestPasswordReset(email), {
+        loading: 'Sending reset email…',
+        success: 'If that account exists, a password reset link was sent to your email',
+        error: 'Could not send reset email',
+      })
+    } finally {
+      setResetting(false)
+    }
   }
 
   return (
@@ -194,7 +243,12 @@ export function LoginPage() {
                     />
                     Remember me
                   </label>
-                  <button type="button" className="text-sm font-medium text-primary hover:underline">
+                  <button
+                    type="button"
+                    className="text-sm font-medium text-primary hover:underline disabled:opacity-50"
+                    disabled={busy}
+                    onClick={() => void handleForgotPassword()}
+                  >
                     Forgot password
                   </button>
                 </div>
@@ -234,7 +288,9 @@ export function LoginPage() {
         </FadeIn>
       </div>
 
-      {authStatus !== 'idle' ? <LoginAuthFeedback status={authStatus} /> : null}
+      {authStatus !== 'idle' ? (
+        <LoginAuthFeedback status={authStatus} message={feedbackMessage} />
+      ) : null}
     </div>
   )
 }

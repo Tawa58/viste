@@ -11,9 +11,12 @@ export type LoginAuthStatus = 'idle' | 'loading' | 'success' | 'error'
  */
 export function LoginAuthFeedback({
   status,
+  message,
   className,
 }: {
   status: Exclude<LoginAuthStatus, 'idle'>
+  /** Optional override for error/success copy (e.g. suspension reason). */
+  message?: string
   className?: string
 }) {
   if (typeof document === 'undefined') return null
@@ -32,7 +35,7 @@ export function LoginAuthFeedback({
     >
       <div
         className={cn(
-          'auth-feedback-pop flex min-h-[9.5rem] w-[14.5rem] flex-col items-center justify-center gap-3',
+          'auth-feedback-pop flex min-h-[9.5rem] w-[min(22rem,100%)] flex-col items-center justify-center gap-3',
           'rounded-2xl border border-border bg-card px-5 py-6 shadow-elevated',
         )}
       >
@@ -56,13 +59,13 @@ export function LoginAuthFeedback({
               />
             </div>
             <p className="text-sm font-semibold tracking-tight text-success">
-              Logged in successfully
+              {message || 'Logged in successfully'}
             </p>
           </div>
         ) : null}
 
         {status === 'error' ? (
-          <div className="flex flex-col items-center gap-2.5">
+          <div className="flex flex-col items-center gap-2.5 text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-destructive/12 text-destructive ring-1 ring-destructive/30">
               <X
                 className="auth-mark h-8 w-8 stroke-[2.5]"
@@ -70,7 +73,12 @@ export function LoginAuthFeedback({
                 strokeLinejoin="round"
               />
             </div>
-            <p className="text-sm font-semibold tracking-tight text-destructive">Login failed</p>
+            <p className="text-sm font-semibold tracking-tight text-destructive">
+              {message?.includes('suspended') ? 'Account suspended' : 'Login failed'}
+            </p>
+            {message ? (
+              <p className="max-w-[18rem] text-xs leading-relaxed text-muted-foreground">{message}</p>
+            ) : null}
           </div>
         ) : null}
       </div>

@@ -5,10 +5,10 @@ import { getAdminAuth, getAdminDb } from '@/lib/firebase/admin'
 import { writeAuditLog } from '@/server/audit/logger'
 import type { SessionContext } from '@/server/auth/session'
 import { requirePermission } from '@/server/authorization/permissions'
-import { badRequest, conflict, notFound } from '@/server/errors'
+import { badRequest, conflict, notFound, accountSuspended } from '@/server/errors'
 import { getDoc, newId, queryCollection, setDoc, deleteDoc } from '@/server/repositories/firestore-repo'
-import type { StaffCreateInput } from '@/server/validators/school'
-import type { SchoolClass, Staff, StaffLoginCredential } from '@/types'
+import type { StaffCreateInput, StaffSuspendInput } from '@/server/validators/school'
+import type { SchoolClass, Staff, StaffLoginCredential, StaffSuspension } from '@/types'
 import type { PermissionOverrides } from '@/server/authorization/rbac-map'
 import type { z } from 'zod'
 import type { staffUpdateSchema } from '@/server/validators/school'
@@ -18,6 +18,60 @@ export type StaffDto = Staff
 /** Admin-only credential sheet row (includes issued temporary password). */
 export type StaffCredentialDto = StaffLoginCredential & {
   hasAuthAccount: boolean
+}
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function suspensionMessage(suspension: StaffSuspension): string {
+  const until =
+    suspension.endsAt != null
+      ? ` until ${suspension.endsAt}`
+      : ' until an administrator reactivates your account'
+  const reason = suspension.reason?.trim()
+  return reason
+    ? `Your account is currently suspended${until}. Reason: ${reason}`
+    : `Your account is currently suspended${until}.`
+}
+
+/**
+ * If the staff member is suspended, throw ACCOUNT_SUSPENDED.
+ * Auto-reactivates when the suspension end date has passed.
+ */
+export async function assertStaffAccountActive(staffId: string): Promise<Staff | null> {
+  const staff = await getDoc<Staff>('staff', staffId)
+  if (!staff) return null
+
+  if (staff.status !== 'INACTIVE' && !staff.suspension) return staff
+
+  const suspension = staff.suspension
+  if (suspension?.endsAt && suspension.endsAt < todayIsoDate()) {
+    const cleared: Staff = {
+      ...staff,
+      status: 'ACTIVE',
+      suspension: null,
+    }
+    await setDoc('staff', staffId, cleared)
+    return cleared
+  }
+
+  if (staff.status === 'INACTIVE' || suspension) {
+    const activeSuspension: StaffSuspension = suspension ?? {
+      reason: 'Account inactivated by administrator',
+      startsAt: todayIsoDate(),
+      endsAt: null,
+      suspendedAt: new Date().toISOString(),
+      suspendedBy: 'system',
+    }
+    throw accountSuspended(suspensionMessage(activeSuspension), {
+      endsAt: activeSuspension.endsAt,
+      reason: activeSuspension.reason,
+      startsAt: activeSuspension.startsAt,
+    })
+  }
+
+  return staff
 }
 
 function generateTemporaryPassword(): string {
@@ -340,6 +394,10 @@ export async function updateStaff(
     subjectIds: rest.subjectIds ?? current.subjectIds ?? [],
     classIds: rest.classIds ?? current.classIds ?? [],
   }
+  // Keep suspension metadata consistent with status (use dedicated suspend/reactivate APIs for full control).
+  if (row.status === 'ACTIVE') {
+    row.suspension = null
+  }
   await setDoc('staff', staffId, { ...row })
 
   if (rest.email && rest.email.toLowerCase() !== current.email.toLowerCase()) {
@@ -432,6 +490,115 @@ export async function clearTemporaryPasswordFlag(
   return { cleared: true }
 }
 
+/**
+ * Clear temp-password sheet fields after a forgot-password email is sent
+ * (admin must not keep showing a password the teacher is about to replace).
+ */
+export async function clearTemporaryPasswordForEmail(
+  email: string,
+): Promise<{ cleared: boolean }> {
+  const normalized = email.trim().toLowerCase()
+  if (!normalized) return { cleared: false }
+  const rows = await queryCollection<StaffCredRow>('staffCredentials', { limit: 200 })
+  const match = rows.find((r) => r.email?.toLowerCase() === normalized)
+  if (!match) return { cleared: false }
+  const id = match.staffId || match.id
+  await setDoc('staffCredentials', id, {
+    ...match,
+    temporaryPassword: false,
+    password: '',
+  })
+  return { cleared: true }
+}
+
+export async function suspendStaff(
+  session: SessionContext,
+  staffId: string,
+  input: StaffSuspendInput,
+  requestId?: string,
+): Promise<StaffDto> {
+  requirePermission(session, 'teachers.manage')
+  const current = await getDoc<Staff>('staff', staffId)
+  if (!current) throw notFound('Staff not found')
+
+  const startsAt = todayIsoDate()
+  const endsAt = input.endsAt === undefined ? null : input.endsAt
+  if (endsAt && endsAt < startsAt) {
+    throw badRequest('Suspension end date cannot be before today')
+  }
+
+  const suspension: StaffSuspension = {
+    reason: input.reason.trim(),
+    startsAt,
+    endsAt,
+    suspendedAt: new Date().toISOString(),
+    suspendedBy: session.uid,
+    suspendedByName: session.profile.name,
+  }
+
+  const row: Staff = {
+    ...current,
+    status: 'INACTIVE',
+    suspension,
+  }
+  await setDoc('staff', staffId, row)
+
+  // Drop cached sessions so an open browser loses API access quickly
+  try {
+    const { forget } = await import('@/server/http/memo')
+    forget('session:')
+  } catch {
+    /* ignore */
+  }
+
+  await writeAuditLog({
+    actorId: session.uid,
+    actorRole: session.role,
+    action: 'staff.suspend',
+    entityType: 'staff',
+    entityId: staffId,
+    requestId,
+    metadata: { endsAt, reason: suspension.reason },
+  })
+
+  return row
+}
+
+export async function reactivateStaff(
+  session: SessionContext,
+  staffId: string,
+  requestId?: string,
+): Promise<StaffDto> {
+  requirePermission(session, 'teachers.manage')
+  const current = await getDoc<Staff>('staff', staffId)
+  if (!current) throw notFound('Staff not found')
+
+  const row: Staff = {
+    ...current,
+    status: 'ACTIVE',
+    suspension: null,
+  }
+  await setDoc('staff', staffId, row)
+
+  try {
+    const { forget } = await import('@/server/http/memo')
+    forget('session:')
+  } catch {
+    /* ignore */
+  }
+
+  await writeAuditLog({
+    actorId: session.uid,
+    actorRole: session.role,
+    action: 'staff.reactivate',
+    entityType: 'staff',
+    entityId: staffId,
+    requestId,
+  })
+
+  return row
+}
+
 export const listStaffService = listStaff
 export const createStaffService = createStaff
 export const updateStaffService = updateStaff
@@ -441,6 +608,10 @@ export const resetStaffPasswordService = resetStaffPassword
 export const getStaffAccessService = getStaffAccess
 export const updateStaffAccessService = updateStaffAccess
 export const clearTemporaryPasswordFlagService = clearTemporaryPasswordFlag
+export const clearTemporaryPasswordForEmailService = clearTemporaryPasswordForEmail
+export const suspendStaffService = suspendStaff
+export const reactivateStaffService = reactivateStaff
+export const assertStaffAccountActiveService = assertStaffAccountActive
 
 // Guardians lived here briefly — re-export for API routes that still import from staff-service
 export {

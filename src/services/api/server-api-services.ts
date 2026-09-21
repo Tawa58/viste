@@ -42,6 +42,7 @@ import { demoCredentials } from '@/mocks/data'
 import {
   EmailAuthProvider,
   reauthenticateWithCredential,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   updatePassword,
@@ -56,8 +57,13 @@ export class ApiAuthService implements AuthService {
       email.trim().toLowerCase(),
       password,
     )
-    const me = await this.session()
-    return me.user
+    try {
+      const me = await this.session()
+      return me.user
+    } catch (err) {
+      await signOut(getFirebaseAuth()).catch(() => undefined)
+      throw err
+    }
   }
 
   async logout() {
@@ -99,6 +105,29 @@ export class ApiAuthService implements AuthService {
       method: 'POST',
       body: JSON.stringify({ acknowledge: true }),
     })
+  }
+
+  async requestPasswordReset(email: string) {
+    const normalized = email.trim().toLowerCase()
+    if (!normalized) throw new Error('Email is required')
+    try {
+      await sendPasswordResetEmail(getFirebaseAuth(), normalized)
+    } catch (err) {
+      const code = (err as { code?: string }).code
+      if (code !== 'auth/user-not-found' && code !== 'auth/invalid-email') {
+        throw err instanceof Error ? err : new Error('Could not send reset email')
+      }
+    }
+    // Public endpoint — no auth token (user is on the login screen).
+    try {
+      await fetch('/api/v1/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalized }),
+      })
+    } catch {
+      /* best-effort sheet clear */
+    }
   }
 }
 
@@ -322,6 +351,13 @@ export const apiCatalogService = {
       method: 'POST',
       body: JSON.stringify(password ? { password } : {}),
     }),
+  suspendStaff: (staffId: string, input: { reason: string; endsAt?: string | null }) =>
+    apiFetch<Staff>(`/api/v1/teachers/${staffId}/suspension`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  reactivateStaff: (staffId: string) =>
+    apiFetch<Staff>(`/api/v1/teachers/${staffId}/suspension`, { method: 'DELETE' }),
   updateStaffPhoto: async (
     id: string,
     patch: { profilePhotoId?: string | null; photoUrl?: string | null },

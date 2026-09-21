@@ -122,6 +122,21 @@ export interface Guardian {
   emergencyContact?: boolean
 }
 
+/** Admin-issued portal suspension (INACTIVE while this is in effect). */
+export interface StaffSuspension {
+  reason: string
+  /** ISO date (YYYY-MM-DD) when suspension started. */
+  startsAt: string
+  /**
+   * ISO date (YYYY-MM-DD) when access resumes, or null for indefinite
+   * (admin must reactivate).
+   */
+  endsAt: string | null
+  suspendedAt: string
+  suspendedBy: string
+  suspendedByName?: string
+}
+
 export interface Staff {
   id: string
   employeeNumber: string
@@ -132,6 +147,8 @@ export interface Staff {
   department: string
   title: string
   status: 'ACTIVE' | 'INACTIVE'
+  /** Present while suspended / inactivated by an admin. */
+  suspension?: StaffSuspension | null
   subjectIds: string[]
   classIds: string[]
   hireDate: string

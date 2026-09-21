@@ -18,8 +18,13 @@ export function unauthorized(message = 'Authentication required') {
   return new AppError(401, 'UNAUTHORIZED', message)
 }
 
-export function forbidden(message = 'Insufficient permissions') {
-  return new AppError(403, 'FORBIDDEN', message)
+export function forbidden(message = 'Insufficient permissions', details?: unknown) {
+  return new AppError(403, 'FORBIDDEN', message, details)
+}
+
+/** Teacher/staff portal access blocked by admin suspension. */
+export function accountSuspended(message: string, details?: unknown) {
+  return new AppError(403, 'ACCOUNT_SUSPENDED', message, details)
 }
 
 export function notFound(message = 'Resource not found') {
@@ -67,7 +72,11 @@ export function toErrorResponse(
         ...(requestId ? { requestId } : {}),
       },
     }
-    if (process.env.NODE_ENV !== 'production' && err.details !== undefined) {
+    // Surface structured details for client-handled auth blocks (e.g. suspension).
+    if (
+      err.details !== undefined &&
+      (process.env.NODE_ENV !== 'production' || err.code === 'ACCOUNT_SUSPENDED')
+    ) {
       body.error.details = err.details
     }
     return { status: err.statusCode, body }

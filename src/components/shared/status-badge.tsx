@@ -5,9 +5,9 @@ export function StatusBadge({ status }: { status: string }) {
   const tone =
     /active|paid|present|published|confirmed|success|available|approved/i.test(status)
       ? 'success'
-      : /pending|draft|late|partial|submitted|review|open|inactive/i.test(status)
+      : /pending|draft|late|partial|submitted|review|open/i.test(status)
         ? 'warning'
-        : /absent|overdue|failed|locked|disabled|cancelled|reversed|rejected|outstanding/i.test(
+        : /absent|overdue|failed|locked|disabled|cancelled|reversed|rejected|outstanding|inactive|suspended/i.test(
               status,
             )
           ? 'danger'

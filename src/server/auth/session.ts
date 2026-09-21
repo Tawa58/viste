@@ -158,14 +158,16 @@ export async function verifyBearerToken(request: Request): Promise<SessionContex
   return remember(cacheKey, 20_000, async () => {
     const profile = await loadOrCreateProfile(decoded.uid, email, decoded.name)
     let overrides: PermissionOverrides | null = null
-    if (profile.staffId && profile.role === 'TEACHER') {
+    if (profile.staffId) {
       try {
-        const staffSnap = await getAdminDb().collection('staff').doc(profile.staffId).get()
-        if (staffSnap.exists) {
-          const data = staffSnap.data() as { permissionOverrides?: PermissionOverrides }
-          overrides = data.permissionOverrides ?? null
+        const { assertStaffAccountActive } = await import('@/server/services/staff-service')
+        const staff = await assertStaffAccountActive(profile.staffId)
+        if (staff && profile.role === 'TEACHER') {
+          overrides = staff.permissionOverrides ?? null
         }
-      } catch {
+      } catch (err) {
+        // Re-throw AppError (e.g. ACCOUNT_SUSPENDED); ignore soft lookup failures
+        if (err && typeof err === 'object' && 'statusCode' in err) throw err
         overrides = null
       }
     }

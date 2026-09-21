@@ -372,4 +372,12 @@ export const firestoreCatalogService = {
     const { apiCatalogService } = await import('@/services/api/server-api-services')
     return apiCatalogService.deleteStaff(id)
   },
+  async suspendStaff(staffId: string, input: { reason: string; endsAt?: string | null }) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.suspendStaff(staffId, input)
+  },
+  async reactivateStaff(staffId: string) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.reactivateStaff(staffId)
+  },
 }

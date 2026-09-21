@@ -421,7 +421,11 @@ export function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Security</CardTitle>
-              <CardDescription>Password and session controls (mock UI for Phase 1).</CardDescription>
+              <CardDescription>
+                Change your own password after signing in with an admin-issued temporary password.
+                Admins never see the password you set here — use Forgot password on the login page
+                if you lose it.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
@@ -482,7 +486,7 @@ export function SettingsPage() {
                         {
                           loading: 'Updating password…',
                           success:
-                            'Password updated — temporary password tag cleared on the admin login sheet',
+                            'Password updated. Your new password is private — only you can use it.',
                           error: 'Could not update password',
                         },
                       )

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Download, KeyRound, Plus, Trash2 } from 'lucide-react'
+import { Download, KeyRound, Plus, Trash2, Ban, CheckCircle2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { ProfilePhotoUpload } from '@/components/shared/profile-photo-upload'
 import { SearchInput } from '@/components/shared/search-input'
@@ -32,6 +32,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Textarea } from '@/components/ui/textarea'
 import { catalogService, classService } from '@/services/api'
 import type { SchoolClass, Staff, StaffLoginCredential, Subject } from '@/types'
 
@@ -288,7 +289,11 @@ export function TeachersPage() {
                         </DataTableCell>
                       ) : null}
                       <DataTableCell>
-                        <StatusBadge status={s.status} />
+                        <StatusBadge
+                          status={
+                            s.status === 'INACTIVE' || s.suspension ? 'SUSPENDED' : s.status
+                          }
+                        />
                       </DataTableCell>
                       <DataTableCell>
                         <div className="flex justify-end gap-1">
@@ -537,6 +542,12 @@ export function TeacherDetailPage() {
   const [savingPhoto, setSavingPhoto] = useState(false)
   const [savingAssign, setSavingAssign] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [suspendOpen, setSuspendOpen] = useState(false)
+  const [suspending, setSuspending] = useState(false)
+  const [reactivating, setReactivating] = useState(false)
+  const [suspendReason, setSuspendReason] = useState('')
+  const [suspendEndsAt, setSuspendEndsAt] = useState('')
+  const [suspendIndefinite, setSuspendIndefinite] = useState(false)
   const [editSubjectIds, setEditSubjectIds] = useState<string[]>([])
   const [editClassIds, setEditClassIds] = useState<string[]>([])
 
@@ -613,11 +624,62 @@ export function TeacherDetailPage() {
     }
   }
 
+  async function handleSuspend() {
+    if (!member) return
+    const reason = suspendReason.trim()
+    if (reason.length < 3) {
+      notify.error('Enter a suspension reason (at least 3 characters)')
+      return
+    }
+    if (!suspendIndefinite && !suspendEndsAt) {
+      notify.error('Pick an end date, or mark the suspension as indefinite')
+      return
+    }
+    setSuspending(true)
+    try {
+      const updated = await notify.process(
+        () =>
+          catalogService.suspendStaff(member.id, {
+            reason,
+            endsAt: suspendIndefinite ? null : suspendEndsAt,
+          }),
+        {
+          loading: 'Suspending teacher…',
+          success: 'Teacher suspended — they cannot sign in until reactivated',
+          error: 'Could not suspend teacher',
+        },
+      )
+      setMember(updated)
+      setSuspendOpen(false)
+      setSuspendReason('')
+      setSuspendEndsAt('')
+      setSuspendIndefinite(false)
+    } finally {
+      setSuspending(false)
+    }
+  }
+
+  async function handleReactivate() {
+    if (!member) return
+    setReactivating(true)
+    try {
+      const updated = await notify.process(() => catalogService.reactivateStaff(member.id), {
+        loading: 'Reactivating teacher…',
+        success: 'Teacher reactivated — they can sign in again',
+        error: 'Could not reactivate teacher',
+      })
+      setMember(updated)
+    } finally {
+      setReactivating(false)
+    }
+  }
+
   if (loading) return <LoadingState message="Loading staff profile…" />
   if (!member) return <p>Staff member not found.</p>
 
   const fullName = `${member.firstName} ${member.lastName}`
   const assignedClasses = classNamesForStaff(member, classes)
+  const isSuspended = member.status === 'INACTIVE' || Boolean(member.suspension)
 
   return (
     <div className="space-y-5">
@@ -631,10 +693,27 @@ export function TeacherDetailPage() {
         ]}
         actions={
           canConfigureAccess ? (
-            <Button variant="destructive" loading={deleting} onClick={() => void handleDelete()}>
-              <Trash2 className="h-4 w-4" />
-              Delete teacher
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {isSuspended ? (
+                <Button
+                  variant="outline"
+                  loading={reactivating}
+                  onClick={() => void handleReactivate()}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  Activate
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={() => setSuspendOpen(true)}>
+                  <Ban className="h-4 w-4" />
+                  Suspend
+                </Button>
+              )}
+              <Button variant="destructive" loading={deleting} onClick={() => void handleDelete()}>
+                <Trash2 className="h-4 w-4" />
+                Delete teacher
+              </Button>
+            </div>
           ) : null
         }
       />
@@ -661,7 +740,23 @@ export function TeacherDetailPage() {
               <p>Email: {member.email}</p>
               <p>Phone: {member.phone}</p>
               <p>Hired: {member.hireDate}</p>
-              <StatusBadge status={member.status} />
+              <StatusBadge status={isSuspended ? 'SUSPENDED' : member.status} />
+              {member.suspension ? (
+                <div className="mt-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs text-muted-foreground">
+                  <p className="font-medium text-foreground">Suspension</p>
+                  <p className="mt-1">Reason: {member.suspension.reason}</p>
+                  <p>
+                    Period:{' '}
+                    {member.suspension.startsAt}
+                    {member.suspension.endsAt
+                      ? ` → ${member.suspension.endsAt}`
+                      : ' → indefinite (admin must reactivate)'}
+                  </p>
+                  {member.suspension.suspendedByName ? (
+                    <p>By: {member.suspension.suspendedByName}</p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </CardContent>
         </Card>
@@ -766,6 +861,60 @@ export function TeacherDetailPage() {
           ) : null}
         </div>
       </div>
+
+      <Dialog open={suspendOpen} onOpenChange={setSuspendOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Suspend {fullName}</DialogTitle>
+            <DialogDescription>
+              They will not be able to sign in or use the portal until the period ends or you
+              reactivate them. Admins manage access this way — not by viewing the teacher&apos;s
+              password.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Reason</Label>
+              <Textarea
+                value={suspendReason}
+                onChange={(e) => setSuspendReason(e.target.value)}
+                placeholder="e.g. Disciplinary review, leave without notice…"
+                rows={3}
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={suspendIndefinite}
+                onCheckedChange={(v) => {
+                  const on = v === true
+                  setSuspendIndefinite(on)
+                  if (on) setSuspendEndsAt('')
+                }}
+              />
+              Indefinite (until an admin reactivates)
+            </label>
+            {!suspendIndefinite ? (
+              <div className="space-y-2">
+                <Label>Suspension ends on</Label>
+                <Input
+                  type="date"
+                  value={suspendEndsAt}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setSuspendEndsAt(e.target.value)}
+                />
+              </div>
+            ) : null}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setSuspendOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" loading={suspending} onClick={() => void handleSuspend()}>
+                Suspend teacher
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -2,6 +2,7 @@ import {
   createUserWithEmailAndPassword,
   EmailAuthProvider,
   reauthenticateWithCredential,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   updatePassword,
@@ -30,7 +31,17 @@ export class FirebaseAuthService implements AuthService {
       email.trim().toLowerCase(),
       password,
     )
-    return getOrCreateUserProfile(cred.user)
+    try {
+      const { apiFetch } = await import('@/services/api/http-client')
+      const me = await apiFetch<{ user: AuthUser }>('/api/v1/auth/me')
+      return me.user
+    } catch (err) {
+      await signOut(getFirebaseAuth()).catch(() => undefined)
+      const { ApiClientError } = await import('@/services/api/http-client')
+      if (err instanceof ApiClientError) throw err
+      // API unreachable (dev) — fall back to client profile only.
+      return getOrCreateUserProfile(cred.user)
+    }
   }
 
   async logout(): Promise<void> {
@@ -73,6 +84,28 @@ export class FirebaseAuthService implements AuthService {
       await apiCatalogService.acknowledgePasswordChanged()
     } catch (err) {
       console.error('Could not clear temporary password flag', err)
+    }
+  }
+
+  async requestPasswordReset(email: string): Promise<void> {
+    const normalized = email.trim().toLowerCase()
+    if (!normalized) throw new Error('Email is required')
+    try {
+      await sendPasswordResetEmail(getFirebaseAuth(), normalized)
+    } catch (err) {
+      const code = (err as { code?: string }).code
+      if (code !== 'auth/user-not-found' && code !== 'auth/invalid-email') {
+        throw err instanceof Error ? err : new Error('Could not send reset email')
+      }
+    }
+    try {
+      await fetch('/api/v1/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalized }),
+      })
+    } catch {
+      /* best-effort */
     }
   }
 }

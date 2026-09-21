@@ -111,6 +111,24 @@ class MockAuthService implements AuthService {
       throw new Error('Invalid email or password')
     }
 
+    if (staffMatch) {
+      const member = staff.find((s) => s.id === staffMatch.staffId)
+      if (member?.status === 'INACTIVE' || member?.suspension) {
+        const until = member.suspension?.endsAt
+          ? ` until ${member.suspension.endsAt}`
+          : ' until an administrator reactivates your account'
+        const reason = member.suspension?.reason
+        throw Object.assign(
+          new Error(
+            reason
+              ? `Your account is currently suspended${until}. Reason: ${reason}`
+              : `Your account is currently suspended${until}.`,
+          ),
+          { code: 'ACCOUNT_SUSPENDED' },
+        )
+      }
+    }
+
     let user = mockUsers.find((u) => u.email.toLowerCase() === normalized)
     if (!user && staffMatch) {
       const member = staff.find((s) => s.id === staffMatch.staffId)
@@ -209,6 +227,10 @@ class MockAuthService implements AuthService {
   }
 
   async changePassword(_currentPassword: string, _nextPassword: string) {
+    await mockRequest(null, 200)
+  }
+
+  async requestPasswordReset(_email: string) {
     await mockRequest(null, 200)
   }
 }
@@ -334,6 +356,30 @@ const mockCatalogService = {
     const cIdx = staffCredentials.findIndex((c) => c.staffId === id)
     if (cIdx >= 0) staffCredentials.splice(cIdx, 1)
     return mockRequest({ deleted: true as const, id })
+  },
+  suspendStaff: async (staffId: string, input: { reason: string; endsAt?: string | null }) => {
+    const idx = staff.findIndex((s) => s.id === staffId)
+    if (idx < 0) throw new Error('Staff not found')
+    const today = new Date().toISOString().slice(0, 10)
+    staff[idx] = {
+      ...staff[idx]!,
+      status: 'INACTIVE',
+      suspension: {
+        reason: input.reason,
+        startsAt: today,
+        endsAt: input.endsAt ?? null,
+        suspendedAt: new Date().toISOString(),
+        suspendedBy: 'mock-admin',
+        suspendedByName: 'Admin',
+      },
+    }
+    return mockRequest(staff[idx]!)
+  },
+  reactivateStaff: async (staffId: string) => {
+    const idx = staff.findIndex((s) => s.id === staffId)
+    if (idx < 0) throw new Error('Staff not found')
+    staff[idx] = { ...staff[idx]!, status: 'ACTIVE', suspension: null }
+    return mockRequest(staff[idx]!)
   },
   getStaffCredentials: (): Promise<StaffLoginCredential[]> => mockRequest([...staffCredentials]),
   getStaffCredential: (staffId: string) =>

@@ -3,10 +3,12 @@ import { getFirebaseAuth } from '@/services/firebase/app'
 export class ApiClientError extends Error {
   status: number
   code: string
-  constructor(status: number, code: string, message: string) {
+  details?: unknown
+  constructor(status: number, code: string, message: string, details?: unknown) {
     super(message)
     this.status = status
     this.code = code
+    this.details = details
   }
 }
 
@@ -98,6 +100,7 @@ export async function apiFetch<T>(
         res.status,
         payload?.error?.code ?? 'ERROR',
         payload?.error?.message ?? res.statusText,
+        payload?.error?.details,
       )
     }
     const data = (payload.data ?? payload) as T

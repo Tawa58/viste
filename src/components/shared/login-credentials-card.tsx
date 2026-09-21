@@ -75,11 +75,18 @@ export function LoginCredentialsCard({
         {credential.temporaryPassword ? (
           <span
             className="rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-semibold text-warning"
-            title="Admin-issued password — teacher should change it after first sign-in"
+            title="Admin-issued password — teacher should change it under Settings → Security after first sign-in"
           >
             Temp password
           </span>
-        ) : null}
+        ) : (
+          <span
+            className="rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-semibold text-success"
+            title="Teacher set their own password — not visible to admins"
+          >
+            Own password
+          </span>
+        )}
       </div>
 
       <div className="space-y-2.5">

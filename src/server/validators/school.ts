@@ -169,6 +169,14 @@ export const staffUpdateSchema = staffCreateSchema
     password: z.string().min(8).max(128).optional(),
   })
 
+export const staffSuspendSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+  /** Inclusive end date (YYYY-MM-DD). Omit / null = indefinite until admin reactivates. */
+  endsAt: isoDateSchema.nullable().optional(),
+})
+
+export type StaffSuspendInput = z.infer<typeof staffSuspendSchema>
+
 export const attendanceUpsertSchema = z.object({
   date: isoDateSchema,
   studentId: idSchema,
