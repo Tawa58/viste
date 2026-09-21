@@ -129,21 +129,66 @@ export function AppShell() {
       return
     }
     let cancelled = false
+    let inFlight = false
+    let failStreak = 0
+    let timer: number | undefined
+
+    const BASE_MS = 60_000
+    const MAX_MS = 5 * 60_000
+
+    function schedule(delayMs: number) {
+      if (timer !== undefined) window.clearTimeout(timer)
+      timer = window.setTimeout(() => {
+        void load()
+      }, delayMs)
+    }
+
     async function load() {
+      if (cancelled || inFlight) return
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        schedule(BASE_MS)
+        return
+      }
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        failStreak = Math.min(failStreak + 1, 5)
+        schedule(Math.min(BASE_MS * 2 ** failStreak, MAX_MS))
+        return
+      }
+
+      inFlight = true
       try {
         const list = await catalogService.getNotifications()
         if (!cancelled) setNotifications(list)
-      } catch (err) {
-        console.error(err)
+        failStreak = 0
+        schedule(BASE_MS)
+      } catch {
+        // Network/DNS blips should stay quiet — keep last known list.
+        failStreak = Math.min(failStreak + 1, 5)
+        schedule(Math.min(BASE_MS * 2 ** failStreak, MAX_MS))
+      } finally {
+        inFlight = false
       }
     }
+
+    function onVisible() {
+      if (document.visibilityState === 'visible') void load()
+    }
+    function onOnline() {
+      failStreak = 0
+      void load()
+    }
+
     void load()
-    const timer = window.setInterval(() => void load(), 60_000)
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('online', onOnline)
+
     return () => {
       cancelled = true
-      window.clearInterval(timer)
+      if (timer !== undefined) window.clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('online', onOnline)
     }
-  }, [canSeeAdminNotifications, location.pathname])
+  }, [canSeeAdminNotifications])
 
   async function handleNotificationClick(item: AppNotification) {
     try {

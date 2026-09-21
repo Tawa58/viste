@@ -431,7 +431,10 @@ export const apiCatalogService = {
   getInvoices: () => apiFetch<Invoice[]>('/api/v1/invoices'),
   getPayments: () => apiFetch<Payment[]>('/api/v1/payments'),
   getAnnouncements: () => apiFetch<Announcement[]>('/api/v1/announcements'),
-  getNotifications: () => apiFetch<import('@/types').AppNotification[]>('/api/v1/notifications'),
+  getNotifications: () =>
+    apiFetch<import('@/types').AppNotification[]>('/api/v1/notifications', {
+      cacheTtlMs: 15_000,
+    }),
   markNotificationRead: (id: string) =>
     apiFetch<import('@/types').AppNotification | null>('/api/v1/notifications', {
       method: 'PATCH',
