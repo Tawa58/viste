@@ -9,6 +9,23 @@ const nextConfig: NextConfig = {
   ...(process.env.VERCEL ? {} : { output: 'standalone' as const }),
   reactStrictMode: true,
   serverExternalPackages: ['firebase-admin'],
+  // Keep HTML fresh after deploys; hashed /_next/static assets stay immutable by default
+  async headers() {
+    return [
+      {
+        source: '/:path((?!_next/static|_next/image|favicon.png|icon.png|apple-icon.png).*)',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+        ],
+      },
+      {
+        source: '/',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+        ],
+      },
+    ]
+  },
   turbopack: {
     resolveAlias: {
       '@': path.resolve(rootDir, 'src'),

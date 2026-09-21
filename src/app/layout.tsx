@@ -33,15 +33,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     return typeof msg === 'string' && (
       msg.indexOf('ChunkLoadError') !== -1 ||
       msg.indexOf('Loading chunk') !== -1 ||
-      msg.indexOf('Failed to fetch dynamically imported module') !== -1
+      msg.indexOf('Failed to fetch dynamically imported module') !== -1 ||
+      msg.indexOf('error loading dynamically imported module') !== -1
     );
   }
   function reloadOnce() {
     try {
-      if (sessionStorage.getItem(KEY) === '1') return;
-      sessionStorage.setItem(KEY, '1');
+      var n = Number(sessionStorage.getItem(KEY) || '0');
+      if (n >= 2) return;
+      sessionStorage.setItem(KEY, String(n + 1));
     } catch (e) {}
-    window.location.reload();
+    try {
+      var url = new URL(window.location.href);
+      url.searchParams.set('_r', String(Date.now()));
+      window.location.replace(url.toString());
+    } catch (e) {
+      window.location.reload();
+    }
   }
   window.addEventListener('error', function (ev) {
     if (shouldReload((ev && ev.message) || '')) reloadOnce();

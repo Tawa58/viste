@@ -12,18 +12,30 @@ function isChunkLoadError(err: unknown) {
   return (
     e.name === 'ChunkLoadError' ||
     (typeof e.message === 'string' &&
-      (e.message.includes('Loading chunk') || e.message.includes('Failed to fetch dynamically imported module')))
+      (e.message.includes('Loading chunk') ||
+        e.message.includes('Failed to fetch dynamically imported module') ||
+        e.message.includes('error loading dynamically imported module')))
   )
 }
 
-/** One hard reload when a stale deploy left the tab on old chunk hashes. */
+/**
+ * Hard navigation with a cache-bust query when a tab still references chunks
+ * from a previous Vercel deploy (classic ChunkLoadError / 404).
+ */
 function reloadForStaleChunks() {
   if (typeof window === 'undefined') return
   const key = 'viste.chunk-reload'
   try {
-    if (sessionStorage.getItem(key) === '1') return
-    sessionStorage.setItem(key, '1')
-    window.location.reload()
+    const attempts = Number(sessionStorage.getItem(key) || '0')
+    if (attempts >= 2) return
+    sessionStorage.setItem(key, String(attempts + 1))
+  } catch {
+    /* private mode */
+  }
+  try {
+    const url = new URL(window.location.href)
+    url.searchParams.set('_r', String(Date.now()))
+    window.location.replace(url.toString())
   } catch {
     window.location.reload()
   }
