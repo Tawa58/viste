@@ -1,10 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, School, Trash2 } from 'lucide-react'
+import {
+  Archive,
+  ArrowRightLeft,
+  Baby,
+  BookOpen,
+  GraduationCap,
+  Plus,
+  School,
+  Trash2,
+  Users,
+  UserCheck,
+} from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { LoadingState } from '@/components/shared/loading-state'
 import { EmptyState } from '@/components/shared/empty-state'
 import { SearchInput } from '@/components/shared/search-input'
+import { StatCard } from '@/components/shared/stat-card'
 import { StatusBadge } from '@/components/shared/status-badge'
 import {
   DataTable,
@@ -265,26 +277,42 @@ export function ClassesPage() {
       />
 
       {stats ? (
-        <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
-          {[
-            { label: 'Students', value: stats.totalStudents },
-            { label: 'Classes', value: stats.totalClasses },
-            { label: 'ECD', value: stats.ecdStudents },
-            { label: 'Primary', value: stats.primaryStudents },
-            { label: 'Secondary', value: stats.secondaryStudents },
-            { label: 'Active', value: stats.activeStudents },
-            { label: 'Transferred', value: stats.transferredStudents },
-            { label: 'Archived', value: stats.archivedStudents },
-          ].map((item) => (
-            <Card key={item.label} className="shadow-card">
-              <CardContent className="p-4">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {item.label}
-                </p>
-                <p className="mt-1 font-display text-2xl font-semibold">{item.value}</p>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="mb-4 grid w-full max-w-4xl grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-8">
+          <StatCard compact label="Students" value={String(stats.totalStudents)} icon={Users} />
+          <StatCard compact label="Classes" value={String(stats.totalClasses)} icon={School} />
+          <StatCard compact label="ECD" value={String(stats.ecdStudents)} icon={Baby} />
+          <StatCard
+            compact
+            label="Primary"
+            value={String(stats.primaryStudents)}
+            icon={BookOpen}
+          />
+          <StatCard
+            compact
+            label="Secondary"
+            value={String(stats.secondaryStudents)}
+            icon={GraduationCap}
+          />
+          <StatCard
+            compact
+            label="Active"
+            value={String(stats.activeStudents)}
+            icon={UserCheck}
+            tone="success"
+          />
+          <StatCard
+            compact
+            label="Transferred"
+            value={String(stats.transferredStudents)}
+            icon={ArrowRightLeft}
+            tone="warning"
+          />
+          <StatCard
+            compact
+            label="Archived"
+            value={String(stats.archivedStudents)}
+            icon={Archive}
+          />
         </div>
       ) : null}
 
