@@ -452,17 +452,26 @@ export interface Assessment {
   id: string
   examinationId?: string
   name: string
+  /** MONTHLY = end-of-month test; TERMLY = end-of-term exam. */
   type: string
   subjectId: string
   streamId: string
   termId: string
   maxScore: number
   status: MarkWorkflowStatus
-  /** Class for class-scoped assessments (e.g. monthly tests). */
+  /** Class for class-scoped assessments (e.g. monthly / termly entry). */
   classId?: string
   /** YYYY-MM for end-of-month tests. */
   month?: string
+  /** Staff who last entered / submitted marks. */
+  enteredBy?: string
+  enteredByName?: string
+  submittedAt?: string
+  approvedAt?: string
+  approvedBy?: string
 }
+
+export type MarkCommentMode = 'NONE' | 'AUTO' | 'CUSTOM'
 
 export interface Mark {
   id: string
@@ -471,6 +480,10 @@ export interface Mark {
   score: number
   grade: string
   status: MarkWorkflowStatus
+  /** How the comment was produced. */
+  commentMode?: MarkCommentMode
+  /** Teacher remark shown on the student portal when published. */
+  comment?: string
   recordedAt?: string
   recordedBy?: string
 }
@@ -599,14 +612,35 @@ export interface ResultPortalView {
   academicYear: string
   term: string
   accessState: ResultAccessState
-  subjects: { name: string; score: number; grade: string; comment?: string }[]
+  /** Latest / mixed subject rows (includes comments when published). */
+  subjects: { name: string; score: number; grade: string; comment?: string; type?: string }[]
   /** Structured monthly progress for the student portal. */
   monthly?: {
     month: string
     label: string
-    rows: { subject: string; score: number; grade: string; maxScore: number }[]
+    rows: {
+      subject: string
+      score: number
+      grade: string
+      maxScore: number
+      comment?: string
+    }[]
     average?: number
   }[]
+  /** End-of-term results grouped by term. */
+  termly?: {
+    termId: string
+    termName: string
+    rows: {
+      subject: string
+      score: number
+      grade: string
+      maxScore: number
+      comment?: string
+    }[]
+    average?: number
+  }[]
+  /** Academic cumulative average (ACC) across published scores. */
   overallAverage?: number
   teacherComment?: string
 }

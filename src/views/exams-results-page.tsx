@@ -9,83 +9,82 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/auth-context'
+import {
+  autoCommentForGrade,
+  gradeFromScore,
+} from '@/lib/grading'
 import { catalogService, classService, studentService } from '@/services/api'
-import { notify, runMockProcess } from '@/lib/notify'
+import { notify } from '@/lib/notify'
 import { fullName } from '@/lib/utils'
 import type {
   Assessment,
-  Examination,
   Mark,
+  MarkCommentMode,
   ResultPortalView,
   SchoolClass,
   Staff,
   Student,
   Subject,
+  Term,
 } from '@/types'
 
-const workflow = ['Marks Entry', 'Submitted', 'Under Review', 'Approved', 'Published'] as const
+const workflow = ['Draft', 'Submitted', 'Admin review', 'Published on portal'] as const
 
 function currentMonth() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+type StudentEntry = {
+  score: string
+  commentMode: MarkCommentMode
+  comment: string
+}
+
+function assessmentKey(
+  periodType: 'MONTHLY' | 'TERMLY',
+  classId: string,
+  subjectId: string,
+  month: string,
+  termId: string,
+) {
+  return periodType === 'MONTHLY'
+    ? `as_monthly_${classId}_${subjectId}_${month}`.replace(/[^a-zA-Z0-9_-]/g, '_')
+    : `as_termly_${classId}_${subjectId}_${termId}`.replace(/[^a-zA-Z0-9_-]/g, '_')
+}
+
 export function ExaminationsPage() {
-  const { user } = useAuth()
+  const { hasPermission } = useAuth()
+  const canApprove = hasPermission('results.approve')
   const [loading, setLoading] = useState(true)
-  const [busyAction, setBusyAction] = useState<string | null>(null)
-  const [exams, setExams] = useState<Examination[]>([])
   const [assessments, setAssessments] = useState<Assessment[]>([])
   const [marks, setMarks] = useState<Mark[]>([])
-  const [students, setStudents] = useState<Student[]>([])
-  const [selected, setSelected] = useState('')
 
-  useEffect(() => {
-    Promise.all([
-      catalogService.getExaminations(),
+  async function reloadResults() {
+    const [a, m] = await Promise.all([
       catalogService.getAssessments(),
       catalogService.getMarks(),
-      studentService.list(),
-    ]).then(([e, a, m, s]) => {
-      setExams(e)
-      setAssessments(a)
-      setMarks(m)
-      setStudents(s)
-      setSelected(a[0]?.id ?? '')
-      setLoading(false)
-    })
+    ])
+    setAssessments(a)
+    setMarks(m)
+  }
+
+  useEffect(() => {
+    reloadResults()
+      .catch(() => notify.error('Could not load assessments'))
+      .finally(() => setLoading(false))
   }, [])
 
   if (loading) return <LoadingState message="Loading examinations…" />
-  const assessment = assessments.find((a) => a.id === selected)
-
-  async function runExamAction(action: string, messages: { loading: string; success: string }) {
-    setBusyAction(action)
-    try {
-      await runMockProcess(messages)
-    } finally {
-      setBusyAction(null)
-    }
-  }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Examinations"
-        description="Monthly end-of-month tests, assessments, and approval workflow."
+        title="Examinations & marks"
+        description="Enter class marks by subject, submit for admin approval, then release to the student portal."
         breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Examinations' }]}
-      />
-
-      <MonthlyMarksPanel
-        onSaved={async () => {
-          const [a, m] = await Promise.all([
-            catalogService.getAssessments(),
-            catalogService.getMarks(),
-          ])
-          setAssessments(a)
-          setMarks(m)
-        }}
       />
 
       <Card>
@@ -95,154 +94,68 @@ export function ExaminationsPage() {
               <span className="rounded-full bg-primary/10 px-3 py-1 font-medium text-primary">
                 {step}
               </span>
-              {index < workflow.length - 1 && <span className="text-muted-foreground">→</span>}
+              {index < workflow.length - 1 && (
+                <span className="text-muted-foreground">→</span>
+              )}
             </div>
           ))}
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Exam periods</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {exams.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No exam periods yet.</p>
-            ) : (
-              exams.map((e) => (
-                <div key={e.id} className="rounded-lg border border-border p-3 text-sm">
-                  <p className="font-medium">{e.name}</p>
-                  <p className="text-muted-foreground">
-                    {e.startDate} → {e.endDate}
-                  </p>
-                  <StatusBadge status={e.status} />
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+      <ClassSubjectMarksPanel
+        assessments={assessments}
+        marks={marks}
+        onSaved={reloadResults}
+      />
 
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between gap-3">
-            <CardTitle>Assessment marks</CardTitle>
-            <Select value={selected} onChange={(e) => setSelected(e.target.value)} className="w-56">
-              {assessments.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </Select>
-          </CardHeader>
-          <CardContent>
-            {assessment ? (
-              <>
-                <p className="mb-3 text-sm text-muted-foreground">
-                  {assessment.type} · max {assessment.maxScore} ·{' '}
-                  <StatusBadge status={assessment.status} />
-                </p>
-                <div className="overflow-x-auto rounded-xl border border-border">
-                  <table className="w-full min-w-[520px] text-left text-sm">
-                    <thead className="bg-muted/60 text-muted-foreground">
-                      <tr>
-                        <th className="px-4 py-3">Student</th>
-                        <th className="px-4 py-3">Score</th>
-                        <th className="px-4 py-3">Grade</th>
-                        <th className="px-4 py-3">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {marks
-                        .filter((m) => m.assessmentId === assessment.id)
-                        .map((m) => {
-                          const student = students.find((s) => s.id === m.studentId)
-                          return (
-                            <tr key={m.id} className="border-t border-border">
-                              <td className="px-4 py-3">
-                                {student ? fullName(student) : m.studentId}
-                              </td>
-                              <td className="px-4 py-3">{m.score}</td>
-                              <td className="px-4 py-3 font-medium">{m.grade}</td>
-                              <td className="px-4 py-3">
-                                <StatusBadge status={m.status} />
-                              </td>
-                            </tr>
-                          )
-                        })}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">No assessments yet.</p>
-            )}
-            {user?.role !== 'STUDENT' ? (
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  loading={busyAction === 'submit'}
-                  onClick={() =>
-                    void runExamAction('submit', {
-                      loading: 'Submitting marks…',
-                      success: 'Marks submitted',
-                    })
-                  }
-                >
-                  Submit
-                </Button>
-                <Button
-                  variant="outline"
-                  loading={busyAction === 'approve'}
-                  onClick={() =>
-                    void runExamAction('approve', {
-                      loading: 'Approving marks…',
-                      success: 'Marks approved',
-                    })
-                  }
-                >
-                  Approve
-                </Button>
-                <Button
-                  variant="accent"
-                  loading={busyAction === 'publish'}
-                  onClick={() =>
-                    void runExamAction('publish', {
-                      loading: 'Publishing results…',
-                      success: 'Results published',
-                    })
-                  }
-                >
-                  Publish
-                </Button>
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-      </div>
+      {canApprove ? (
+        <ResultsApprovalsPanel
+          assessments={assessments}
+          onUpdated={reloadResults}
+        />
+      ) : (
+        <Alert title="After you submit" tone="info">
+          Your head of department or admin will approve and release marks to the student portal.
+          You cannot publish directly.
+        </Alert>
+      )}
     </div>
   )
 }
 
-function MonthlyMarksPanel({ onSaved }: { onSaved: () => Promise<void> }) {
+function ClassSubjectMarksPanel({
+  assessments,
+  marks,
+  onSaved,
+}: {
+  assessments: Assessment[]
+  marks: Mark[]
+  onSaved: () => Promise<void>
+}) {
   const { user } = useAuth()
   const isTeacher = user?.role === 'TEACHER'
   const [classes, setClasses] = useState<SchoolClass[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
+  const [terms, setTerms] = useState<Term[]>([])
   const [staffSelf, setStaffSelf] = useState<Staff | null>(null)
   const [students, setStudents] = useState<Student[]>([])
+  const [periodType, setPeriodType] = useState<'MONTHLY' | 'TERMLY'>('MONTHLY')
   const [classId, setClassId] = useState('')
   const [subjectId, setSubjectId] = useState('')
   const [month, setMonth] = useState(currentMonth())
-  const [scores, setScores] = useState<Record<string, string>>({})
+  const [termId, setTermId] = useState('')
+  const [defaultCommentMode, setDefaultCommentMode] = useState<MarkCommentMode>('NONE')
+  const [entries, setEntries] = useState<Record<string, StudentEntry>>({})
   const [saving, setSaving] = useState(false)
-  const [publish, setPublish] = useState(true)
+  const maxScore = 100
 
   useEffect(() => {
     void (async () => {
-      const [cls, subs, stu] = await Promise.all([
+      const [cls, subs, stu, t] = await Promise.all([
         classService.list(),
         catalogService.getSubjects(),
         studentService.list(),
+        catalogService.getTerms(),
       ])
       let me: Staff | null = null
       if (user?.staffId) {
@@ -259,8 +172,10 @@ function MonthlyMarksPanel({ onSaved }: { onSaved: () => Promise<void> }) {
       setClasses(isTeacher ? allowedClasses : activeClasses)
       setSubjects(isTeacher ? allowedSubjects : allowedSubjects.length ? allowedSubjects : subs)
       setStudents(stu)
+      setTerms(t)
       setClassId((prev) => prev || allowedClasses[0]?.id || activeClasses[0]?.id || '')
       setSubjectId((prev) => prev || allowedSubjects[0]?.id || subs[0]?.id || '')
+      setTermId((prev) => prev || t.find((x) => x.sequence === 1)?.id || t[0]?.id || '')
     })()
   }, [user?.staffId, isTeacher])
 
@@ -272,36 +187,113 @@ function MonthlyMarksPanel({ onSaved }: { onSaved: () => Promise<void> }) {
     [students, classId],
   )
 
-  async function submit(publishNow: boolean) {
+  const currentAssessment = useMemo(() => {
+    if (!classId || !subjectId) return undefined
+    const id = assessmentKey(
+      periodType,
+      classId,
+      subjectId,
+      month,
+      termId,
+    )
+    return assessments.find((a) => a.id === id)
+  }, [assessments, classId, subjectId, periodType, month, termId])
+
+  useEffect(() => {
+    if (!currentAssessment) {
+      setEntries({})
+      return
+    }
+    const next: Record<string, StudentEntry> = {}
+    for (const s of roster) {
+      const m = marks.find(
+        (x) => x.assessmentId === currentAssessment.id && x.studentId === s.id,
+      )
+      next[s.id] = {
+        score: m ? String(m.score) : '',
+        commentMode: m?.commentMode ?? defaultCommentMode,
+        comment: m?.comment ?? '',
+      }
+    }
+    setEntries(next)
+  }, [currentAssessment?.id, roster, marks, defaultCommentMode])
+
+  function setEntry(studentId: string, patch: Partial<StudentEntry>) {
+    setEntries((prev) => ({
+      ...prev,
+      [studentId]: {
+        score: prev[studentId]?.score ?? '',
+        commentMode: prev[studentId]?.commentMode ?? defaultCommentMode,
+        comment: prev[studentId]?.comment ?? '',
+        ...patch,
+      },
+    }))
+  }
+
+  function previewGrade(scoreStr: string) {
+    const score = Number(scoreStr)
+    if (!Number.isFinite(score)) return '—'
+    return gradeFromScore(score, maxScore)
+  }
+
+  async function submit(action: 'draft' | 'submit') {
     if (!classId || !subjectId) {
       notify.error('Select class and subject')
       return
     }
-    const entries = roster
-      .map((s) => ({ studentId: s.id, score: Number(scores[s.id]) }))
-      .filter((e) => Number.isFinite(e.score))
-    if (entries.length === 0) {
-      notify.error('Enter at least one score')
+    if (periodType === 'TERMLY' && !termId) {
+      notify.error('Select a term')
+      return
+    }
+    const payloadEntries = roster
+      .map((s) => {
+        const row = entries[s.id]
+        const score = Number(row?.score)
+        if (!Number.isFinite(score)) return null
+        const mode = row?.commentMode ?? defaultCommentMode
+        return {
+          studentId: s.id,
+          score,
+          commentMode: mode,
+          comment:
+            mode === 'CUSTOM'
+              ? row?.comment?.trim()
+              : mode === 'AUTO'
+                ? autoCommentForGrade(previewGrade(String(score)))
+                : undefined,
+        }
+      })
+      .filter(Boolean) as {
+      studentId: string
+      score: number
+      commentMode: MarkCommentMode
+      comment?: string
+    }[]
+    if (payloadEntries.length === 0) {
+      notify.error('Enter at least one mark')
       return
     }
     setSaving(true)
     try {
       await notify.process(
         () =>
-          catalogService.submitMonthlyMarks({
+          catalogService.submitClassSubjectMarks({
             classId,
             subjectId,
-            month,
-            maxScore: 100,
-            publish: publishNow,
-            entries,
+            periodType,
+            month: periodType === 'MONTHLY' ? month : undefined,
+            termId: periodType === 'TERMLY' ? termId : undefined,
+            maxScore,
+            action,
+            entries: payloadEntries,
           }),
         {
-          loading: publishNow ? 'Saving and publishing…' : 'Saving monthly marks…',
-          success: publishNow
-            ? 'Monthly marks saved and visible on student portal'
-            : 'Monthly marks saved as draft',
-          error: 'Could not save monthly marks',
+          loading: action === 'submit' ? 'Submitting for approval…' : 'Saving draft…',
+          success:
+            action === 'submit'
+              ? 'Marks submitted — waiting for admin approval'
+              : 'Draft saved',
+          error: 'Could not save marks',
         },
       )
       await onSaved()
@@ -313,8 +305,7 @@ function MonthlyMarksPanel({ onSaved }: { onSaved: () => Promise<void> }) {
   if (isTeacher && classes.length === 0) {
     return (
       <Alert title="No teaching assignments" tone="warning">
-        Ask an admin to assign subjects and classes on your teacher profile before recording monthly
-        tests.
+        Ask an admin to assign subjects and classes on your teacher profile before recording marks.
       </Alert>
     )
   }
@@ -322,32 +313,61 @@ function MonthlyMarksPanel({ onSaved }: { onSaved: () => Promise<void> }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>End-of-month tests</CardTitle>
+        <CardTitle>Enter marks</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Record scores for your assigned class and subject. Grades are assigned automatically from
-          the school grading scale.
+          Choose class and subject, enter scores for each student, then submit for admin approval.
+          Grades are calculated automatically from the school grading scale.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
         {staffSelf && isTeacher ? (
           <p className="text-xs text-muted-foreground">
-            Your assignments: subjects{' '}
-            {(staffSelf.subjectIds ?? [])
-              .map((id) => subjects.find((s) => s.id === id)?.name)
-              .filter(Boolean)
-              .join(', ') || '—'}
-            ; classes{' '}
+            Your classes:{' '}
             {(staffSelf.classIds ?? [])
               .map((id) => classes.find((c) => c.id === id)?.name)
               .filter(Boolean)
               .join(', ') || '—'}
           </p>
         ) : null}
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="space-y-1.5">
-            <Label>Month</Label>
-            <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
-          </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={periodType === 'MONTHLY' ? 'default' : 'outline'}
+            onClick={() => setPeriodType('MONTHLY')}
+          >
+            Monthly test
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={periodType === 'TERMLY' ? 'default' : 'outline'}
+            onClick={() => setPeriodType('TERMLY')}
+          >
+            End of term
+          </Button>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {periodType === 'MONTHLY' ? (
+            <div className="space-y-1.5">
+              <Label>Month</Label>
+              <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label>Term</Label>
+              <Select value={termId} onChange={(e) => setTermId(e.target.value)}>
+                <option value="">Select term</option>
+                {terms.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>Class</Label>
             <Select value={classId} onChange={(e) => setClassId(e.target.value)}>
@@ -370,65 +390,243 @@ function MonthlyMarksPanel({ onSaved }: { onSaved: () => Promise<void> }) {
               ))}
             </Select>
           </div>
+          <div className="space-y-1.5">
+            <Label>Comments (default)</Label>
+            <Select
+              value={defaultCommentMode}
+              onChange={(e) => setDefaultCommentMode(e.target.value as MarkCommentMode)}
+            >
+              <option value="NONE">Marks only — no comment</option>
+              <option value="AUTO">Auto comment from grade</option>
+              <option value="CUSTOM">Custom comment per student</option>
+            </Select>
+          </div>
         </div>
+
+        {currentAssessment ? (
+          <p className="text-xs text-muted-foreground">
+            Current sheet: <StatusBadge status={currentAssessment.status} />{' '}
+            {currentAssessment.name}
+          </p>
+        ) : null}
 
         {roster.length === 0 ? (
           <p className="text-sm text-muted-foreground">No active students in this class.</p>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-border">
-            <table className="w-full min-w-[480px] text-left text-sm">
+            <table className="w-full min-w-[720px] text-left text-sm">
               <thead className="bg-muted/60 text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-3">#</th>
-                  <th className="px-4 py-3">Student</th>
-                  <th className="px-4 py-3">Score (/100)</th>
+                  <th className="px-3 py-2">#</th>
+                  <th className="px-3 py-2">Student</th>
+                  <th className="px-3 py-2">Mark /{maxScore}</th>
+                  <th className="px-3 py-2">Grade</th>
+                  {(defaultCommentMode === 'CUSTOM' ||
+                    Object.values(entries).some((e) => e.commentMode === 'CUSTOM')) && (
+                    <th className="px-3 py-2">Teacher comment</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {roster.map((s, i) => (
-                  <tr key={s.id} className="border-t border-border">
-                    <td className="px-4 py-2 text-muted-foreground">{i + 1}</td>
-                    <td className="px-4 py-2 font-medium">{fullName(s)}</td>
-                    <td className="px-4 py-2">
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        className="w-28"
-                        value={scores[s.id] ?? ''}
-                        onChange={(e) =>
-                          setScores((prev) => ({ ...prev, [s.id]: e.target.value }))
-                        }
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {roster.map((s, i) => {
+                  const row = entries[s.id] ?? {
+                    score: '',
+                    commentMode: defaultCommentMode,
+                    comment: '',
+                  }
+                  const grade = previewGrade(row.score)
+                  const showComment =
+                    defaultCommentMode === 'CUSTOM' || row.commentMode === 'CUSTOM'
+                  return (
+                    <tr key={s.id} className="border-t border-border">
+                      <td className="px-3 py-2 text-muted-foreground">{i + 1}</td>
+                      <td className="px-3 py-2 font-medium">{fullName(s)}</td>
+                      <td className="px-3 py-2">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={maxScore}
+                          className="w-24"
+                          value={row.score}
+                          onChange={(e) => setEntry(s.id, { score: e.target.value })}
+                        />
+                      </td>
+                      <td className="px-3 py-2 font-semibold">{grade}</td>
+                      {showComment ? (
+                        <td className="px-3 py-2">
+                          <Textarea
+                            rows={2}
+                            className="min-w-[200px] text-xs"
+                            placeholder="Optional remark"
+                            value={row.comment}
+                            onChange={(e) =>
+                              setEntry(s.id, {
+                                commentMode: 'CUSTOM',
+                                comment: e.target.value,
+                              })
+                            }
+                          />
+                        </td>
+                      ) : defaultCommentMode === 'AUTO' ? (
+                        <td className="px-3 py-2 text-xs text-muted-foreground">
+                          {row.score ? autoCommentForGrade(grade) : '—'}
+                        </td>
+                      ) : null}
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={publish}
-              onChange={(e) => setPublish(e.target.checked)}
-            />
-            Publish to student portal
-          </label>
-          <Button loading={saving} onClick={() => void submit(publish)}>
-            Save monthly marks
+        <div className="flex flex-wrap gap-2">
+          <Button loading={saving} onClick={() => void submit('submit')}>
+            Submit for approval
           </Button>
-          <Button
-            variant="outline"
-            loading={saving}
-            disabled={saving}
-            onClick={() => void submit(false)}
-          >
-            Save as draft
+          <Button variant="outline" loading={saving} onClick={() => void submit('draft')}>
+            Save draft
           </Button>
         </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ResultsApprovalsPanel({
+  assessments,
+  onUpdated,
+}: {
+  assessments: Assessment[]
+  onUpdated: () => Promise<void>
+}) {
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [classes, setClasses] = useState<SchoolClass[]>([])
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [filterClass, setFilterClass] = useState('')
+  const [filterSubject, setFilterSubject] = useState('')
+
+  useEffect(() => {
+    void Promise.all([catalogService.getSubjects(), classService.list()]).then(
+      ([s, c]) => {
+        setSubjects(s)
+        setClasses(c)
+      },
+    )
+  }, [])
+
+  const pending = useMemo(() => {
+    return assessments
+      .filter(
+        (a) =>
+          a.status === 'SUBMITTED' ||
+          a.status === 'UNDER_REVIEW' ||
+          a.status === 'APPROVED',
+      )
+      .filter((a) => !filterClass || a.classId === filterClass)
+      .filter((a) => !filterSubject || a.subjectId === filterSubject)
+      .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''))
+  }, [assessments, filterClass, filterSubject])
+
+  async function release(assessmentId: string) {
+    setBusyId(assessmentId)
+    try {
+      await notify.process(
+        () =>
+          catalogService.transitionAssessment({
+            assessmentId,
+            status: 'APPROVED',
+            releaseToPortal: true,
+          }),
+        {
+          loading: 'Approving and releasing…',
+          success: 'Results are now visible on the student portal',
+          error: 'Could not release results',
+        },
+      )
+      await onUpdated()
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Approve & release</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Review submitted class marks by subject. Approve to publish them to student and parent
+          portals.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2 max-w-lg">
+          <div className="space-y-1.5">
+            <Label>Filter by class</Label>
+            <Select value={filterClass} onChange={(e) => setFilterClass(e.target.value)}>
+              <option value="">All classes</option>
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Filter by subject</Label>
+            <Select value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)}>
+              <option value="">All subjects</option>
+              {subjects.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
+
+        {pending.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No submissions waiting for approval.</p>
+        ) : (
+          <ul className="divide-y divide-border rounded-xl border border-border">
+            {pending.map((a) => (
+              <li
+                key={a.id}
+                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+              >
+                <div>
+                  <p className="font-medium">{a.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {classes.find((c) => c.id === a.classId)?.name || a.classId || '—'} ·{' '}
+                    {subjects.find((s) => s.id === a.subjectId)?.name || a.subjectId} ·{' '}
+                    {a.type}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={a.status} />
+                  {a.status === 'SUBMITTED' || a.status === 'UNDER_REVIEW' ? (
+                    <Button
+                      size="sm"
+                      loading={busyId === a.id}
+                      onClick={() => void release(a.id)}
+                    >
+                      Approve & release
+                    </Button>
+                  ) : a.status === 'APPROVED' ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      loading={busyId === a.id}
+                      onClick={() => void release(a.id)}
+                    >
+                      Release to portal
+                    </Button>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </CardContent>
     </Card>
   )
@@ -438,7 +636,6 @@ export function ResultsPage() {
   const { user } = useAuth()
   const isStudent = user?.role === 'STUDENT'
   const [loading, setLoading] = useState(true)
-  const [portals, setPortals] = useState<ResultPortalView[]>([])
   const [view, setView] = useState<ResultPortalView | null>(null)
   const [selectedId, setSelectedId] = useState('')
 
@@ -450,29 +647,11 @@ export function ResultsPage() {
           const portal = await catalogService.getResultPortal(user.studentId)
           if (!mounted) return
           setView(portal)
-          setPortals([portal])
           setSelectedId(portal.studentId)
-        } else {
-          const rows = await catalogService.getResultPortals()
-          if (!mounted) return
-          setPortals(rows)
-          setSelectedId(rows[0]?.studentId ?? '')
-          setView(rows[0] ?? null)
         }
       } catch (err) {
         console.error(err)
-        if (isStudent && user?.studentId) {
-          try {
-            const portal = await catalogService.getResultPortal(user.studentId)
-            if (mounted) {
-              setView(portal)
-              setPortals([portal])
-            }
-          } catch (e2) {
-            console.error(e2)
-            notify.error('Could not load results')
-          }
-        }
+        notify.error('Could not load results')
       } finally {
         if (mounted) setLoading(false)
       }
@@ -496,13 +675,15 @@ export function ResultsPage() {
     return (
       <div className="space-y-4">
         <PageHeader
-          title="My progress"
-          description="Your published monthly test results and subject scores."
+          title="My results"
+          description="Monthly progress, end-of-term results, and teacher comments."
           breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Results' }]}
         />
-        {view ? <StudentProgressCard view={view} /> : (
+        {view ? (
+          <StudentProgressCard view={view} />
+        ) : (
           <Alert title="No results yet" tone="info">
-            When your teachers publish monthly tests, they will appear here.
+            When your teachers submit marks and admin releases them, they will appear here.
           </Alert>
         )}
       </div>
@@ -513,69 +694,18 @@ export function ResultsPage() {
     <div>
       <PageHeader
         title="Results"
-        description="Result summaries and student / parent portal views."
+        description="Preview what students see after admin releases marks."
         breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Results' }]}
       />
-
-      <Tabs defaultValue="portal">
-        <TabsList>
-          <TabsTrigger value="portal">Student progress</TabsTrigger>
-          <TabsTrigger value="admin">Overview</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="admin">
-          <Card>
-            <CardContent className="space-y-3 p-5">
-              {portals.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Open a student below to load their portal, or publish monthly marks first.
-                </p>
-              ) : (
-                portals.map((p) => (
-                  <div
-                    key={p.studentId}
-                    className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <p className="font-medium">{p.studentName}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {p.className} {p.streamName} · {p.term}
-                      </p>
-                    </div>
-                    <StatusBadge status={p.accessState} />
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="portal">
-          <div className="mb-4">
-            <Label className="mb-1.5 block">Student</Label>
-            <Select
-              value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
-              className="max-w-sm"
-            >
-              <option value="">Select student</option>
-              {/* Prefer loading via student list when portals empty */}
-              {portals.map((p) => (
-                <option key={p.studentId} value={p.studentId}>
-                  {p.studentName} · {p.accessState}
-                </option>
-              ))}
-            </Select>
-            <StudentPicker
-              selectedId={selectedId}
-              onPick={(id) => setSelectedId(id)}
-            />
-          </div>
-          {view ? <StudentProgressCard view={view} /> : (
-            <p className="text-sm text-muted-foreground">Select a student to view progress.</p>
-          )}
-        </TabsContent>
-      </Tabs>
+      <div className="mb-4 max-w-sm">
+        <Label className="mb-1.5 block">Student</Label>
+        <StudentPicker selectedId={selectedId} onPick={setSelectedId} />
+      </div>
+      {view ? (
+        <StudentProgressCard view={view} />
+      ) : (
+        <p className="text-sm text-muted-foreground">Select a student to preview their portal.</p>
+      )}
     </div>
   )
 }
@@ -591,14 +721,9 @@ function StudentPicker({
   useEffect(() => {
     void studentService.list().then(setStudents).catch(console.error)
   }, [])
-  if (students.length === 0) return null
   return (
-    <Select
-      value={selectedId}
-      onChange={(e) => onPick(e.target.value)}
-      className="mt-2 max-w-sm"
-    >
-      <option value="">Or pick from directory…</option>
+    <Select value={selectedId} onChange={(e) => onPick(e.target.value)}>
+      <option value="">Select student…</option>
       {students
         .filter((s) => s.status === 'ACTIVE')
         .map((s) => (
@@ -614,18 +739,13 @@ function StudentProgressCard({ view }: { view: ResultPortalView }) {
   return (
     <div className="space-y-4">
       {view.accessState === 'RESULTS_LOCKED_FEES' && (
-        <Alert title="RESULTS LOCKED — FEES OUTSTANDING" tone="warning">
+        <Alert title="Results locked — fees outstanding" tone="warning">
           Clear outstanding fees to view published results.
         </Alert>
       )}
       {view.accessState === 'RESULTS_NOT_PUBLISHED' && (
-        <Alert title="RESULTS NOT YET PUBLISHED" tone="info">
-          Teachers have not published results for this period yet.
-        </Alert>
-      )}
-      {view.accessState === 'RESULTS_AVAILABLE' && (
-        <Alert title="RESULTS AVAILABLE" tone="success">
-          Published results for {view.studentName}.
+        <Alert title="Results not yet published" tone="info">
+          Your teachers may have submitted marks; admin must approve and release them.
         </Alert>
       )}
 
@@ -635,72 +755,59 @@ function StudentProgressCard({ view }: { view: ResultPortalView }) {
           <p className="text-sm text-muted-foreground">
             {view.className} {view.streamName}
             {view.term ? ` · ${view.term}` : ''}
-            {view.overallAverage != null
-              ? ` · Average ${view.overallAverage.toFixed(1)}`
-              : ''}
+            {view.overallAverage != null ? (
+              <>
+                {' '}
+                · ACC {view.overallAverage.toFixed(1)}%
+              </>
+            ) : null}
           </p>
         </CardHeader>
         <CardContent className="space-y-6 p-5">
           {view.accessState !== 'RESULTS_AVAILABLE' ? (
-            <p className="text-sm text-muted-foreground">Academic details are hidden in this state.</p>
+            <p className="text-sm text-muted-foreground">
+              Academic details are hidden until results are released.
+            </p>
           ) : (
             <>
               {(view.monthly?.length ?? 0) > 0 ? (
-                <div className="space-y-4">
-                  <h3 className="font-display text-base font-semibold">Monthly tests</h3>
-                  {view.monthly!.map((block) => (
-                    <div key={block.month} className="rounded-xl border border-border">
-                      <div className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-2">
-                        <p className="font-medium">{block.label}</p>
-                        {block.average != null ? (
-                          <p className="text-sm text-muted-foreground">
-                            Avg {block.average.toFixed(1)}%
-                          </p>
-                        ) : null}
-                      </div>
-                      <table className="w-full text-sm">
-                        <thead className="text-muted-foreground">
-                          <tr>
-                            <th className="px-4 py-2 text-left">Subject</th>
-                            <th className="px-4 py-2 text-left">Score</th>
-                            <th className="px-4 py-2 text-left">Grade</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {block.rows.map((row) => (
-                            <tr key={`${block.month}-${row.subject}`} className="border-t border-border">
-                              <td className="px-4 py-2">{row.subject}</td>
-                              <td className="px-4 py-2">
-                                {row.score}/{row.maxScore}
-                              </td>
-                              <td className="px-4 py-2 font-semibold">{row.grade}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ))}
-                </div>
+                <ResultsBlockTable title="Monthly progress tests" blocks={view.monthly!} />
+              ) : null}
+
+              {(view.termly?.length ?? 0) > 0 ? (
+                <ResultsBlockTable
+                  title="End of term results"
+                  blocks={view.termly!.map((b) => ({
+                    month: b.termId,
+                    label: b.termName,
+                    rows: b.rows,
+                    average: b.average,
+                  }))}
+                />
               ) : null}
 
               {view.subjects.length > 0 ? (
                 <div className="space-y-2">
-                  <h3 className="font-display text-base font-semibold">Subject summary</h3>
+                  <h3 className="font-display text-base font-semibold">All published subjects</h3>
                   <div className="overflow-x-auto rounded-xl border border-border">
                     <table className="w-full text-sm">
                       <thead className="bg-muted/60 text-muted-foreground">
                         <tr>
-                          <th className="px-4 py-3 text-left">Subject</th>
-                          <th className="px-4 py-3 text-left">Score</th>
-                          <th className="px-4 py-3 text-left">Grade</th>
+                          <th className="px-4 py-2 text-left">Subject</th>
+                          <th className="px-4 py-2 text-left">Score</th>
+                          <th className="px-4 py-2 text-left">Grade</th>
+                          <th className="px-4 py-2 text-left">Comment</th>
                         </tr>
                       </thead>
                       <tbody>
                         {view.subjects.map((s) => (
-                          <tr key={s.name} className="border-t border-border">
-                            <td className="px-4 py-3">{s.name}</td>
-                            <td className="px-4 py-3">{s.score}</td>
-                            <td className="px-4 py-3 font-semibold">{s.grade}</td>
+                          <tr key={`${s.name}-${s.type}`} className="border-t border-border">
+                            <td className="px-4 py-2">{s.name}</td>
+                            <td className="px-4 py-2">{s.score}</td>
+                            <td className="px-4 py-2 font-semibold">{s.grade}</td>
+                            <td className="px-4 py-2 text-xs text-muted-foreground">
+                              {s.comment || '—'}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -708,12 +815,71 @@ function StudentProgressCard({ view }: { view: ResultPortalView }) {
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">No published subject scores yet.</p>
+                <p className="text-sm text-muted-foreground">No published results yet.</p>
               )}
             </>
           )}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+function ResultsBlockTable({
+  title,
+  blocks,
+}: {
+  title: string
+  blocks: {
+    month: string
+    label: string
+    rows: {
+      subject: string
+      score: number
+      grade: string
+      maxScore: number
+      comment?: string
+    }[]
+    average?: number
+  }[]
+}) {
+  return (
+    <div className="space-y-4">
+      <h3 className="font-display text-base font-semibold">{title}</h3>
+      {blocks.map((block) => (
+        <div key={block.month} className="rounded-xl border border-border">
+          <div className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-2">
+            <p className="font-medium">{block.label}</p>
+            {block.average != null ? (
+              <p className="text-sm text-muted-foreground">Avg {block.average.toFixed(1)}%</p>
+            ) : null}
+          </div>
+          <table className="w-full text-sm">
+            <thead className="text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2 text-left">Subject</th>
+                <th className="px-4 py-2 text-left">Score</th>
+                <th className="px-4 py-2 text-left">Grade</th>
+                <th className="px-4 py-2 text-left">Comment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {block.rows.map((row) => (
+                <tr key={`${block.month}-${row.subject}`} className="border-t border-border">
+                  <td className="px-4 py-2">{row.subject}</td>
+                  <td className="px-4 py-2">
+                    {row.score}/{row.maxScore}
+                  </td>
+                  <td className="px-4 py-2 font-semibold">{row.grade}</td>
+                  <td className="px-4 py-2 text-xs text-muted-foreground">
+                    {row.comment || '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
     </div>
   )
 }

@@ -580,18 +580,58 @@ const mockCatalogService = {
     month: string
     maxScore?: number
     publish?: boolean
-    entries: { studentId: string; score: number }[]
+    action?: 'draft' | 'submit'
+    entries: {
+      studentId: string
+      score: number
+      commentMode?: 'NONE' | 'AUTO' | 'CUSTOM'
+      comment?: string
+    }[]
+  }) => {
+    const action = input.action ?? (input.publish ? 'submit' : 'draft')
+    return mockCatalogService.submitClassSubjectMarks({
+      classId: input.classId,
+      subjectId: input.subjectId,
+      periodType: 'MONTHLY',
+      month: input.month,
+      maxScore: input.maxScore,
+      action,
+      entries: input.entries,
+    })
+  },
+  submitClassSubjectMarks: async (input: {
+    classId: string
+    subjectId: string
+    periodType: 'MONTHLY' | 'TERMLY'
+    month?: string
+    termId?: string
+    maxScore?: number
+    action: 'draft' | 'submit'
+    entries: {
+      studentId: string
+      score: number
+      commentMode?: 'NONE' | 'AUTO' | 'CUSTOM'
+      comment?: string
+    }[]
   }) => {
     const maxScore = input.maxScore ?? 100
+    const status =
+      input.action === 'submit' ? ('SUBMITTED' as const) : ('DRAFT' as const)
     const assessment: Assessment = {
-      id: `as_monthly_${input.classId}_${input.subjectId}_${input.month}`,
-      name: `Monthly ${input.month}`,
-      type: 'MONTHLY',
+      id:
+        input.periodType === 'MONTHLY'
+          ? `as_monthly_${input.classId}_${input.subjectId}_${input.month}`
+          : `as_termly_${input.classId}_${input.subjectId}_${input.termId}`,
+      name:
+        input.periodType === 'MONTHLY'
+          ? `Monthly ${input.month}`
+          : `Term ${input.termId}`,
+      type: input.periodType,
       subjectId: input.subjectId,
       streamId: 'stream-1',
-      termId: 'term-1',
+      termId: input.termId ?? 'term-1',
       maxScore,
-      status: input.publish ? 'PUBLISHED' : 'DRAFT',
+      status,
       classId: input.classId,
       month: input.month,
     }
@@ -606,11 +646,30 @@ const mockCatalogService = {
         score: e.score,
         grade,
         status: assessment.status,
+        commentMode: e.commentMode,
+        comment: e.comment,
       }
       marks.unshift(row)
       return row
     })
     return mockRequest({ assessment, marks: nextMarks })
+  },
+  transitionAssessment: async (input: {
+    assessmentId: string
+    status: 'SUBMITTED' | 'APPROVED' | 'PUBLISHED' | 'LOCKED'
+    releaseToPortal?: boolean
+  }) => {
+    const idx = assessments.findIndex((a) => a.id === input.assessmentId)
+    if (idx < 0) throw new Error('Assessment not found')
+    const next =
+      input.releaseToPortal && input.status === 'APPROVED'
+        ? ('PUBLISHED' as const)
+        : input.status
+    assessments[idx] = { ...assessments[idx], status: next }
+    for (const m of marks.filter((x) => x.assessmentId === input.assessmentId)) {
+      m.status = next
+    }
+    return mockRequest(assessments[idx])
   },
   getGradingScale: async () =>
     mockRequest({

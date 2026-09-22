@@ -354,10 +354,42 @@ export const firestoreCatalogService = {
     month: string
     maxScore?: number
     publish?: boolean
-    entries: { studentId: string; score: number }[]
+    action?: 'draft' | 'submit'
+    entries: {
+      studentId: string
+      score: number
+      commentMode?: 'NONE' | 'AUTO' | 'CUSTOM'
+      comment?: string
+    }[]
   }) {
     const { apiCatalogService } = await import('@/services/api/server-api-services')
     return apiCatalogService.submitMonthlyMarks(input)
+  },
+  async submitClassSubjectMarks(input: {
+    classId: string
+    subjectId: string
+    periodType: 'MONTHLY' | 'TERMLY'
+    month?: string
+    termId?: string
+    maxScore?: number
+    action: 'draft' | 'submit'
+    entries: {
+      studentId: string
+      score: number
+      commentMode?: 'NONE' | 'AUTO' | 'CUSTOM'
+      comment?: string
+    }[]
+  }) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.submitClassSubjectMarks(input)
+  },
+  async transitionAssessment(input: {
+    assessmentId: string
+    status: 'SUBMITTED' | 'APPROVED' | 'PUBLISHED' | 'LOCKED'
+    releaseToPortal?: boolean
+  }) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.transitionAssessment(input)
   },
   async getGradingScale() {
     const { apiCatalogService } = await import('@/services/api/server-api-services')

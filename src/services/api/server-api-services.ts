@@ -426,13 +426,20 @@ export const apiCatalogService = {
   getExaminations: async (): Promise<Examination[]> => [],
   getAssessments: () => apiFetch<Assessment[]>('/api/v1/results?kind=assessments'),
   getMarks: () => apiFetch<Mark[]>('/api/v1/results?kind=marks'),
-  submitMonthlyMarks: (input: {
+  submitClassSubjectMarks: (input: {
     classId: string
     subjectId: string
-    month: string
+    periodType: 'MONTHLY' | 'TERMLY'
+    month?: string
+    termId?: string
     maxScore?: number
-    publish?: boolean
-    entries: { studentId: string; score: number }[]
+    action: 'draft' | 'submit'
+    entries: {
+      studentId: string
+      score: number
+      commentMode?: 'NONE' | 'AUTO' | 'CUSTOM'
+      comment?: string
+    }[]
   }) =>
     apiFetch<{
       assessment: Assessment
@@ -441,11 +448,44 @@ export const apiCatalogService = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+  /** @deprecated Prefer submitClassSubjectMarks */
+  submitMonthlyMarks: (input: {
+    classId: string
+    subjectId: string
+    month: string
+    maxScore?: number
+    publish?: boolean
+    action?: 'draft' | 'submit'
+    entries: {
+      studentId: string
+      score: number
+      commentMode?: 'NONE' | 'AUTO' | 'CUSTOM'
+      comment?: string
+    }[]
+  }) =>
+    apiFetch<{
+      assessment: Assessment
+      marks: Mark[]
+    }>('/api/v1/results', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  transitionAssessment: (input: {
+    assessmentId: string
+    status: 'SUBMITTED' | 'APPROVED' | 'PUBLISHED' | 'LOCKED'
+    releaseToPortal?: boolean
+  }) =>
+    apiFetch<Assessment>('/api/v1/results', {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
   upsertMark: (input: {
     assessmentId: string
     studentId: string
     score: number
     grade?: string
+    commentMode?: 'NONE' | 'AUTO' | 'CUSTOM'
+    comment?: string
   }) =>
     apiFetch<Mark>('/api/v1/results', {
       method: 'POST',

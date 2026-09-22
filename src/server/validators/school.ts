@@ -247,9 +247,59 @@ export const markUpsertSchema = z.object({
   score: z.number().min(0).max(1000),
   /** Optional — server assigns from grading scale when omitted. */
   grade: z.string().min(1).max(8).optional(),
+  commentMode: z.enum(['NONE', 'AUTO', 'CUSTOM']).optional(),
+  comment: z.string().max(1000).optional(),
 })
 
-/** End-of-month class test batch for one subject. */
+const markEntrySchema = z.object({
+  studentId: idSchema,
+  score: z.number().min(0).max(1000),
+  commentMode: z.enum(['NONE', 'AUTO', 'CUSTOM']).default('NONE'),
+  comment: z.string().max(1000).optional(),
+})
+
+/**
+ * Class + subject mark batch for monthly or termly assessments.
+ * Teachers save draft or submit for admin approval (not directly published).
+ */
+export const classSubjectMarksSchema = z
+  .object({
+    classId: idSchema,
+    subjectId: idSchema,
+    periodType: z.enum(['MONTHLY', 'TERMLY']).default('MONTHLY'),
+    /** YYYY-MM — required for MONTHLY */
+    month: z
+      .string()
+      .regex(/^\d{4}-\d{2}$/)
+      .optional(),
+    /** Required for TERMLY */
+    termId: idSchema.optional(),
+    maxScore: z.number().min(1).max(1000).default(100),
+    entries: z.array(markEntrySchema).min(1).max(200),
+    /**
+     * draft = DRAFT
+     * submit = SUBMITTED (awaiting admin approval to release to portal)
+     */
+    action: z.enum(['draft', 'submit']).default('draft'),
+  })
+  .superRefine((val, ctx) => {
+    if (val.periodType === 'MONTHLY' && !val.month) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Month is required for monthly tests',
+        path: ['month'],
+      })
+    }
+    if (val.periodType === 'TERMLY' && !val.termId) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Term is required for termly results',
+        path: ['termId'],
+      })
+    }
+  })
+
+/** @deprecated Prefer classSubjectMarksSchema — kept for older monthly payloads. */
 export const monthlyMarksSchema = z.object({
   classId: idSchema,
   subjectId: idSchema,
@@ -261,12 +311,15 @@ export const monthlyMarksSchema = z.object({
       z.object({
         studentId: idSchema,
         score: z.number().min(0).max(1000),
+        commentMode: z.enum(['NONE', 'AUTO', 'CUSTOM']).optional(),
+        comment: z.string().max(1000).optional(),
       }),
     )
     .min(1)
     .max(200),
-  /** When true, marks + assessment move to PUBLISHED for the student portal. */
+  /** Legacy: true maps to submit (admin still must approve for portal). */
   publish: z.boolean().optional(),
+  action: z.enum(['draft', 'submit']).optional(),
 })
 
 export const gradingScaleSchema = z.object({
@@ -287,6 +340,10 @@ export const gradingScaleSchema = z.object({
 /** Allowed forward transitions for mark/assessment workflow. */
 export const resultTransitionSchema = z.object({
   status: z.enum(['SUBMITTED', 'APPROVED', 'PUBLISHED', 'LOCKED']),
+  /**
+   * When true with APPROVED, also release to portal (PUBLISHED) in one admin action.
+   */
+  releaseToPortal: z.boolean().optional(),
 })
 
 export const profileUpdateSchema = z.object({
@@ -360,6 +417,7 @@ export type StaffCreateInput = z.infer<typeof staffCreateSchema>
 export type PaymentCreateInput = z.infer<typeof paymentCreateSchema>
 export type MarkUpsertInput = z.infer<typeof markUpsertSchema>
 export type MonthlyMarksInput = z.infer<typeof monthlyMarksSchema>
+export type ClassSubjectMarksInput = z.infer<typeof classSubjectMarksSchema>
 export type ResultTransitionInput = z.infer<typeof resultTransitionSchema>
 export type ClassCreateInput = z.infer<typeof classCreateSchema>
 export type ClassUpdateInput = z.infer<typeof classUpdateSchema>
