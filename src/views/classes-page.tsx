@@ -28,7 +28,6 @@ import {
   DataTableShell,
 } from '@/components/shared/data-table'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
