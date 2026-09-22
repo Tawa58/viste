@@ -28,6 +28,14 @@ class FirestoreStudentService implements StudentService {
   async update(id: string, patch: Partial<Omit<Student, 'id'>>) {
     return firestoreSchool.updateStudent(id, patch)
   }
+  async archive(id: string) {
+    const { apiStudentService } = await import('@/services/api/server-api-services')
+    return apiStudentService.archive!(id)
+  }
+  async remove(id: string) {
+    const { apiStudentService } = await import('@/services/api/server-api-services')
+    return apiStudentService.remove!(id)
+  }
 }
 
 class FirestoreDashboardService implements DashboardService {
@@ -162,6 +170,10 @@ export const firestoreCatalogService = {
   },
   async updateGuardian(id: string, patch: Partial<Omit<Guardian, 'id'>>) {
     return firestoreSchool.updateGuardian(id, patch)
+  },
+  async deleteGuardian(id: string) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.deleteGuardian(id)
   },
   async createGuardian(input: Omit<Guardian, 'id'>) {
     return firestoreSchool.createGuardian(input)

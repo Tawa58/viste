@@ -1178,7 +1178,7 @@ function GradingScalePanel() {
             track,
             passMark: active.passMark,
             bands: active.bands,
-          }),
+          }) as Promise<GradingScalesBundle>,
         {
           loading: `Saving ${active.label}…`,
           success: `${active.label} saved — monthly and term exams use these bands`,

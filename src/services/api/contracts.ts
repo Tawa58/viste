@@ -33,6 +33,7 @@ export interface StudentService {
   create(input: StudentInput): Promise<Student>
   update(id: string, patch: StudentUpdate): Promise<Student>
   archive?(id: string): Promise<Student>
+  remove?(id: string): Promise<{ deleted: true; id: string }>
   transfer?(input: {
     studentId: string
     toClassId: string

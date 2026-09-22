@@ -2,7 +2,7 @@ import { requireSession } from '@/server/auth/session'
 import { jsonOk, withApiHandler } from '@/server/http/handler'
 import { badRequest } from '@/server/errors'
 import { subjectUpdateSchema } from '@/server/validators/school'
-import { updateSubject } from '@/server/services/extracurricular-service'
+import { deleteSubject, updateSubject } from '@/server/services/extracurricular-service'
 import { rateLimit } from '@/server/http/rate-limit'
 
 function paramId(id: string | string[] | undefined): string {
@@ -19,4 +19,11 @@ export const PATCH = withApiHandler(async (request, ctx) => {
   const parsed = subjectUpdateSchema.safeParse(body)
   if (!parsed.success) throw badRequest('Invalid subject update', parsed.error.flatten())
   return jsonOk(await updateSubject(session, id, parsed.data, ctx.requestId))
+})
+
+export const DELETE = withApiHandler(async (request, ctx) => {
+  const session = await requireSession(request)
+  const id = paramId((await ctx.params).id)
+  rateLimit(`subjects:delete:${session.uid}`, 30, 60_000)
+  return jsonOk(await deleteSubject(session, id, ctx.requestId))
 })

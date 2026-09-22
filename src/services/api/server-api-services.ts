@@ -151,7 +151,9 @@ export const apiStudentService: StudentService = {
       body: JSON.stringify(patch),
     }),
   archive: (id) =>
-    apiFetch<Student>(`/api/v1/students/${id}`, { method: 'DELETE' }),
+    apiFetch<Student>(`/api/v1/students/${id}?mode=archive`, { method: 'DELETE' }),
+  remove: (id) =>
+    apiFetch<{ deleted: true; id: string }>(`/api/v1/students/${id}`, { method: 'DELETE' }),
   transfer: (input) =>
     apiFetch<{ student: Student; transfer: ClassTransfer }>('/api/v1/students/transfer', {
       method: 'POST',
@@ -223,6 +225,8 @@ export const apiSubjectAdminService = {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
+  remove: (id: string) =>
+    apiFetch<{ deleted: true; id: string }>(`/api/v1/subjects/${id}`, { method: 'DELETE' }),
 }
 
 export const apiExtracurricularService = {
@@ -375,6 +379,8 @@ export const apiCatalogService = {
       method: 'PATCH',
       body: JSON.stringify(patch),
     }),
+  deleteGuardian: (id: string) =>
+    apiFetch<{ deleted: true; id: string }>(`/api/v1/parents/${id}`, { method: 'DELETE' }),
   createGuardian: (input: Omit<Guardian, 'id'>) =>
     apiFetch<Guardian>('/api/v1/parents', {
       method: 'POST',

@@ -4,6 +4,7 @@ import { badRequest } from '@/server/errors'
 import { studentUpdateSchema } from '@/server/validators/school'
 import {
   archiveStudentService,
+  deleteStudentService,
   getStudentService,
   updateStudentService,
 } from '@/server/services/students-service'
@@ -32,5 +33,10 @@ export const PATCH = withApiHandler(async (request, ctx) => {
 export const DELETE = withApiHandler(async (request, ctx) => {
   const session = await requireSession(request)
   const id = paramId((await ctx.params).id)
-  return jsonOk(await archiveStudentService(session, id, ctx.requestId))
+  const url = new URL(request.url)
+  const mode = url.searchParams.get('mode')
+  if (mode === 'archive') {
+    return jsonOk(await archiveStudentService(session, id, ctx.requestId))
+  }
+  return jsonOk(await deleteStudentService(session, id, ctx.requestId))
 })

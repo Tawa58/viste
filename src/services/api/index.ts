@@ -293,6 +293,18 @@ class MockStudentService implements StudentService {
     }
     return mockRequest({ ...next }, 250)
   }
+  async archive(id: string) {
+    return this.update(id, { status: 'ARCHIVED' })
+  }
+  async remove(id: string) {
+    const index = students.findIndex((s) => s.id === id)
+    if (index < 0) throw new Error('Student not found')
+    students.splice(index, 1)
+    for (const guardian of guardians) {
+      guardian.studentIds = guardian.studentIds.filter((sid) => sid !== id)
+    }
+    return mockRequest({ deleted: true as const, id }, 200)
+  }
 }
 
 class MockDashboardService implements DashboardService {
@@ -477,6 +489,15 @@ const mockCatalogService = {
     }
     guardians[index] = next
     return mockRequest({ ...next }, 250)
+  },
+  async deleteGuardian(id: string) {
+    const index = guardians.findIndex((g) => g.id === id)
+    if (index < 0) throw new Error('Guardian not found')
+    guardians.splice(index, 1)
+    for (const s of students) {
+      s.guardianIds = (s.guardianIds ?? []).filter((gid) => gid !== id)
+    }
+    return mockRequest({ deleted: true as const, id }, 200)
   },
   async createGuardian(input: Omit<Guardian, 'id'>): Promise<Guardian> {
     const created: Guardian = {
@@ -934,6 +955,15 @@ export const subjectAdminService = USE_MOCK_API
         if (idx < 0) throw new Error('Subject not found')
         subjects[idx] = { ...subjects[idx], ...patch, id }
         return mockRequest({ ...subjects[idx] }, 200)
+      },
+      remove: async (id: string) => {
+        const idx = subjects.findIndex((s) => s.id === id)
+        if (idx < 0) throw new Error('Subject not found')
+        subjects.splice(idx, 1)
+        for (const s of students) {
+          s.subjectIds = (s.subjectIds ?? []).filter((sid) => sid !== id)
+        }
+        return mockRequest({ deleted: true as const, id }, 200)
       },
     }
   : apiSubjectAdminService

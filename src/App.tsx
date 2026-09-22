@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'rea
 import { useAuth } from '@/contexts/auth-context'
 import { AppShell } from '@/layouts/app-shell'
 import { AppToaster } from '@/components/shared/app-toaster'
-import { FullPageLoader } from '@/components/shared/loading-state'
+import { WelcomeSplash } from '@/components/shared/welcome-splash'
 import { canAccessPath } from '@/lib/roles'
 
 function isChunkLoadError(err: unknown) {
@@ -95,20 +95,13 @@ const UsersRolesPage = lazyPage(() => import('@/views/ops-pages'), 'UsersRolesPa
 const SettingsPage = lazyPage(() => import('@/views/settings-page'), 'SettingsPage')
 
 function RouteFallback() {
-  return (
-    <FullPageLoader title="Loading" description="Preparing this screen…" />
-  )
+  return <WelcomeSplash />
 }
 
 function ProtectedRoute() {
   const { user, loading } = useAuth()
   if (loading) {
-    return (
-      <FullPageLoader
-        title="Signing you in"
-        description="Restoring your Viste High School session…"
-      />
-    )
+    return <WelcomeSplash />
   }
   if (!user) return <Navigate to="/login" replace />
   return <Outlet />

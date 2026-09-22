@@ -5,11 +5,11 @@ import type { SessionContext } from '@/server/auth/session'
 import { requirePermission } from '@/server/authorization/permissions'
 import { assertParentLinked } from '@/server/authorization/isolation'
 import { notFound } from '@/server/errors'
-import { getDoc, newId, queryCollection, setDoc } from '@/server/repositories/firestore-repo'
+import { getDoc, newId, queryCollection, setDoc, deleteDoc } from '@/server/repositories/firestore-repo'
 import type { GuardianCreateInput } from '@/server/validators/school'
 import type { guardianUpdateSchema } from '@/server/validators/school'
 import type { z } from 'zod'
-import type { Guardian } from '@/types'
+import type { Guardian, Student } from '@/types'
 
 export type GuardianDto = Guardian
 
@@ -86,6 +86,37 @@ export async function updateGuardian(
   return next
 }
 
+export async function deleteGuardian(
+  session: SessionContext,
+  id: string,
+  requestId?: string,
+): Promise<{ deleted: true; id: string }> {
+  requirePermission(session, 'parents.manage')
+  const current = await getDoc<Guardian>('guardians', id)
+  if (!current) throw notFound('Guardian not found')
+
+  const students = await queryCollection<Student>('students', { limit: 300 })
+  for (const s of students) {
+    if (!(s.guardianIds ?? []).includes(id)) continue
+    await setDoc('students', s.id, {
+      ...s,
+      guardianIds: (s.guardianIds ?? []).filter((gid) => gid !== id),
+    })
+  }
+
+  await deleteDoc('guardians', id)
+  await writeAuditLog({
+    actorId: session.uid,
+    actorRole: session.role,
+    action: 'guardian.delete',
+    entityType: 'guardians',
+    entityId: id,
+    requestId,
+    metadata: { name: `${current.firstName} ${current.lastName}` },
+  })
+  return { deleted: true, id }
+}
+
 /** Verify parent session is linked to student (portal isolation). */
 export async function assertGuardianLinkedToStudent(
   session: SessionContext,
@@ -97,3 +128,4 @@ export async function assertGuardianLinkedToStudent(
 export const listGuardiansService = listGuardians
 export const createGuardianService = createGuardian
 export const updateGuardianService = updateGuardian
+export const deleteGuardianService = deleteGuardian

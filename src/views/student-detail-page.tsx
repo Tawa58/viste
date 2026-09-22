@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { Pencil } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Pencil, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { LoadingState } from '@/components/shared/loading-state'
 import { StatusBadge } from '@/components/shared/status-badge'
@@ -16,7 +16,6 @@ import {
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -49,11 +48,13 @@ import type {
 
 export function StudentDetailPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { user } = useAuth()
   const fullAccess = user ? canManageStudents(user.role) : false
   const canEdit = user ? canEditStudentLimited(user.role) : false
 
   const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
   const [student, setStudent] = useState<Student | undefined>()
   const [classes, setClasses] = useState<SchoolClass[]>([])
   const [streams, setStreams] = useState<Stream[]>([])
@@ -266,6 +267,50 @@ export function StudentDetailPage() {
     }
   }
 
+  async function deleteStudentRecord() {
+    if (!student) return
+    const ok = window.confirm(
+      `Permanently delete ${fullName(student)}? This cannot be undone.`,
+    )
+    if (!ok) return
+    setDeleting(true)
+    try {
+      await notify.process(() => studentService.remove!(student.id), {
+        loading: 'Deleting student…',
+        success: 'Student deleted',
+        error: 'Could not delete student',
+      })
+      navigate('/students')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  async function deleteGuardianRecord(guardian: Guardian) {
+    const ok = window.confirm(
+      `Delete guardian ${guardian.firstName} ${guardian.lastName}? They will be unlinked from all students.`,
+    )
+    if (!ok) return
+    setSaving(true)
+    try {
+      await notify.process(() => catalogService.deleteGuardian(guardian.id), {
+        loading: 'Deleting guardian…',
+        success: 'Guardian deleted',
+        error: 'Could not delete guardian',
+      })
+      setGuardians((prev) => prev.filter((g) => g.id !== guardian.id))
+      setAllGuardians((prev) => prev.filter((g) => g.id !== guardian.id))
+      if (student) {
+        setStudent({
+          ...student,
+          guardianIds: student.guardianIds.filter((gid) => gid !== guardian.id),
+        })
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) return <LoadingState message="Loading student profile…" />
   if (!student) {
     return (
@@ -318,6 +363,14 @@ export function StudentDetailPage() {
                 >
                   Transfer
                 </Button>
+                <Button
+                  variant="destructive"
+                  loading={deleting}
+                  onClick={() => void deleteStudentRecord()}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </Button>
               </>
             ) : null}
             <Button variant="outline" asChild>
@@ -327,20 +380,18 @@ export function StudentDetailPage() {
         }
       />
 
-      <Card className="mb-4">
-        <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <Avatar name={fullName(student)} className="h-14 w-14 text-base" />
-            <div>
-              <p className="font-display text-xl font-semibold">{fullName(student)}</p>
-              <p className="text-sm text-muted-foreground">
-                Admitted {formatDate(student.admissionDate)} · {student.gender}
-              </p>
-            </div>
+      <div className="mb-5 flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <Avatar name={fullName(student)} className="h-14 w-14 text-base" />
+          <div>
+            <p className="text-lg font-semibold tracking-tight">{fullName(student)}</p>
+            <p className="text-sm text-muted-foreground">
+              Admitted {formatDate(student.admissionDate)} · {student.gender}
+            </p>
           </div>
-          <StatusBadge status={student.status} />
-        </CardContent>
-      </Card>
+        </div>
+        <StatusBadge status={student.status} />
+      </div>
 
       <Tabs defaultValue="overview">
         <TabsList>
@@ -353,180 +404,191 @@ export function StudentDetailPage() {
           <TabsTrigger value="documents">Documents</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview">
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardHeader>
-                <CardTitle>Contact</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-1 text-sm">
-                <p>{student.email ?? 'No email'}</p>
-                <p>{student.phone ?? 'No phone'}</p>
-                <p className="text-muted-foreground">{student.address}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Placement</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-1 text-sm">
-                <p>
+        <TabsContent value="overview" className="space-y-6 pt-2">
+          <section className="space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Contact
+            </h3>
+            <dl className="grid gap-2 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-muted-foreground">Email</dt>
+                <dd>{student.email ?? '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Phone</dt>
+                <dd>{student.phone ?? '—'}</dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-muted-foreground">Address</dt>
+                <dd>{student.address || '—'}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="space-y-2 border-t border-border/60 pt-4">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Placement
+            </h3>
+            <dl className="grid gap-2 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-muted-foreground">Class</dt>
+                <dd>
                   {cls}
                   {educationLevelName(student.educationLevelId) !== '—'
                     ? ` · ${educationLevelName(student.educationLevelId)}`
                     : ''}
-                </p>
-                <p>Admission {student.admissionNumber}</p>
-                <p>DOB {formatDate(student.dateOfBirth)}</p>
-                {student.houseId ? (
-                  <p>House {houses.find((h) => h.id === student.houseId)?.name ?? student.houseId}</p>
-                ) : null}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick stats</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-1 text-sm">
-                <p>Attendance {attendancePct}%</p>
-                <p>Outstanding {formatCurrency(outstanding)}</p>
-                <p>{enrolledSubjects.length} enrolled subjects</p>
-              </CardContent>
-            </Card>
-          </div>
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Admission no.</dt>
+                <dd>{student.admissionNumber}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Date of birth</dt>
+                <dd>{formatDate(student.dateOfBirth)}</dd>
+              </div>
+              {student.houseId ? (
+                <div>
+                  <dt className="text-muted-foreground">House</dt>
+                  <dd>{houses.find((h) => h.id === student.houseId)?.name ?? student.houseId}</dd>
+                </div>
+              ) : null}
+            </dl>
+          </section>
+
+          <section className="space-y-2 border-t border-border/60 pt-4">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Quick stats
+            </h3>
+            <ul className="space-y-1.5 text-sm">
+              <li>Attendance {attendancePct}%</li>
+              <li>Outstanding {formatCurrency(outstanding)}</li>
+              <li>{enrolledSubjects.length} enrolled subjects</li>
+            </ul>
+          </section>
         </TabsContent>
 
-        <TabsContent value="academic">
-          <div className="grid gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Registered subjects</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2 p-5">
-                {enrolledSubjects.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No subjects registered.</p>
-                ) : (
-                  enrolledSubjects.map((s) => (
-                    <Badge key={s.id} variant="secondary">
-                      {s.name}
-                    </Badge>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Sports & activities</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2 p-5">
-                {(student.sportIds ?? []).length === 0 && (student.clubIds ?? []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">None assigned.</p>
-                ) : (
-                  <>
-                    {sports
-                      .filter((s) => (student.sportIds ?? []).includes(s.id))
-                      .map((s) => (
-                        <Badge key={s.id} variant="outline">
-                          {s.name}
-                        </Badge>
-                      ))}
-                    {clubs
-                      .filter((c) => (student.clubIds ?? []).includes(c.id))
-                      .map((c) => (
-                        <Badge key={c.id} variant="secondary">
-                          {c.name}
-                        </Badge>
-                      ))}
-                  </>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Active exemptions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 p-5">
-                {exemptions.filter((e) => e.active).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No active exemptions.</p>
-                ) : (
-                  exemptions
-                    .filter((e) => e.active)
-                    .map((e) => (
-                      <div
-                        key={e.id}
-                        className="rounded-xl border border-border px-3 py-2 text-sm"
-                      >
-                        <p className="font-medium">
-                          {e.type}: {e.targetLabel}
-                        </p>
-                        <p className="text-muted-foreground">{e.reason}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDate(e.startDate)}
-                          {e.endDate ? ` – ${formatDate(e.endDate)}` : ''}
-                          {e.createdByName ? ` · by ${e.createdByName}` : ''}
-                        </p>
-                      </div>
-                    ))
-                )}
-              </CardContent>
-            </Card>
-            {transfers.length > 0 ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Transfer history</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 p-5">
-                  {transfers.map((t) => (
-                    <div key={t.id} className="rounded-xl border border-border px-3 py-2 text-sm">
-                      <p className="font-medium">
-                        {classes.find((c) => c.id === t.fromClassId)?.name ?? t.fromClassId} →{' '}
-                        {classes.find((c) => c.id === t.toClassId)?.name ?? t.toClassId}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(t.date)}
-                        {t.reason ? ` · ${t.reason}` : ''}
-                      </p>
-                    </div>
+        <TabsContent value="academic" className="space-y-6 pt-2">
+          <section className="space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Registered subjects
+            </h3>
+            {enrolledSubjects.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No subjects registered.</p>
+            ) : (
+              <ul className="divide-y divide-border/70">
+                {enrolledSubjects.map((s) => (
+                  <li key={s.id} className="flex items-center justify-between py-2 text-sm">
+                    <span>
+                      {s.name}{' '}
+                      <span className="text-muted-foreground">({s.code})</span>
+                    </span>
+                    <Badge variant="outline">{s.category}</Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="space-y-2 border-t border-border/60 pt-4">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Sports & activities
+            </h3>
+            {(student.sportIds ?? []).length === 0 && (student.clubIds ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">None assigned.</p>
+            ) : (
+              <ul className="space-y-1 text-sm">
+                {sports
+                  .filter((s) => (student.sportIds ?? []).includes(s.id))
+                  .map((s) => (
+                    <li key={s.id}>{s.name}</li>
                   ))}
-                </CardContent>
-              </Card>
-            ) : null}
-          </div>
+                {clubs
+                  .filter((c) => (student.clubIds ?? []).includes(c.id))
+                  .map((c) => (
+                    <li key={c.id}>
+                      {c.name} <span className="text-muted-foreground">({c.type})</span>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="space-y-2 border-t border-border/60 pt-4">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Active exemptions
+            </h3>
+            {exemptions.filter((e) => e.active).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No active exemptions.</p>
+            ) : (
+              <ul className="divide-y divide-border/70">
+                {exemptions
+                  .filter((e) => e.active)
+                  .map((e) => (
+                    <li key={e.id} className="py-2.5 text-sm">
+                      <p className="font-medium">
+                        {e.type}: {e.targetLabel}
+                      </p>
+                      <p className="text-muted-foreground">{e.reason}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {formatDate(e.startDate)}
+                        {e.endDate ? ` – ${formatDate(e.endDate)}` : ''}
+                        {e.createdByName ? ` · by ${e.createdByName}` : ''}
+                      </p>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </section>
+
+          {transfers.length > 0 ? (
+            <section className="space-y-2 border-t border-border/60 pt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Transfer history
+              </h3>
+              <ul className="divide-y divide-border/70">
+                {transfers.map((t) => (
+                  <li key={t.id} className="py-2.5 text-sm">
+                    <p className="font-medium">
+                      {classes.find((c) => c.id === t.fromClassId)?.name ?? t.fromClassId} →{' '}
+                      {classes.find((c) => c.id === t.toClassId)?.name ?? t.toClassId}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {formatDate(t.date)}
+                      {t.reason ? ` · ${t.reason}` : ''}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
         </TabsContent>
 
-        <TabsContent value="attendance">
-          <Card>
-            <CardContent className="space-y-2 p-5">
-              {attendance.length === 0 && (
-                <p className="text-sm text-muted-foreground">No attendance records.</p>
-              )}
+        <TabsContent value="attendance" className="pt-2">
+          {attendance.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No attendance records.</p>
+          ) : (
+            <ul className="divide-y divide-border/70">
               {attendance.map((a) => (
-                <div
-                  key={a.id}
-                  className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
-                >
+                <li key={a.id} className="flex items-center justify-between py-2.5 text-sm">
                   <span>{formatDate(a.date)}</span>
                   <StatusBadge status={a.status} />
-                </div>
+                </li>
               ))}
-            </CardContent>
-          </Card>
+            </ul>
+          )}
         </TabsContent>
 
-        <TabsContent value="fees">
-          <Card>
-            <CardContent className="space-y-2 p-5">
-              {invoices.length === 0 && (
-                <p className="text-sm text-muted-foreground">No invoices.</p>
-              )}
+        <TabsContent value="fees" className="pt-2">
+          {invoices.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No invoices.</p>
+          ) : (
+            <ul className="divide-y divide-border/70">
               {invoices.map((inv) => (
-                <div
-                  key={inv.id}
-                  className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
-                >
+                <li key={inv.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                   <div>
                     <p className="font-medium">{inv.number}</p>
-                    <p className="text-muted-foreground">Due {formatDate(inv.dueDate)}</p>
+                    <p className="text-xs text-muted-foreground">Due {formatDate(inv.dueDate)}</p>
                   </div>
                   <div className="text-right">
                     <p>
@@ -534,70 +596,77 @@ export function StudentDetailPage() {
                     </p>
                     <StatusBadge status={inv.status} />
                   </div>
-                </div>
+                </li>
               ))}
-            </CardContent>
-          </Card>
+            </ul>
+          )}
         </TabsContent>
 
-        <TabsContent value="results">
-          <Card>
-            <CardContent className="space-y-2 p-5">
-              {marks.length === 0 && (
-                <p className="text-sm text-muted-foreground">No marks available.</p>
-              )}
+        <TabsContent value="results" className="pt-2">
+          {marks.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No marks available.</p>
+          ) : (
+            <ul className="divide-y divide-border/70">
               {marks.map((m) => (
-                <div
-                  key={m.id}
-                  className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
-                >
+                <li key={m.id} className="flex items-center justify-between py-2.5 text-sm">
                   <span>
                     Score {m.score} · Grade {m.grade}
                   </span>
                   <StatusBadge status={m.status} />
-                </div>
+                </li>
               ))}
-            </CardContent>
-          </Card>
+            </ul>
+          )}
         </TabsContent>
 
-        <TabsContent value="guardians">
-          <div className="grid gap-4 md:grid-cols-2">
-            {guardians.length === 0 ? (
-              <Card>
-                <CardContent className="p-5 text-sm text-muted-foreground">
-                  No guardians linked to this student.
-                </CardContent>
-              </Card>
-            ) : null}
-            {guardians.map((g) => (
-              <Card key={g.id}>
-                <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
-                  <CardTitle>
-                    {g.firstName} {g.lastName}
-                  </CardTitle>
-                  {fullAccess ? (
-                    <Button variant="outline" size="sm" onClick={() => openGuardianEdit(g)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                      Edit
+        <TabsContent value="guardians" className="pt-2">
+          {guardians.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No guardians linked to this student.</p>
+          ) : (
+            <ul className="divide-y divide-border/70">
+              {guardians.map((g) => (
+                <li
+                  key={g.id}
+                  className="flex flex-wrap items-start justify-between gap-3 py-3"
+                >
+                  <div className="min-w-0 space-y-0.5 text-sm">
+                    <p className="font-medium">
+                      {g.firstName} {g.lastName}
+                    </p>
+                    <p className="text-muted-foreground">{g.relationship || 'Guardian'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {[g.phone, g.email].filter(Boolean).join(' · ') || 'No contact'}
+                    </p>
+                    {g.address ? (
+                      <p className="text-xs text-muted-foreground">{g.address}</p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild variant="outline" size="sm">
+                      <Link to={`/parents/${g.id}`}>Open</Link>
                     </Button>
-                  ) : null}
-                </CardHeader>
-                <CardContent className="space-y-1 text-sm">
-                  <p>{g.relationship}</p>
-                  <p>{g.email}</p>
-                  <p>{g.phone}</p>
-                  <p className="text-muted-foreground">{g.address}</p>
-                  {g.occupation ? (
-                    <p className="text-muted-foreground">Occupation: {g.occupation}</p>
-                  ) : null}
-                  <Button asChild variant="outline" size="sm" className="mt-2">
-                    <Link to={`/parents/${g.id}`}>Open guardian</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    {fullAccess ? (
+                      <>
+                        <Button variant="outline" size="sm" onClick={() => openGuardianEdit(g)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          loading={saving}
+                          onClick={() => void deleteGuardianRecord(g)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
           {!fullAccess ? (
             <p className="mt-3 text-xs text-muted-foreground">
               Guardian records can only be edited by school admin or registrar.
@@ -605,17 +674,10 @@ export function StudentDetailPage() {
           ) : null}
         </TabsContent>
 
-        <TabsContent value="documents">
-          <Card>
-            <CardContent className="p-5">
-              <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
-                <p className="font-medium">No documents uploaded</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  File storage will connect to Spring Boot later.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+        <TabsContent value="documents" className="pt-2">
+          <p className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+            No documents uploaded yet.
+          </p>
         </TabsContent>
       </Tabs>
 

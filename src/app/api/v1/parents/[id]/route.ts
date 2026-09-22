@@ -2,7 +2,10 @@ import { requireSession, requirePerm } from '@/server/auth/session'
 import { jsonOk, withApiHandler } from '@/server/http/handler'
 import { badRequest, notFound } from '@/server/errors'
 import { guardianUpdateSchema } from '@/server/validators/school'
-import { updateGuardianService } from '@/server/services/guardians-service'
+import {
+  deleteGuardianService,
+  updateGuardianService,
+} from '@/server/services/guardians-service'
 import { getDoc } from '@/server/repositories/firestore-repo'
 import type { Guardian } from '@/types'
 
@@ -28,4 +31,10 @@ export const PATCH = withApiHandler(async (request, ctx) => {
   const parsed = guardianUpdateSchema.safeParse(body)
   if (!parsed.success) throw badRequest('Invalid guardian patch', parsed.error.flatten())
   return jsonOk(await updateGuardianService(session, id, parsed.data, ctx.requestId))
+})
+
+export const DELETE = withApiHandler(async (request, ctx) => {
+  const session = await requireSession(request)
+  const id = paramId((await ctx.params).id)
+  return jsonOk(await deleteGuardianService(session, id, ctx.requestId))
 })

@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { LoadingState } from '@/components/shared/loading-state'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -54,6 +53,7 @@ export function SubjectsPage() {
   const [editing, setEditing] = useState<Subject | null>(null)
   const [form, setForm] = useState<SubjectForm>(emptyForm())
   const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   async function reload() {
     const [s, sf] = await Promise.all([
@@ -135,6 +135,24 @@ export function SubjectsPage() {
     }
   }
 
+  async function removeSubject(subject: Subject) {
+    const ok = window.confirm(
+      `Delete subject “${subject.name}”? It will be removed from all student registrations.`,
+    )
+    if (!ok) return
+    setDeletingId(subject.id)
+    try {
+      await notify.process(() => subjectAdminService.remove(subject.id), {
+        loading: 'Deleting subject…',
+        success: 'Subject deleted',
+        error: 'Could not delete subject',
+      })
+      await reload()
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   if (loading) return <LoadingState message="Loading subjects…" />
 
   return (
@@ -177,35 +195,47 @@ export function SubjectsPage() {
           onAction={canManage ? openCreate : undefined}
         />
       ) : (
-        <div className="grid gap-3">
+        <div className="divide-y divide-border/70">
           {filtered.map((subject) => (
-            <Card key={subject.id} className="shadow-card">
-              <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold">
-                      {subject.name}{' '}
-                      <span className="text-muted-foreground">({subject.code})</span>
-                    </p>
-                    <Badge variant="outline">{subject.category}</Badge>
-                    {(subject.active ?? true) ? null : (
-                      <Badge variant="secondary">Inactive</Badge>
-                    )}
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Levels:{' '}
-                    {subject.educationLevelIds?.length
-                      ? subject.educationLevelIds.map(educationLevelName).join(', ')
-                      : 'All levels'}
+            <div
+              key={subject.id}
+              className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium">
+                    {subject.name}{' '}
+                    <span className="text-muted-foreground">({subject.code})</span>
                   </p>
+                  <Badge variant="outline">{subject.category}</Badge>
+                  {(subject.active ?? true) ? null : (
+                    <Badge variant="secondary">Inactive</Badge>
+                  )}
                 </div>
-                {canManage ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Levels:{' '}
+                  {subject.educationLevelIds?.length
+                    ? subject.educationLevelIds.map(educationLevelName).join(', ')
+                    : 'All levels'}
+                </p>
+              </div>
+              {canManage ? (
+                <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={() => openEdit(subject)}>
                     Edit
                   </Button>
-                ) : null}
-              </CardContent>
-            </Card>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    loading={deletingId === subject.id}
+                    onClick={() => void removeSubject(subject)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           ))}
         </div>
       )}

@@ -15,7 +15,7 @@ import {
   maxVhsSequence,
 } from '@/lib/student-numbers'
 import { getAdminDb } from '@/lib/firebase/admin'
-import { getDoc, newId, queryCollection, setDoc } from '@/server/repositories/firestore-repo'
+import { getDoc, newId, queryCollection, setDoc, deleteDoc } from '@/server/repositories/firestore-repo'
 import { getDefaultStreamForClass } from '@/server/services/classes-service'
 import type {
   ExemptionCreateInput,
@@ -282,6 +282,39 @@ export async function archiveStudent(
   return next
 }
 
+/** Permanently remove a student record and unlink from guardians. */
+export async function deleteStudent(
+  session: SessionContext,
+  id: string,
+  requestId?: string,
+): Promise<{ deleted: true; id: string }> {
+  requirePermission(session, 'students.archive')
+  await assertCanAccessStudent(session, id)
+  const current = await getDoc<Student>('students', id)
+  if (!current) throw notFound('Student not found')
+
+  const guardians = await queryCollection<Guardian>('guardians', { limit: 200 })
+  for (const g of guardians) {
+    if (!(g.studentIds ?? []).includes(id)) continue
+    await setDoc('guardians', g.id, {
+      ...g,
+      studentIds: (g.studentIds ?? []).filter((sid) => sid !== id),
+    })
+  }
+
+  await deleteDoc('students', id)
+  await writeAuditLog({
+    actorId: session.uid,
+    actorRole: session.role,
+    action: 'student.delete',
+    entityType: 'students',
+    entityId: id,
+    requestId,
+    metadata: { name: `${current.firstName} ${current.lastName}` },
+  })
+  return { deleted: true, id }
+}
+
 export async function transferStudent(
   session: SessionContext,
   input: TransferStudentInput,
@@ -439,6 +472,7 @@ export const getStudentService = getStudent
 export const createStudentService = createStudent
 export const updateStudentService = updateStudent
 export const archiveStudentService = archiveStudent
+export const deleteStudentService = deleteStudent
 export const transferStudentService = transferStudent
 export const listStudentTransfersService = listStudentTransfers
 export const createExemptionService = createExemption

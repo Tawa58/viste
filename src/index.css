@@ -303,6 +303,16 @@
   animation: viste-progress-slide 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
+@keyframes welcome-splash-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.welcome-splash-ring {
+  animation: welcome-splash-spin 1.1s linear infinite;
+}
+
 /* Sonner toast polish */
 [data-sonner-toaster] [data-sonner-toast] {
   --normal-bg: transparent;

@@ -4,7 +4,7 @@ import { writeAuditLog } from '@/server/audit/logger'
 import type { SessionContext } from '@/server/auth/session'
 import { requirePermission } from '@/server/authorization/permissions'
 import { notFound } from '@/server/errors'
-import { getDoc, newId, queryCollection, setDoc } from '@/server/repositories/firestore-repo'
+import { getDoc, newId, queryCollection, setDoc, deleteDoc } from '@/server/repositories/firestore-repo'
 import type {
   ClubCreateInput,
   HouseCreateInput,
@@ -12,7 +12,7 @@ import type {
   SubjectCreateInput,
   SubjectUpdateInput,
 } from '@/server/validators/school'
-import type { ClubActivity, House, Sport, SportKitItem, Subject } from '@/types'
+import type { ClubActivity, House, Sport, SportKitItem, Student, Subject } from '@/types'
 
 function emptyId(value?: string | null) {
   const v = value?.trim()
@@ -117,6 +117,37 @@ export async function updateSubject(
     requestId,
   })
   return next
+}
+
+export async function deleteSubject(
+  session: SessionContext,
+  id: string,
+  requestId?: string,
+): Promise<{ deleted: true; id: string }> {
+  requirePermission(session, 'subjects.manage')
+  const current = await getDoc<Subject>('subjects', id)
+  if (!current) throw notFound('Subject not found')
+
+  const students = await queryCollection<Student>('students', { limit: 500 })
+  for (const s of students) {
+    if (!(s.subjectIds ?? []).includes(id)) continue
+    await setDoc('students', s.id, {
+      ...s,
+      subjectIds: (s.subjectIds ?? []).filter((sid) => sid !== id),
+    })
+  }
+
+  await deleteDoc('subjects', id)
+  await writeAuditLog({
+    actorId: session.uid,
+    actorRole: session.role,
+    action: 'subject.delete',
+    entityType: 'subjects',
+    entityId: id,
+    requestId,
+    metadata: { name: current.name, code: current.code },
+  })
+  return { deleted: true, id }
 }
 
 export async function listSports(session: SessionContext): Promise<Sport[]> {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { Banknote, CircleAlert, Download, Receipt, Wallet } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Banknote, CircleAlert, Download, Receipt, Trash2, Wallet } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { LoadingState } from '@/components/shared/loading-state'
 import { SearchInput } from '@/components/shared/search-input'
@@ -26,8 +26,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useAuth } from '@/contexts/auth-context'
 import { catalogService, classService, studentService } from '@/services/api'
 import { notify, runMockProcess } from '@/lib/notify'
+import { canManageStudents } from '@/lib/roles'
 import { downloadParentsPdf, type ParentPdfVariant } from '@/lib/parents-pdf'
 import { educationLevelName } from '@/lib/education-levels'
 import { formatCurrency, formatDate, formatDateTime, fullName } from '@/lib/utils'
@@ -384,7 +386,11 @@ export function ParentsPage() {
 
 export function ParentDetailPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const canManage = user ? canManageStudents(user.role) : false
   const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
   const [guardian, setGuardian] = useState<Guardian | undefined>()
   const [students, setStudents] = useState<Student[]>([])
   const [classes, setClasses] = useState<SchoolClass[]>([])
@@ -406,6 +412,25 @@ export function ParentDetailPage() {
     })
   }, [id])
 
+  async function handleDelete() {
+    if (!guardian) return
+    const ok = window.confirm(
+      `Delete ${guardian.firstName} ${guardian.lastName}? They will be unlinked from all students.`,
+    )
+    if (!ok) return
+    setDeleting(true)
+    try {
+      await notify.process(() => catalogService.deleteGuardian(guardian.id), {
+        loading: 'Deleting guardian…',
+        success: 'Guardian deleted',
+        error: 'Could not delete guardian',
+      })
+      navigate('/parents')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (loading) return <LoadingState message="Loading guardian profile…" />
   if (!guardian) return <p>Guardian not found.</p>
 
@@ -421,79 +446,85 @@ export function ParentDetailPage() {
           { label: 'Parents', to: '/parents' },
           { label: guardian.lastName },
         ]}
+        actions={
+          canManage ? (
+            <Button variant="destructive" loading={deleting} onClick={() => void handleDelete()}>
+              <Trash2 className="h-4 w-4" />
+              Delete guardian
+            </Button>
+          ) : null
+        }
       />
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Contact</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>
-              <span className="text-muted-foreground">Phone: </span>
-              {guardian.phone || '—'}
-            </p>
-            <p>
-              <span className="text-muted-foreground">Email: </span>
-              {guardian.email || '—'}
-            </p>
-            <p>
-              <span className="text-muted-foreground">Address: </span>
-              {guardian.address || '—'}
-            </p>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <section className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Contact
+          </h3>
+          <dl className="space-y-2 text-sm">
+            <div>
+              <dt className="text-muted-foreground">Phone</dt>
+              <dd>{guardian.phone || '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Email</dt>
+              <dd>{guardian.email || '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Address</dt>
+              <dd>{guardian.address || '—'}</dd>
+            </div>
             {guardian.occupation ? (
-              <p>
-                <span className="text-muted-foreground">Occupation: </span>
-                {guardian.occupation}
-              </p>
+              <div>
+                <dt className="text-muted-foreground">Occupation</dt>
+                <dd>{guardian.occupation}</dd>
+              </div>
             ) : null}
-            <p className="pt-2 text-xs text-muted-foreground">
+            <p className="pt-1 text-xs text-muted-foreground">
               Fee outstanding across linked students:{' '}
               <span className="font-medium text-foreground">{formatCurrency(outstanding)}</span>
             </p>
-          </CardContent>
-        </Card>
+          </dl>
+        </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Children</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {students.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No students linked to this parent.</p>
-            ) : (
-              <ul className="divide-y divide-border/70">
-                {students.map((s) => {
-                  const cls = classes.find((c) => c.id === s.classId)
-                  const level =
-                    educationLevelName(s.educationLevelId || cls?.educationLevelId) ||
-                    cls?.name ||
-                    '—'
-                  return (
-                    <li key={s.id} className="flex items-baseline justify-between gap-3 py-2.5">
-                      <div className="min-w-0">
-                        <Link
-                          to={`/students/${s.id}`}
-                          className="text-sm font-medium text-primary hover:underline"
-                        >
-                          {fullName(s)}
-                        </Link>
-                        <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                          {level}
-                          {cls?.name ? ` · ${cls.name}` : ''}
-                          {s.studentNumber || s.admissionNumber
-                            ? ` · ${s.studentNumber || s.admissionNumber}`
-                            : ''}
-                        </p>
-                      </div>
-                      <StatusBadge status={s.status} />
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+        <section className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Children
+          </h3>
+          {students.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No students linked to this parent.</p>
+          ) : (
+            <ul className="divide-y divide-border/70">
+              {students.map((s) => {
+                const cls = classes.find((c) => c.id === s.classId)
+                const level =
+                  educationLevelName(s.educationLevelId || cls?.educationLevelId) ||
+                  cls?.name ||
+                  '—'
+                return (
+                  <li key={s.id} className="flex items-baseline justify-between gap-3 py-2.5">
+                    <div className="min-w-0">
+                      <Link
+                        to={`/students/${s.id}`}
+                        className="text-sm font-medium text-primary hover:underline"
+                      >
+                        {fullName(s)}
+                      </Link>
+                      <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+                        {level}
+                        {cls?.name ? ` · ${cls.name}` : ''}
+                        {s.studentNumber || s.admissionNumber
+                          ? ` · ${s.studentNumber || s.admissionNumber}`
+                          : ''}
+                      </p>
+                    </div>
+                    <StatusBadge status={s.status} />
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
       </div>
     </div>
   )
