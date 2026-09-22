@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Dumbbell, Plus, Puzzle, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { LoadingState } from '@/components/shared/loading-state'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -21,24 +21,60 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { useAuth } from '@/contexts/auth-context'
 import { notify } from '@/lib/notify'
 import { canManageAcademics } from '@/lib/roles'
-import { extracurricularService } from '@/services/api'
-import type { ClubActivity, ClubActivityType, House, Sport } from '@/types'
-import { Dumbbell, Puzzle } from 'lucide-react'
+import { catalogService, extracurricularService } from '@/services/api'
+import type { ClubActivity, ClubActivityType, House, Sport, SportKitItem, Staff } from '@/types'
+import { staffCategoryLabel } from '@/lib/staff-categories'
+
+type SportForm = {
+  name: string
+  description: string
+  active: boolean
+  coachStaffId: string
+  leaderStaffId: string
+  medicStaffIds: string[]
+  officialStaffIds: string[]
+  kits: SportKitItem[]
+}
+
+const emptySportForm = (): SportForm => ({
+  name: '',
+  description: '',
+  active: true,
+  coachStaffId: '',
+  leaderStaffId: '',
+  medicStaffIds: [],
+  officialStaffIds: [],
+  kits: [],
+})
 
 export function SportsPage() {
   const { user } = useAuth()
   const canManage = user ? canManageAcademics(user.role) : false
   const [loading, setLoading] = useState(true)
   const [sports, setSports] = useState<Sport[]>([])
+  const [staff, setStaff] = useState<Staff[]>([])
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Sport | null>(null)
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [active, setActive] = useState(true)
+  const [form, setForm] = useState(emptySportForm)
   const [saving, setSaving] = useState(false)
 
+  const activeStaff = useMemo(
+    () =>
+      staff
+        .filter((s) => s.status === 'ACTIVE' && !s.suspension)
+        .sort((a, b) =>
+          `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`),
+        ),
+    [staff],
+  )
+
   async function reload() {
-    setSports(await extracurricularService.listSports())
+    const [sp, st] = await Promise.all([
+      extracurricularService.listSports(),
+      catalogService.getStaff().catch(() => [] as Staff[]),
+    ])
+    setSports(sp)
+    setStaff(st)
   }
 
   useEffect(() => {
@@ -47,30 +83,86 @@ export function SportsPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  function staffName(id?: string) {
+    if (!id) return null
+    const s = staff.find((x) => x.id === id)
+    return s ? `${s.firstName} ${s.lastName}` : null
+  }
+
   function openCreate() {
     setEditing(null)
-    setName('')
-    setDescription('')
-    setActive(true)
+    setForm(emptySportForm())
     setOpen(true)
   }
 
   function openEdit(sport: Sport) {
     setEditing(sport)
-    setName(sport.name)
-    setDescription(sport.description ?? '')
-    setActive(sport.active)
+    setForm({
+      name: sport.name,
+      description: sport.description ?? '',
+      active: sport.active,
+      coachStaffId: sport.coachStaffId ?? '',
+      leaderStaffId: sport.leaderStaffId ?? '',
+      medicStaffIds: [...(sport.medicStaffIds ?? [])],
+      officialStaffIds: [...(sport.officialStaffIds ?? [])],
+      kits: (sport.kits ?? []).map((k) => ({ ...k })),
+    })
     setOpen(true)
   }
 
+  function toggleStaffId(key: 'medicStaffIds' | 'officialStaffIds', id: string) {
+    setForm((f) => ({
+      ...f,
+      [key]: f[key].includes(id) ? f[key].filter((x) => x !== id) : [...f[key], id],
+    }))
+  }
+
+  function addKit() {
+    setForm((f) => ({
+      ...f,
+      kits: [
+        ...f.kits,
+        { id: `kit-${Date.now()}`, name: '', quantity: 0, jerseyNumbers: '', notes: '' },
+      ],
+    }))
+  }
+
+  function updateKit(id: string, patch: Partial<SportKitItem>) {
+    setForm((f) => ({
+      ...f,
+      kits: f.kits.map((k) => (k.id === id ? { ...k, ...patch } : k)),
+    }))
+  }
+
+  function removeKit(id: string) {
+    setForm((f) => ({ ...f, kits: f.kits.filter((k) => k.id !== id) }))
+  }
+
   async function save() {
-    if (!name.trim()) {
+    if (!form.name.trim()) {
       notify.error('Sport name is required')
       return
     }
     setSaving(true)
     try {
-      const payload = { name: name.trim(), description: description.trim() || undefined, active }
+      const payload = {
+        name: form.name.trim(),
+        description: form.description.trim() || undefined,
+        active: form.active,
+        coachStaffId: form.coachStaffId || '',
+        leaderStaffId: form.leaderStaffId || '',
+        medicStaffIds: form.medicStaffIds,
+        officialStaffIds: form.officialStaffIds,
+        kits: form.kits
+          .filter((k) => k.name.trim())
+          .map((k) => ({
+            id: k.id,
+            name: k.name.trim(),
+            quantity: Number(k.quantity) || 0,
+            jerseyNumbers: k.jerseyNumbers?.trim() || undefined,
+            notes: k.notes?.trim() || undefined,
+          })),
+      }
       if (editing) {
         await notify.process(() => extracurricularService.updateSport(editing.id, payload), {
           loading: 'Saving…',
@@ -95,7 +187,7 @@ export function SportsPage() {
     <div>
       <PageHeader
         title="Sports"
-        description="Manage school sports available for student registration."
+        description="Manage sports, coaching staff, officials, and kit inventory."
         breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Sports' }]}
         actions={
           canManage ? (
@@ -115,43 +207,223 @@ export function SportsPage() {
           onAction={canManage ? openCreate : undefined}
         />
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
-          {sports.map((sport) => (
-            <Card key={sport.id}>
-              <CardContent className="flex items-center justify-between gap-3 p-4">
-                <div>
-                  <p className="font-semibold">{sport.name}</p>
+        <div className="space-y-2">
+          {sports.map((sport) => {
+            const coach = staffName(sport.coachStaffId)
+            const leader = staffName(sport.leaderStaffId)
+            const kitCount = sport.kits?.reduce((sum, k) => sum + (k.quantity || 0), 0) ?? 0
+            return (
+              <div
+                key={sport.id}
+                className="flex flex-wrap items-start justify-between gap-3 border-b border-border/70 py-3 last:border-0"
+              >
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium">{sport.name}</p>
+                    {!sport.active ? <Badge variant="secondary">Inactive</Badge> : null}
+                  </div>
                   {sport.description ? (
                     <p className="text-sm text-muted-foreground">{sport.description}</p>
                   ) : null}
-                  {!sport.active ? <Badge variant="secondary">Inactive</Badge> : null}
+                  <p className="text-[11px] leading-snug text-muted-foreground">
+                    {[
+                      coach ? `Coach: ${coach}` : null,
+                      leader ? `Leader: ${leader}` : null,
+                      sport.medicStaffIds?.length
+                        ? `Medics: ${sport.medicStaffIds.length}`
+                        : null,
+                      sport.officialStaffIds?.length
+                        ? `Officials: ${sport.officialStaffIds.length}`
+                        : null,
+                      sport.kits?.length
+                        ? `Kits: ${sport.kits.length} items (${kitCount} units)`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || 'No coaching or kit details yet'}
+                  </p>
                 </div>
                 {canManage ? (
                   <Button size="sm" variant="outline" onClick={() => openEdit(sport)}>
                     Edit
                   </Button>
                 ) : null}
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            )
+          })}
         </div>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit sport' : 'Add sport'}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-3">
-            <Field>
-              <Label>Name</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
-            </Field>
-            <Field>
-              <Label>Description</Label>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
-            </Field>
+          <div className="grid gap-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field className="sm:col-span-2">
+                <Label>Name</Label>
+                <Input
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                />
+              </Field>
+              <Field className="sm:col-span-2">
+                <Label>Description</Label>
+                <Textarea
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                />
+              </Field>
+              <Field>
+                <Label>Coach</Label>
+                <Select
+                  value={form.coachStaffId}
+                  onChange={(e) => setForm((f) => ({ ...f, coachStaffId: e.target.value }))}
+                >
+                  <option value="">Not assigned</option>
+                  {activeStaff.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.firstName} {s.lastName} · {staffCategoryLabel(s.category)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field>
+                <Label>Leader</Label>
+                <Select
+                  value={form.leaderStaffId}
+                  onChange={(e) => setForm((f) => ({ ...f, leaderStaffId: e.target.value }))}
+                >
+                  <option value="">Not assigned</option>
+                  {activeStaff.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.firstName} {s.lastName} · {staffCategoryLabel(s.category)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field>
+                <Label>Medics / first aiders</Label>
+                <div className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+                  {activeStaff.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No active staff registered.</p>
+                  ) : (
+                    activeStaff.map((s) => (
+                      <label key={s.id} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={form.medicStaffIds.includes(s.id)}
+                          onCheckedChange={() => toggleStaffId('medicStaffIds', s.id)}
+                        />
+                        <span>
+                          {s.firstName} {s.lastName}
+                          <span className="text-xs text-muted-foreground">
+                            {' '}
+                            · {s.title || s.category || 'Staff'}
+                          </span>
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </Field>
+              <Field>
+                <Label>Sporting officials / leadership</Label>
+                <div className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+                  {activeStaff.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No active staff registered.</p>
+                  ) : (
+                    activeStaff.map((s) => (
+                      <label key={s.id} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={form.officialStaffIds.includes(s.id)}
+                          onCheckedChange={() => toggleStaffId('officialStaffIds', s.id)}
+                        />
+                        <span>
+                          {s.firstName} {s.lastName}
+                          <span className="text-xs text-muted-foreground">
+                            {' '}
+                            · {s.title || s.category || 'Staff'}
+                          </span>
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </Field>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium">Kits & equipment</p>
+                  <p className="text-xs text-muted-foreground">
+                    Jerseys, balls, cones, bibs — include jersey numbers where relevant.
+                  </p>
+                </div>
+                <Button type="button" size="sm" variant="outline" onClick={addKit}>
+                  <Plus className="h-3.5 w-3.5" />
+                  Add item
+                </Button>
+              </div>
+              {form.kits.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+                  No kit items yet.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {form.kits.map((kit) => (
+                    <div
+                      key={kit.id}
+                      className="grid gap-2 rounded-lg border border-border/80 p-2.5 sm:grid-cols-[1.4fr_0.6fr_1fr_auto]"
+                    >
+                      <Input
+                        placeholder="Item (e.g. Jerseys, Balls)"
+                        value={kit.name}
+                        onChange={(e) => updateKit(kit.id, { name: e.target.value })}
+                      />
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Qty"
+                        value={kit.quantity}
+                        onChange={(e) =>
+                          updateKit(kit.id, { quantity: Number(e.target.value) || 0 })
+                        }
+                      />
+                      <Input
+                        placeholder="Jersey nos (e.g. 1–15)"
+                        value={kit.jerseyNumbers ?? ''}
+                        onChange={(e) => updateKit(kit.id, { jerseyNumbers: e.target.value })}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive"
+                        onClick={() => removeKit(kit.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                      <Input
+                        className="sm:col-span-4"
+                        placeholder="Notes (optional)"
+                        value={kit.notes ?? ''}
+                        onChange={(e) => updateKit(kit.id, { notes: e.target.value })}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={active} onCheckedChange={(v) => setActive(v === true)} />
+              <Checkbox
+                checked={form.active}
+                onCheckedChange={(v) => setForm((f) => ({ ...f, active: v === true }))}
+              />
               Active
             </label>
           </div>

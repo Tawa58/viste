@@ -12,7 +12,37 @@ import type {
   SubjectCreateInput,
   SubjectUpdateInput,
 } from '@/server/validators/school'
-import type { ClubActivity, House, Sport, Subject } from '@/types'
+import type { ClubActivity, House, Sport, SportKitItem, Subject } from '@/types'
+
+function emptyId(value?: string | null) {
+  const v = value?.trim()
+  return v ? v : undefined
+}
+
+function normalizeKits(kits?: SportKitItem[] | null): SportKitItem[] {
+  if (!kits?.length) return []
+  return kits
+    .map((k) => ({
+      id: k.id || newId('kit'),
+      name: (k.name || '').trim(),
+      quantity: Math.max(0, Number(k.quantity) || 0),
+      jerseyNumbers: k.jerseyNumbers?.trim() || undefined,
+      notes: k.notes?.trim() || undefined,
+    }))
+    .filter((k) => k.name.length > 0)
+}
+
+function normalizeSport(row: Sport): Sport {
+  return {
+    ...row,
+    coachStaffId: emptyId(row.coachStaffId),
+    leaderStaffId: emptyId(row.leaderStaffId),
+    medicStaffIds: row.medicStaffIds ?? [],
+    officialStaffIds: row.officialStaffIds ?? [],
+    kits: normalizeKits(row.kits),
+    active: row.active ?? true,
+  }
+}
 
 function normalizeSubject(row: Subject): Subject {
   return {
@@ -91,7 +121,8 @@ export async function updateSubject(
 
 export async function listSports(session: SessionContext): Promise<Sport[]> {
   requirePermission(session, 'extracurricular.read')
-  return queryCollection<Sport>('sports', { limit: 100, orderBy: 'name' })
+  const rows = await queryCollection<Sport>('sports', { limit: 100, orderBy: 'name' })
+  return rows.map(normalizeSport)
 }
 
 export async function createSport(
@@ -101,12 +132,17 @@ export async function createSport(
 ): Promise<Sport> {
   requirePermission(session, 'extracurricular.manage')
   const id = newId('sport')
-  const row: Sport = {
+  const row = normalizeSport({
     id,
     name: input.name.trim(),
     description: input.description?.trim() || undefined,
     active: input.active ?? true,
-  }
+    coachStaffId: emptyId(input.coachStaffId),
+    leaderStaffId: emptyId(input.leaderStaffId),
+    medicStaffIds: [...(input.medicStaffIds ?? [])],
+    officialStaffIds: [...(input.officialStaffIds ?? [])],
+    kits: normalizeKits(input.kits),
+  })
   await setDoc('sports', id, { ...row })
   await writeAuditLog({
     actorId: session.uid,
@@ -128,14 +164,28 @@ export async function updateSport(
   requirePermission(session, 'extracurricular.manage')
   const current = await getDoc<Sport>('sports', id)
   if (!current) throw notFound('Sport not found')
-  const next: Sport = {
+  const next = normalizeSport({
     ...current,
     ...patch,
     id,
     name: patch.name?.trim() ?? current.name,
-    description: patch.description?.trim() ?? current.description,
+    description:
+      patch.description !== undefined
+        ? patch.description.trim() || undefined
+        : current.description,
     active: patch.active ?? current.active,
-  }
+    coachStaffId:
+      patch.coachStaffId !== undefined
+        ? emptyId(patch.coachStaffId)
+        : current.coachStaffId,
+    leaderStaffId:
+      patch.leaderStaffId !== undefined
+        ? emptyId(patch.leaderStaffId)
+        : current.leaderStaffId,
+    medicStaffIds: patch.medicStaffIds ?? current.medicStaffIds ?? [],
+    officialStaffIds: patch.officialStaffIds ?? current.officialStaffIds ?? [],
+    kits: patch.kits !== undefined ? normalizeKits(patch.kits) : current.kits ?? [],
+  })
   await setDoc('sports', id, { ...next })
   await writeAuditLog({
     actorId: session.uid,

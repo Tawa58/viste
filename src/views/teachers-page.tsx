@@ -31,16 +31,19 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Field } from '@/components/ui/field'
+import { Select } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { catalogService, classService } from '@/services/api'
-import type { SchoolClass, Staff, StaffLoginCredential, Subject } from '@/types'
+import { STAFF_CATEGORIES, staffCategoryLabel } from '@/lib/staff-categories'
+import type { SchoolClass, Staff, StaffCategory, StaffLoginCredential, Subject } from '@/types'
 
 const emptyForm = {
   firstName: '',
   lastName: '',
   department: '',
   title: '',
+  category: 'TEACHER' as StaffCategory,
   email: '',
   phone: '',
   password: '',
@@ -191,6 +194,7 @@ export function TeachersPage() {
             phone: form.phone.trim() || '—',
             department: form.department.trim() || 'General',
             title: form.title.trim() || 'Staff',
+            category: form.category,
             status: 'ACTIVE',
             subjectIds: form.subjectIds,
             classIds: form.classIds,
@@ -305,6 +309,7 @@ export function TeachersPage() {
               <DataTableHead>
                 <tr>
                   <DataTableHeaderCell>Name</DataTableHeaderCell>
+                  <DataTableHeaderCell>Category</DataTableHeaderCell>
                   <DataTableHeaderCell>Title / dept</DataTableHeaderCell>
                   <DataTableHeaderCell>Classes</DataTableHeaderCell>
                   <DataTableHeaderCell>Subjects</DataTableHeaderCell>
@@ -341,6 +346,9 @@ export function TeachersPage() {
                             </span>
                           </span>
                         </Link>
+                      </DataTableCell>
+                      <DataTableCell className="text-muted-foreground">
+                        {staffCategoryLabel(s.category)}
                       </DataTableCell>
                       <DataTableCell className="text-muted-foreground">
                         {s.title} · {s.department}
@@ -440,6 +448,21 @@ export function TeachersPage() {
                   value={form.lastName}
                   onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
                 />
+              </Field>
+              <Field>
+                <Label>Staff category</Label>
+                <Select
+                  value={form.category}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, category: e.target.value as StaffCategory }))
+                  }
+                >
+                  {STAFF_CATEGORIES.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+                </Select>
               </Field>
               <Field>
                 <Label>Title</Label>
@@ -739,6 +762,8 @@ export function TeacherDetailPage() {
   const [suspendIndefinite, setSuspendIndefinite] = useState(false)
   const [editSubjectIds, setEditSubjectIds] = useState<string[]>([])
   const [editClassIds, setEditClassIds] = useState<string[]>([])
+  const [editCategory, setEditCategory] = useState<StaffCategory>('TEACHER')
+  const [savingProfile, setSavingProfile] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -754,6 +779,7 @@ export function TeacherDetailPage() {
       setCredential(cred ?? null)
       setEditSubjectIds(s?.subjectIds ?? [])
       setEditClassIds(s?.classIds ?? [])
+      setEditCategory(s?.category ?? 'TEACHER')
       setLoading(false)
     })
   }, [id, showCredentials])
@@ -777,6 +803,27 @@ export function TeacherDetailPage() {
       setMember(updated)
     } finally {
       setSavingAssign(false)
+    }
+  }
+
+  async function saveProfileCategory() {
+    if (!member) return
+    setSavingProfile(true)
+    try {
+      const updated = await notify.process(
+        () =>
+          catalogService.updateStaff(member.id, {
+            category: editCategory,
+          }),
+        {
+          loading: 'Saving staff category…',
+          success: 'Staff category updated',
+          error: 'Could not update category',
+        },
+      )
+      setMember(updated)
+    } finally {
+      setSavingProfile(false)
     }
   }
 
@@ -860,7 +907,7 @@ export function TeacherDetailPage() {
     <div className="space-y-5">
       <PageHeader
         title={fullName}
-        description={`${member.title} · ${member.department}`}
+        description={`${staffCategoryLabel(member.category)} · ${member.title} · ${member.department}`}
         breadcrumbs={[
           { label: 'Home', to: '/dashboard' },
           { label: 'Teachers', to: '/teachers' },
@@ -942,6 +989,32 @@ export function TeacherDetailPage() {
               <p>Email: {member.email}</p>
               <p>Phone: {member.phone}</p>
               <p>Hired: {member.hireDate}</p>
+              {canConfigureAccess ? (
+                <div className="space-y-2 pt-1">
+                  <Label>Staff category</Label>
+                  <Select
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value as StaffCategory)}
+                  >
+                    {STAFF_CATEGORIES.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    loading={savingProfile}
+                    disabled={editCategory === (member.category ?? 'TEACHER')}
+                    onClick={() => void saveProfileCategory()}
+                  >
+                    Save category
+                  </Button>
+                </div>
+              ) : (
+                <p>Category: {staffCategoryLabel(member.category)}</p>
+              )}
               <StatusBadge status={isSuspended ? 'SUSPENDED' : member.status} />
               {member.suspension ? (
                 <div className="mt-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs text-muted-foreground">

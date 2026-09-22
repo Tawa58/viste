@@ -26,6 +26,19 @@ export type ClassStatus = 'ACTIVE' | 'ARCHIVED'
 export type ExemptionType = 'SUBJECT' | 'SPORT' | 'ACTIVITY' | 'OTHER'
 
 export type ClubActivityType = 'CLUB' | 'SOCIETY' | 'ACTIVITY' | 'OTHER'
+
+/** Role category for teachers & staff directory (not the same as portal UserRole). */
+export type StaffCategory =
+  | 'TEACHER'
+  | 'COACH'
+  | 'SPORTS_OFFICIAL'
+  | 'MEDIC'
+  | 'ADMINISTRATION'
+  | 'SUPPORT_STAFF'
+  | 'ACCOUNTANT'
+  | 'LIBRARIAN'
+  | 'OTHER'
+
 export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'AUTHORIZED_ABSENCE'
 export type PaymentStatus = 'PENDING' | 'CONFIRMED' | 'REVERSED' | 'CANCELLED'
 export type ResultAccessState =
@@ -175,6 +188,8 @@ export interface Staff {
   phone: string
   department: string
   title: string
+  /** Staff type (teacher, coach, medic, admin, …). */
+  category?: StaffCategory
   status: 'ACTIVE' | 'INACTIVE'
   /** Present while suspended / inactivated by an admin. */
   suspension?: StaffSuspension | null
@@ -275,11 +290,31 @@ export interface Subject {
   active?: boolean
 }
 
+export interface SportKitItem {
+  id: string
+  /** e.g. Jerseys, Match balls, Training balls, Cones, Bibs */
+  name: string
+  quantity: number
+  /** Jersey / kit numbers on hand, e.g. "1–15" or "1,2,3,7" */
+  jerseyNumbers?: string
+  notes?: string
+}
+
 export interface Sport {
   id: string
   name: string
   description?: string
   active: boolean
+  /** Head coach (staff id). */
+  coachStaffId?: string
+  /** Team leader / captain coordinator (staff id). */
+  leaderStaffId?: string
+  /** Medics / first aiders assigned to this sport. */
+  medicStaffIds?: string[]
+  /** Other sporting leadership officials. */
+  officialStaffIds?: string[]
+  /** Equipment and kit inventory for this sport. */
+  kits?: SportKitItem[]
 }
 
 export interface ClubActivity {

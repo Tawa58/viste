@@ -87,10 +87,23 @@ export const subjectCreateSchema = z.object({
 
 export const subjectUpdateSchema = subjectCreateSchema.partial()
 
+export const sportKitItemSchema = z.object({
+  id: z.string().min(1).max(64),
+  name: z.string().min(1).max(120),
+  quantity: z.coerce.number().int().min(0).max(100_000),
+  jerseyNumbers: z.string().max(200).optional(),
+  notes: z.string().max(500).optional(),
+})
+
 export const sportCreateSchema = z.object({
   name: z.string().min(1).max(120),
   description: z.string().max(500).optional(),
   active: z.boolean().default(true),
+  coachStaffId: idSchema.optional().or(z.literal('')),
+  leaderStaffId: idSchema.optional().or(z.literal('')),
+  medicStaffIds: z.array(idSchema).default([]),
+  officialStaffIds: z.array(idSchema).default([]),
+  kits: z.array(sportKitItemSchema).default([]),
 })
 
 export const sportUpdateSchema = sportCreateSchema.partial()
@@ -145,6 +158,18 @@ export const guardianCreateSchema = z.object({
 
 export const guardianUpdateSchema = guardianCreateSchema.partial()
 
+export const staffCategorySchema = z.enum([
+  'TEACHER',
+  'COACH',
+  'SPORTS_OFFICIAL',
+  'MEDIC',
+  'ADMINISTRATION',
+  'SUPPORT_STAFF',
+  'ACCOUNTANT',
+  'LIBRARIAN',
+  'OTHER',
+])
+
 export const staffCreateSchema = z.object({
   employeeNumber: z.string().min(1).max(64),
   firstName: z.string().min(1).max(100),
@@ -153,6 +178,7 @@ export const staffCreateSchema = z.object({
   phone: z.string().min(3).max(40),
   department: z.string().min(1).max(120),
   title: z.string().min(1).max(120),
+  category: staffCategorySchema.default('TEACHER'),
   status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
   subjectIds: z.array(idSchema).default([]),
   classIds: z.array(idSchema).default([]),

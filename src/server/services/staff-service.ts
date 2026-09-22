@@ -166,6 +166,7 @@ export async function createStaff(
   const row: Staff = {
     ...rest,
     id,
+    category: rest.category ?? 'TEACHER',
     classIds: rest.classIds ?? [],
     subjectIds: rest.subjectIds ?? [],
     ...(profilePhotoId ? { profilePhotoId } : {}),
