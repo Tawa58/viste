@@ -259,18 +259,23 @@ const markEntrySchema = z.object({
 })
 
 /**
- * Class + subject mark batch for monthly or termly assessments.
+ * Class + subject mark batch for monthly, weekly, mock, or termly assessments.
  * Teachers save draft or submit for admin approval (not directly published).
  */
 export const classSubjectMarksSchema = z
   .object({
     classId: idSchema,
     subjectId: idSchema,
-    periodType: z.enum(['MONTHLY', 'TERMLY']).default('MONTHLY'),
-    /** YYYY-MM — required for MONTHLY */
+    periodType: z.enum(['MONTHLY', 'WEEKLY', 'MOCK', 'TERMLY']).default('MONTHLY'),
+    /** YYYY-MM — required for MONTHLY and MOCK */
     month: z
       .string()
       .regex(/^\d{4}-\d{2}$/)
+      .optional(),
+    /** YYYY-MM-DD (week start) — required for WEEKLY */
+    weekOf: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional(),
     /** Required for TERMLY */
     termId: idSchema.optional(),
@@ -283,11 +288,18 @@ export const classSubjectMarksSchema = z
     action: z.enum(['draft', 'submit']).default('draft'),
   })
   .superRefine((val, ctx) => {
-    if (val.periodType === 'MONTHLY' && !val.month) {
+    if ((val.periodType === 'MONTHLY' || val.periodType === 'MOCK') && !val.month) {
       ctx.addIssue({
         code: 'custom',
-        message: 'Month is required for monthly tests',
+        message: 'Month is required for monthly / mock tests',
         path: ['month'],
+      })
+    }
+    if (val.periodType === 'WEEKLY' && !val.weekOf) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Week start date is required for weekly tests',
+        path: ['weekOf'],
       })
     }
     if (val.periodType === 'TERMLY' && !val.termId) {

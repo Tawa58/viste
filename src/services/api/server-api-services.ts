@@ -477,8 +477,9 @@ export const apiCatalogService = {
   submitClassSubjectMarks: (input: {
     classId: string
     subjectId: string
-    periodType: 'MONTHLY' | 'TERMLY'
+    periodType: 'MONTHLY' | 'WEEKLY' | 'MOCK' | 'TERMLY'
     month?: string
+    weekOf?: string
     termId?: string
     maxScore?: number
     action: 'draft' | 'submit'

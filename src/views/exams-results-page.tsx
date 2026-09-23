@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/shared/page-header'
 import { LoadingState } from '@/components/shared/loading-state'
 import { StatusBadge } from '@/components/shared/status-badge'
@@ -8,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/auth-context'
 import {
@@ -32,9 +32,20 @@ import type {
 
 const workflow = ['Draft', 'Submitted', 'Admin review', 'Published on portal'] as const
 
+type PeriodType = 'MONTHLY' | 'WEEKLY' | 'MOCK' | 'TERMLY'
+
 function currentMonth() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+/** Monday of the current week as YYYY-MM-DD. */
+function currentWeekStart() {
+  const d = new Date()
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + diff)
+  return d.toISOString().slice(0, 10)
 }
 
 type StudentEntry = {
@@ -44,15 +55,19 @@ type StudentEntry = {
 }
 
 function assessmentKey(
-  periodType: 'MONTHLY' | 'TERMLY',
+  periodType: PeriodType,
   classId: string,
   subjectId: string,
   month: string,
+  weekOf: string,
   termId: string,
 ) {
-  return periodType === 'MONTHLY'
-    ? `as_monthly_${classId}_${subjectId}_${month}`.replace(/[^a-zA-Z0-9_-]/g, '_')
-    : `as_termly_${classId}_${subjectId}_${termId}`.replace(/[^a-zA-Z0-9_-]/g, '_')
+  const periodKey =
+    periodType === 'WEEKLY' ? weekOf : periodType === 'TERMLY' ? termId : month
+  return `as_${periodType.toLowerCase()}_${classId}_${subjectId}_${periodKey}`.replace(
+    /[^a-zA-Z0-9_-]/g,
+    '_',
+  )
 }
 
 export function ExaminationsPage() {
@@ -133,16 +148,21 @@ function ClassSubjectMarksPanel({
   onSaved: () => Promise<void>
 }) {
   const { user } = useAuth()
+  const [searchParams] = useSearchParams()
   const isTeacher = user?.role === 'TEACHER'
   const [classes, setClasses] = useState<SchoolClass[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [terms, setTerms] = useState<Term[]>([])
   const [staffSelf, setStaffSelf] = useState<Staff | null>(null)
   const [students, setStudents] = useState<Student[]>([])
-  const [periodType, setPeriodType] = useState<'MONTHLY' | 'TERMLY'>('MONTHLY')
-  const [classId, setClassId] = useState('')
-  const [subjectId, setSubjectId] = useState('')
+  const initialPeriod = (searchParams.get('periodType') as PeriodType | null) ?? 'MONTHLY'
+  const [periodType, setPeriodType] = useState<PeriodType>(
+    ['MONTHLY', 'WEEKLY', 'MOCK', 'TERMLY'].includes(initialPeriod) ? initialPeriod : 'MONTHLY',
+  )
+  const [classId, setClassId] = useState(() => searchParams.get('classId') ?? '')
+  const [subjectId, setSubjectId] = useState(() => searchParams.get('subjectId') ?? '')
   const [month, setMonth] = useState(currentMonth())
+  const [weekOf, setWeekOf] = useState(currentWeekStart())
   const [termId, setTermId] = useState('')
   const [defaultCommentMode, setDefaultCommentMode] = useState<MarkCommentMode>('NONE')
   const [entries, setEntries] = useState<Record<string, StudentEntry>>({})
@@ -164,20 +184,36 @@ function ClassSubjectMarksPanel({
       setStaffSelf(me)
       const activeClasses = cls.filter((c) => (c.status ?? 'ACTIVE') === 'ACTIVE')
       const allowedClasses = me
-        ? activeClasses.filter((c) => (me.classIds ?? []).includes(c.id))
+        ? activeClasses.filter((c) => (me.classIds ?? []).includes(c.id) || c.classTeacherId === me.id)
         : activeClasses
       const allowedSubjects = me
-        ? subs.filter((s) => (me.subjectIds ?? []).includes(s.id))
+        ? subs.filter((s) => (me.subjectIds ?? []).includes(s.id) || (s.teacherIds ?? []).includes(me.id))
         : subs
-      setClasses(isTeacher ? allowedClasses : activeClasses)
-      setSubjects(isTeacher ? allowedSubjects : allowedSubjects.length ? allowedSubjects : subs)
+      const classList = isTeacher ? allowedClasses : activeClasses
+      const subjectList = isTeacher
+        ? allowedSubjects.length
+          ? allowedSubjects
+          : []
+        : allowedSubjects.length
+          ? allowedSubjects
+          : subs
+      setClasses(classList)
+      setSubjects(subjectList)
       setStudents(stu)
       setTerms(t)
-      setClassId((prev) => prev || allowedClasses[0]?.id || activeClasses[0]?.id || '')
-      setSubjectId((prev) => prev || allowedSubjects[0]?.id || subs[0]?.id || '')
+      const urlClass = searchParams.get('classId')
+      const urlSubject = searchParams.get('subjectId')
+      setClassId((prev) => {
+        if (urlClass && classList.some((c) => c.id === urlClass)) return urlClass
+        return prev || classList[0]?.id || ''
+      })
+      setSubjectId((prev) => {
+        if (urlSubject && subjectList.some((s) => s.id === urlSubject)) return urlSubject
+        return prev || subjectList[0]?.id || ''
+      })
       setTermId((prev) => prev || t.find((x) => x.sequence === 1)?.id || t[0]?.id || '')
     })()
-  }, [user?.staffId, isTeacher])
+  }, [user?.staffId, isTeacher, searchParams.get('classId'), searchParams.get('subjectId'), searchParams.get('periodType')])
 
   const roster = useMemo(
     () =>
@@ -189,15 +225,9 @@ function ClassSubjectMarksPanel({
 
   const currentAssessment = useMemo(() => {
     if (!classId || !subjectId) return undefined
-    const id = assessmentKey(
-      periodType,
-      classId,
-      subjectId,
-      month,
-      termId,
-    )
+    const id = assessmentKey(periodType, classId, subjectId, month, weekOf, termId)
     return assessments.find((a) => a.id === id)
-  }, [assessments, classId, subjectId, periodType, month, termId])
+  }, [assessments, classId, subjectId, periodType, month, weekOf, termId])
 
   useEffect(() => {
     if (!currentAssessment) {
@@ -245,6 +275,14 @@ function ClassSubjectMarksPanel({
       notify.error('Select a term')
       return
     }
+    if ((periodType === 'MONTHLY' || periodType === 'MOCK') && !month) {
+      notify.error('Select a month')
+      return
+    }
+    if (periodType === 'WEEKLY' && !weekOf) {
+      notify.error('Select the week start date')
+      return
+    }
     const payloadEntries = roster
       .map((s) => {
         const row = entries[s.id]
@@ -281,7 +319,9 @@ function ClassSubjectMarksPanel({
             classId,
             subjectId,
             periodType,
-            month: periodType === 'MONTHLY' ? month : undefined,
+            month:
+              periodType === 'MONTHLY' || periodType === 'MOCK' ? month : undefined,
+            weekOf: periodType === 'WEEKLY' ? weekOf : undefined,
             termId: periodType === 'TERMLY' ? termId : undefined,
             maxScore,
             action,
@@ -310,52 +350,56 @@ function ClassSubjectMarksPanel({
     )
   }
 
+  const showCommentColumn =
+    defaultCommentMode === 'CUSTOM' ||
+    defaultCommentMode === 'AUTO' ||
+    Object.values(entries).some((e) => e.commentMode === 'CUSTOM')
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Enter marks</CardTitle>
+        <CardTitle>Create test & enter marks</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Choose class and subject, enter scores for each student, then submit for admin approval.
-          Grades are calculated automatically from the school grading scale.
+          Choose monthly, weekly, mock, or end-of-term. Enter scores, add custom comments, or use
+          system auto comments from the grade. Submit for admin approval.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
         {staffSelf && isTeacher ? (
           <p className="text-xs text-muted-foreground">
             Your classes:{' '}
-            {(staffSelf.classIds ?? [])
-              .map((id) => classes.find((c) => c.id === id)?.name)
-              .filter(Boolean)
-              .join(', ') || '—'}
+            {classes.map((c) => c.name).join(', ') || '—'}
           </p>
         ) : null}
 
         <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant={periodType === 'MONTHLY' ? 'default' : 'outline'}
-            onClick={() => setPeriodType('MONTHLY')}
-          >
-            Monthly test
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={periodType === 'TERMLY' ? 'default' : 'outline'}
-            onClick={() => setPeriodType('TERMLY')}
-          >
-            End of term
-          </Button>
+          {(
+            [
+              ['MONTHLY', 'Monthly'],
+              ['WEEKLY', 'Weekly'],
+              ['MOCK', 'Mock'],
+              ['TERMLY', 'End of term'],
+            ] as const
+          ).map(([value, label]) => (
+            <Button
+              key={value}
+              type="button"
+              size="sm"
+              variant={periodType === value ? 'default' : 'outline'}
+              onClick={() => setPeriodType(value)}
+            >
+              {label}
+            </Button>
+          ))}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {periodType === 'MONTHLY' ? (
+          {periodType === 'WEEKLY' ? (
             <div className="space-y-1.5">
-              <Label>Month</Label>
-              <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+              <Label>Week starting</Label>
+              <Input type="date" value={weekOf} onChange={(e) => setWeekOf(e.target.value)} />
             </div>
-          ) : (
+          ) : periodType === 'TERMLY' ? (
             <div className="space-y-1.5">
               <Label>Term</Label>
               <Select value={termId} onChange={(e) => setTermId(e.target.value)}>
@@ -366,6 +410,11 @@ function ClassSubjectMarksPanel({
                   </option>
                 ))}
               </Select>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label>{periodType === 'MOCK' ? 'Mock month' : 'Month'}</Label>
+              <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
             </div>
           )}
           <div className="space-y-1.5">
@@ -397,7 +446,7 @@ function ClassSubjectMarksPanel({
               onChange={(e) => setDefaultCommentMode(e.target.value as MarkCommentMode)}
             >
               <option value="NONE">Marks only — no comment</option>
-              <option value="AUTO">Auto comment from grade</option>
+              <option value="AUTO">System auto comment from grade</option>
               <option value="CUSTOM">Custom comment per student</option>
             </Select>
           </div>
@@ -421,10 +470,11 @@ function ClassSubjectMarksPanel({
                   <th className="px-3 py-2">Student</th>
                   <th className="px-3 py-2">Mark /{maxScore}</th>
                   <th className="px-3 py-2">Grade</th>
-                  {(defaultCommentMode === 'CUSTOM' ||
-                    Object.values(entries).some((e) => e.commentMode === 'CUSTOM')) && (
-                    <th className="px-3 py-2">Teacher comment</th>
-                  )}
+                  {showCommentColumn ? (
+                    <th className="px-3 py-2">
+                      {defaultCommentMode === 'AUTO' ? 'Auto comment' : 'Teacher comment'}
+                    </th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
@@ -435,7 +485,7 @@ function ClassSubjectMarksPanel({
                     comment: '',
                   }
                   const grade = previewGrade(row.score)
-                  const showComment =
+                  const showCustom =
                     defaultCommentMode === 'CUSTOM' || row.commentMode === 'CUSTOM'
                   return (
                     <tr key={s.id} className="border-t border-border">
@@ -452,7 +502,7 @@ function ClassSubjectMarksPanel({
                         />
                       </td>
                       <td className="px-3 py-2 font-semibold">{grade}</td>
-                      {showComment ? (
+                      {showCustom ? (
                         <td className="px-3 py-2">
                           <Textarea
                             rows={2}
@@ -471,6 +521,8 @@ function ClassSubjectMarksPanel({
                         <td className="px-3 py-2 text-xs text-muted-foreground">
                           {row.score ? autoCommentForGrade(grade) : '—'}
                         </td>
+                      ) : showCommentColumn ? (
+                        <td className="px-3 py-2 text-muted-foreground">—</td>
                       ) : null}
                     </tr>
                   )

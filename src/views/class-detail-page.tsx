@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Pencil, Trash2, UserPlus, Users } from 'lucide-react'
+import { ArrowLeft, ClipboardList, Pencil, Trash2, UserPlus, Users } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { LoadingState } from '@/components/shared/loading-state'
 import { StatusBadge } from '@/components/shared/status-badge'
@@ -217,10 +217,12 @@ export function ClassDetailPage() {
     )
   }
 
+  const isMyClass = Boolean(user?.staffId && cls.classTeacherId === user.staffId)
+
   return (
     <div>
       <PageHeader
-        title={cls.name}
+        title={isMyClass ? `My class · ${cls.name}` : cls.name}
         description={`${educationLevelName(cls.educationLevelId) || cls.level} · ${year?.name ?? '—'}${term ? ` · ${term.name}` : ''}`}
         breadcrumbs={[
           { label: 'Home', to: '/dashboard' },
@@ -235,6 +237,14 @@ export function ClassDetailPage() {
                 Back
               </Link>
             </Button>
+            {isMyClass ? (
+              <Button asChild>
+                <Link to={`/attendance?classId=${cls.id}`}>
+                  <ClipboardList className="h-4 w-4" />
+                  Mark register
+                </Link>
+              </Button>
+            ) : null}
             {canStudents ? (
               <Button asChild>
                 <Link to={`/students?classId=${cls.id}&register=1`}>

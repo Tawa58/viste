@@ -452,7 +452,7 @@ export interface Assessment {
   id: string
   examinationId?: string
   name: string
-  /** MONTHLY = end-of-month test; TERMLY = end-of-term exam. */
+  /** MONTHLY | WEEKLY | MOCK | TERMLY */
   type: string
   subjectId: string
   streamId: string
@@ -461,8 +461,10 @@ export interface Assessment {
   status: MarkWorkflowStatus
   /** Class for class-scoped assessments (e.g. monthly / termly entry). */
   classId?: string
-  /** YYYY-MM for end-of-month tests. */
+  /** YYYY-MM for monthly / mock tests. */
   month?: string
+  /** YYYY-MM-DD week start for weekly tests (also may be stored in month). */
+  weekOf?: string
   /** Staff who last entered / submitted marks. */
   enteredBy?: string
   enteredByName?: string

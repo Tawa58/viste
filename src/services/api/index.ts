@@ -668,8 +668,9 @@ const mockCatalogService = {
   submitClassSubjectMarks: async (input: {
     classId: string
     subjectId: string
-    periodType: 'MONTHLY' | 'TERMLY'
+    periodType: 'MONTHLY' | 'WEEKLY' | 'MOCK' | 'TERMLY'
     month?: string
+    weekOf?: string
     termId?: string
     maxScore?: number
     action: 'draft' | 'submit'
@@ -683,15 +684,25 @@ const mockCatalogService = {
     const maxScore = input.maxScore ?? 100
     const status =
       input.action === 'submit' ? ('SUBMITTED' as const) : ('DRAFT' as const)
+    const assessmentId =
+      input.periodType === 'MONTHLY'
+        ? `as_monthly_${input.classId}_${input.subjectId}_${input.month}`
+        : input.periodType === 'WEEKLY'
+          ? `as_weekly_${input.classId}_${input.subjectId}_${input.weekOf}`
+          : input.periodType === 'MOCK'
+            ? `as_mock_${input.classId}_${input.subjectId}_${input.month ?? input.termId ?? 'mock'}`
+            : `as_termly_${input.classId}_${input.subjectId}_${input.termId}`
+    const assessmentName =
+      input.periodType === 'MONTHLY'
+        ? `Monthly ${input.month}`
+        : input.periodType === 'WEEKLY'
+          ? `Weekly ${input.weekOf}`
+          : input.periodType === 'MOCK'
+            ? `Mock ${input.month ?? input.termId ?? ''}`.trim()
+            : `Term ${input.termId}`
     const assessment: Assessment = {
-      id:
-        input.periodType === 'MONTHLY'
-          ? `as_monthly_${input.classId}_${input.subjectId}_${input.month}`
-          : `as_termly_${input.classId}_${input.subjectId}_${input.termId}`,
-      name:
-        input.periodType === 'MONTHLY'
-          ? `Monthly ${input.month}`
-          : `Term ${input.termId}`,
+      id: assessmentId,
+      name: assessmentName,
       type: input.periodType,
       subjectId: input.subjectId,
       streamId: 'stream-1',
@@ -700,6 +711,7 @@ const mockCatalogService = {
       status,
       classId: input.classId,
       month: input.month,
+      weekOf: input.weekOf,
     }
     assessments.unshift(assessment)
     const nextMarks = input.entries.map((e) => {

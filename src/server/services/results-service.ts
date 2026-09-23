@@ -79,12 +79,15 @@ async function assertTeacherCanEnter(
   if (session.role !== 'TEACHER') return
   const staffId = session.profile.staffId
   if (!staffId) throw forbidden('Teacher profile is not linked')
-  const staff = await getDoc<Staff>('staff', staffId)
-  if (!staff) throw forbidden('Teacher profile not found')
-  if (!(staff.classIds ?? []).includes(classId)) {
+  const { resolveTeacherClassIds, resolveTeacherSubjectIds } = await import(
+    '@/server/authorization/isolation'
+  )
+  const classIds = await resolveTeacherClassIds(session)
+  const subjectIds = await resolveTeacherSubjectIds(session)
+  if (!classIds.includes(classId)) {
     throw forbidden('You are not assigned to teach this class')
   }
-  if (!(staff.subjectIds ?? []).includes(subjectId)) {
+  if (!subjectIds.includes(subjectId)) {
     throw forbidden('You are not assigned to teach this subject')
   }
 }
@@ -492,16 +495,17 @@ export async function submitClassSubjectMarks(
       ? input.termId!
       : cls.termId || input.termId || 'term_current'
 
-  const assessmentId =
-    periodType === 'MONTHLY'
-      ? `as_monthly_${input.classId}_${input.subjectId}_${input.month}`.replace(
-          /[^a-zA-Z0-9_-]/g,
-          '_',
-        )
-      : `as_termly_${input.classId}_${input.subjectId}_${termId}`.replace(
-          /[^a-zA-Z0-9_-]/g,
-          '_',
-        )
+  const periodKey =
+    periodType === 'WEEKLY'
+      ? input.weekOf!
+      : periodType === 'TERMLY'
+        ? termId
+        : input.month!
+
+  const assessmentId = `as_${periodType.toLowerCase()}_${input.classId}_${input.subjectId}_${periodKey}`.replace(
+    /[^a-zA-Z0-9_-]/g,
+    '_',
+  )
 
   const existing = await getDoc<Assessment>('assessments', assessmentId)
   if (existing && isLocked(existing.status)) {
@@ -517,13 +521,17 @@ export async function submitClassSubjectMarks(
 
   const status: MarkWorkflowStatus = input.action === 'submit' ? 'SUBMITTED' : 'DRAFT'
   const now = new Date().toISOString()
-  const label =
+  const typeLabel =
     periodType === 'MONTHLY'
       ? formatMonthLabel(input.month!)
-      : (await getDoc<Term>('terms', termId))?.name || 'Term'
+      : periodType === 'WEEKLY'
+        ? `Week of ${input.weekOf}`
+        : periodType === 'MOCK'
+          ? `Mock · ${formatMonthLabel(input.month!)}`
+          : (await getDoc<Term>('terms', termId))?.name || 'Term'
   const assessment: Assessment = {
     id: assessmentId,
-    name: `${subject.name} · ${label}${periodType === 'TERMLY' ? ' (Term)' : ''}`,
+    name: `${subject.name} · ${typeLabel}${periodType === 'TERMLY' ? ' (Term)' : periodType === 'WEEKLY' ? ' (Weekly)' : periodType === 'MOCK' ? ' (Mock)' : ''}`,
     type: periodType,
     subjectId: input.subjectId,
     streamId,
@@ -531,7 +539,11 @@ export async function submitClassSubjectMarks(
     maxScore: input.maxScore,
     status,
     classId: input.classId,
-    ...(periodType === 'MONTHLY' ? { month: input.month } : {}),
+    ...(periodType === 'MONTHLY' || periodType === 'MOCK'
+      ? { month: input.month }
+      : periodType === 'WEEKLY'
+        ? { month: input.weekOf, weekOf: input.weekOf }
+        : {}),
     enteredBy: session.uid,
     enteredByName: session.profile.name,
     ...(status === 'SUBMITTED' ? { submittedAt: now } : {}),
@@ -585,6 +597,7 @@ export async function submitClassSubjectMarks(
       subjectId: input.subjectId,
       periodType,
       month: input.month,
+      weekOf: input.weekOf,
       termId,
       count: marks.length,
       action: input.action,

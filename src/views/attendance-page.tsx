@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Check, ClipboardList, Download, X } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { LoadingState } from '@/components/shared/loading-state'
@@ -41,13 +42,14 @@ function isAdminRole(role: string | undefined) {
 
 export function AttendancePage() {
   const { user } = useAuth()
+  const [searchParams] = useSearchParams()
   const isAdmin = isAdminRole(user?.role)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [students, setStudents] = useState<Student[]>([])
   const [classes, setClasses] = useState<SchoolClass[]>([])
   const [date, setDate] = useState(todayIso())
-  const [classId, setClassId] = useState('')
+  const [classId, setClassId] = useState(() => searchParams.get('classId') ?? '')
   const [marks, setMarks] = useState<Record<string, 'PRESENT' | 'ABSENT'>>({})
   const [session, setSession] = useState<AttendanceSession | null>(null)
   const [sessions, setSessions] = useState<AttendanceSession[]>([])
@@ -67,10 +69,13 @@ export function AttendancePage() {
   async function loadBase() {
     const [stu, cls] = await Promise.all([studentService.list(), classService.list()])
     setStudents(stu)
-    setClasses(cls.filter((c) => (c.status ?? 'ACTIVE') === 'ACTIVE'))
+    const active = cls.filter((c) => (c.status ?? 'ACTIVE') === 'ACTIVE')
+    setClasses(active)
+    const fromUrl = searchParams.get('classId')
     setClassId((prev) => {
-      if (prev && cls.some((c) => c.id === prev)) return prev
-      return cls.find((c) => (c.status ?? 'ACTIVE') === 'ACTIVE')?.id ?? ''
+      if (fromUrl && active.some((c) => c.id === fromUrl)) return fromUrl
+      if (prev && active.some((c) => c.id === prev)) return prev
+      return active[0]?.id ?? ''
     })
   }
 

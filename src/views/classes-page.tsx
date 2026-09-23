@@ -5,6 +5,8 @@ import {
   ArrowRightLeft,
   Baby,
   BookOpen,
+  ClipboardList,
+  FilePlus2,
   GraduationCap,
   Plus,
   School,
@@ -29,6 +31,7 @@ import {
   DataTableShell,
 } from '@/components/shared/data-table'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -81,10 +84,12 @@ const emptyForm = (): ClassForm => ({
 export function ClassesPage() {
   const { user } = useAuth()
   const canManage = user ? canManageClasses(user.role) : false
+  const isTeacher = user?.role === 'TEACHER'
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [classes, setClasses] = useState<SchoolClass[]>([])
   const [staff, setStaff] = useState<Staff[]>([])
+  const [staffSelf, setStaffSelf] = useState<Staff | null>(null)
   const [students, setStudents] = useState<Student[]>([])
   const [years, setYears] = useState<AcademicYear[]>([])
   const [terms, setTerms] = useState<Term[]>([])
@@ -114,6 +119,14 @@ export function ClassesPage() {
     setTerms(t)
     setSubjects(sub)
     setStats(st)
+    if (user?.staffId) {
+      const me =
+        sf.find((s) => s.id === user.staffId) ??
+        (await catalogService.getStaffMember(user.staffId).catch(() => null))
+      setStaffSelf(me ?? null)
+    } else {
+      setStaffSelf(null)
+    }
   }
 
   useEffect(() => {
@@ -139,6 +152,35 @@ export function ClassesPage() {
       return matchesStatus && matchesLevel && matchesSearch
     })
   }, [classes, search, levelFilter, statusFilter])
+
+  const myOwnedClasses = useMemo(() => {
+    if (!user?.staffId) return []
+    return filtered.filter((c) => c.classTeacherId === user.staffId)
+  }, [filtered, user?.staffId])
+
+  const taughtClasses = useMemo(() => {
+    if (!isTeacher) return []
+    // list() is already scoped to this teacher's classes
+    return filtered
+  }, [filtered, isTeacher])
+
+  const taughtSubjectIds = useMemo(() => {
+    const fromStaff = new Set(staffSelf?.subjectIds ?? [])
+    for (const s of subjects) {
+      if (user?.staffId && (s.teacherIds ?? []).includes(user.staffId)) {
+        fromStaff.add(s.id)
+      }
+    }
+    return fromStaff
+  }, [staffSelf?.subjectIds, subjects, user?.staffId])
+
+  function subjectsForClass(cls: SchoolClass) {
+    const classSubs = cls.subjectIds?.length
+      ? subjects.filter((s) => (cls.subjectIds ?? []).includes(s.id))
+      : subjects
+    if (!isTeacher) return classSubs
+    return classSubs.filter((s) => taughtSubjectIds.has(s.id))
+  }
 
   const currentYear = useMemo(
     () => years.find((y) => y.isCurrent) ?? years[0],
@@ -259,6 +301,166 @@ export function ClassesPage() {
   }
 
   if (loading) return <LoadingState message="Loading classes…" />
+
+  if (isTeacher && !canManage) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          title="My classes"
+          description="Mark registers for your class, view students, and create tests for subjects you teach."
+          breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Classes' }]}
+        />
+
+        <section className="space-y-3">
+          <div>
+            <h2 className="font-display text-lg font-semibold">My class</h2>
+            <p className="text-sm text-muted-foreground">
+              Classes where you are the class teacher — mark the daily register and view the student list.
+            </p>
+          </div>
+          {myOwnedClasses.length === 0 ? (
+            <EmptyState
+              icon={School}
+              title="No class teacher assignment"
+              description="When an admin assigns you as class teacher, that class appears here."
+            />
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {myOwnedClasses.map((cls) => {
+                const count = students.filter(
+                  (s) => s.classId === cls.id && s.status === 'ACTIVE',
+                ).length
+                return (
+                  <Card key={cls.id}>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <CardTitle className="text-base">{cls.name}</CardTitle>
+                          <p className="text-sm text-muted-foreground">
+                            {educationLevelName(cls.educationLevelId) || cls.level} · {count}{' '}
+                            students
+                          </p>
+                        </div>
+                        <Badge>My class</Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-2">
+                      <Button asChild size="sm">
+                        <Link to={`/attendance?classId=${cls.id}`}>
+                          <ClipboardList className="h-4 w-4" />
+                          Mark register
+                        </Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link to={`/classes/${cls.id}`}>
+                          <Users className="h-4 w-4" />
+                          Student list
+                        </Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-3">
+          <div>
+            <h2 className="font-display text-lg font-semibold">Classes I teach</h2>
+            <p className="text-sm text-muted-foreground">
+              Create a monthly, weekly, or mock test for each subject you teach, then record marks and
+              comments.
+            </p>
+          </div>
+          {taughtClasses.length === 0 ? (
+            <EmptyState
+              icon={BookOpen}
+              title="No teaching classes"
+              description="Ask an admin to assign classes and subjects on your teacher profile."
+            />
+          ) : (
+            <div className="space-y-3">
+              {taughtClasses.map((cls) => {
+                const teachSubs = subjectsForClass(cls)
+                const count = students.filter(
+                  (s) => s.classId === cls.id && s.status === 'ACTIVE',
+                ).length
+                const isMine = cls.classTeacherId === user?.staffId
+                return (
+                  <Card key={`teach-${cls.id}`}>
+                    <CardContent className="space-y-3 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="font-medium">
+                            {cls.name}
+                            {isMine ? (
+                              <Badge className="ml-2 text-[10px]" variant="secondary">
+                                My class
+                              </Badge>
+                            ) : null}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {educationLevelName(cls.educationLevelId) || cls.level} · {count}{' '}
+                            students
+                          </p>
+                        </div>
+                        <Button asChild size="sm" variant="ghost">
+                          <Link to={`/classes/${cls.id}`}>Open class</Link>
+                        </Button>
+                      </div>
+                      {teachSubs.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          No subjects assigned to you for this class yet.
+                        </p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {teachSubs.map((sub) => (
+                            <li
+                              key={sub.id}
+                              className="flex flex-col gap-2 rounded-lg border border-border px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <div className="flex items-center gap-2">
+                                <FilePlus2 className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-sm font-medium">{sub.name}</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                <Button asChild size="sm" variant="outline">
+                                  <Link
+                                    to={`/examinations?classId=${cls.id}&subjectId=${sub.id}&periodType=MONTHLY`}
+                                  >
+                                    Monthly
+                                  </Link>
+                                </Button>
+                                <Button asChild size="sm" variant="outline">
+                                  <Link
+                                    to={`/examinations?classId=${cls.id}&subjectId=${sub.id}&periodType=WEEKLY`}
+                                  >
+                                    Weekly
+                                  </Link>
+                                </Button>
+                                <Button asChild size="sm" variant="outline">
+                                  <Link
+                                    to={`/examinations?classId=${cls.id}&subjectId=${sub.id}&periodType=MOCK`}
+                                  >
+                                    Mock
+                                  </Link>
+                                </Button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+    )
+  }
 
   return (
     <div>
