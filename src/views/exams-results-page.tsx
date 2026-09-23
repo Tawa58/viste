@@ -179,7 +179,7 @@ function ClassSubjectMarksPanel({
       ])
       let me: Staff | null = null
       if (user?.staffId) {
-        me = (await catalogService.getStaffMember(user.staffId)) ?? null
+        me = (await catalogService.getStaffMember(user.staffId).catch(() => null)) ?? null
       }
       setStaffSelf(me)
       const activeClasses = cls.filter((c) => (c.status ?? 'ACTIVE') === 'ACTIVE')

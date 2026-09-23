@@ -100,7 +100,7 @@ export function StudentsPage() {
       catalogService.getSports?.() ?? Promise.resolve([]),
       catalogService.getClubs?.() ?? Promise.resolve([]),
       catalogService.getHouses?.() ?? Promise.resolve([]),
-      catalogService.getGuardians(),
+      catalogService.getGuardians().catch(() => [] as import('@/types').Guardian[]),
       classService.getStats().catch(() => null),
     ])
       .then(([s, c, st, sub, sp, cl, ho, g]) => {

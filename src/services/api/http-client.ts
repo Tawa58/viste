@@ -6,10 +6,26 @@ export class ApiClientError extends Error {
   details?: unknown
   constructor(status: number, code: string, message: string, details?: unknown) {
     super(message)
+    this.name = 'ApiClientError'
     this.status = status
     this.code = code
     this.details = details
   }
+}
+
+/** Duck-typed check — `instanceof` can fail across webpack chunks. */
+export function isApiClientError(err: unknown): err is ApiClientError {
+  if (err instanceof ApiClientError) return true
+  if (!err || typeof err !== 'object') return false
+  const e = err as { name?: string; status?: unknown; code?: unknown }
+  return (
+    e.name === 'ApiClientError' ||
+    (typeof e.status === 'number' && typeof e.code === 'string')
+  )
+}
+
+export function isForbiddenOrUnauthorized(err: unknown): boolean {
+  return isApiClientError(err) && (err.status === 403 || err.status === 401)
 }
 
 let tokenPromise: Promise<string> | null = null

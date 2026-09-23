@@ -146,7 +146,10 @@ export async function listStaff(session: SessionContext): Promise<StaffDto[]> {
 }
 
 export async function getStaff(session: SessionContext, id: string): Promise<StaffDto> {
-  requirePermission(session, 'teachers.read')
+  const isSelf = Boolean(session.profile.staffId && session.profile.staffId === id)
+  if (!isSelf) {
+    requirePermission(session, 'teachers.read')
+  }
   await syncStaffClassIdsFromClasses(id).catch(() => undefined)
   const row = await getDoc<Staff>('staff', id)
   if (!row) throw notFound('Staff not found')

@@ -105,7 +105,7 @@ export function ClassesPage() {
   async function reload() {
     const [c, sf, stu, y, t, sub, st] = await Promise.all([
       classService.list(),
-      catalogService.getStaff(),
+      catalogService.getStaff().catch(() => [] as Staff[]),
       studentService.list(),
       catalogService.getYears(),
       catalogService.getTerms(),

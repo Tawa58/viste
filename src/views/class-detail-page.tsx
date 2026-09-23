@@ -73,7 +73,7 @@ export function ClassDetailPage() {
       classService.getById(id),
       studentService.list(),
       classService.list(),
-      catalogService.getStaff(),
+      catalogService.getStaff().catch(() => [] as Staff[]),
       catalogService.getYears(),
       catalogService.getTerms(),
       catalogService.getSubjects(),

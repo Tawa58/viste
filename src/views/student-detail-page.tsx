@@ -99,7 +99,7 @@ export function StudentDetailPage() {
       catalogService.getSports?.() ?? Promise.resolve([]),
       catalogService.getClubs?.() ?? Promise.resolve([]),
       catalogService.getHouses?.() ?? Promise.resolve([]),
-      catalogService.getGuardians(),
+      catalogService.getGuardians().catch(() => [] as import('@/types').Guardian[]),
       catalogService.getAttendance(),
       catalogService.getInvoices(),
       catalogService.getMarks(),
