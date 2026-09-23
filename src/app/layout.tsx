@@ -34,26 +34,39 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       msg.indexOf('ChunkLoadError') !== -1 ||
       msg.indexOf('Loading chunk') !== -1 ||
       msg.indexOf('Failed to fetch dynamically imported module') !== -1 ||
-      msg.indexOf('error loading dynamically imported module') !== -1
+      msg.indexOf('error loading dynamically imported module') !== -1 ||
+      msg.indexOf('Loading CSS chunk') !== -1
     );
+  }
+  function isNextChunkUrl(url) {
+    return typeof url === 'string' && url.indexOf('/_next/static/') !== -1;
   }
   function reloadOnce() {
     try {
       var n = Number(sessionStorage.getItem(KEY) || '0');
-      if (n >= 2) return;
+      if (n >= 3) return;
       sessionStorage.setItem(KEY, String(n + 1));
     } catch (e) {}
     try {
-      var url = new URL(window.location.href);
-      url.searchParams.set('_r', String(Date.now()));
-      window.location.replace(url.toString());
+      // Drop query/hash so we do not keep a stuck _r loop; force a full document load.
+      var path = window.location.pathname || '/';
+      window.location.replace(path + '?_r=' + Date.now());
     } catch (e) {
       window.location.reload();
     }
   }
   window.addEventListener('error', function (ev) {
+    var t = ev && ev.target;
+    if (t && t.tagName === 'SCRIPT' && isNextChunkUrl(t.src)) {
+      reloadOnce();
+      return;
+    }
+    if (t && t.tagName === 'LINK' && isNextChunkUrl(t.href)) {
+      reloadOnce();
+      return;
+    }
     if (shouldReload((ev && ev.message) || '')) reloadOnce();
-  });
+  }, true);
   window.addEventListener('unhandledrejection', function (ev) {
     var r = ev && ev.reason;
     var msg = r && (r.message || String(r));

@@ -27,15 +27,14 @@ function reloadForStaleChunks() {
   const key = 'viste.chunk-reload'
   try {
     const attempts = Number(sessionStorage.getItem(key) || '0')
-    if (attempts >= 2) return
+    if (attempts >= 3) return
     sessionStorage.setItem(key, String(attempts + 1))
   } catch {
     /* private mode */
   }
   try {
-    const url = new URL(window.location.href)
-    url.searchParams.set('_r', String(Date.now()))
-    window.location.replace(url.toString())
+    const path = window.location.pathname || '/'
+    window.location.replace(`${path}?_r=${Date.now()}`)
   } catch {
     window.location.reload()
   }
