@@ -87,11 +87,11 @@ const ParentsPage = lazyPage(() => import('@/views/fees-parents-page'), 'Parents
 const ParentDetailPage = lazyPage(() => import('@/views/fees-parents-page'), 'ParentDetailPage')
 const ReportsPage = lazyPage(() => import('@/views/reports-page'), 'ReportsPage')
 const AnnouncementsPage = lazyPage(() => import('@/views/ops-pages'), 'AnnouncementsPage')
-const AuditLogsPage = lazyPage(() => import('@/views/ops-pages'), 'AuditLogsPage')
+const AuditLogsPage = lazyPage(() => import('@/views/audit-logs-page'), 'AuditLogsPage')
 const InventoryPage = lazyPage(() => import('@/views/inventory-page'), 'InventoryPage')
 const LibraryPage = lazyPage(() => import('@/views/ops-pages'), 'LibraryPage')
 const TransportPage = lazyPage(() => import('@/views/transport-page'), 'TransportPage')
-const UsersRolesPage = lazyPage(() => import('@/views/ops-pages'), 'UsersRolesPage')
+const UsersRolesPage = lazyPage(() => import('@/views/users-roles-page'), 'UsersRolesPage')
 const SettingsPage = lazyPage(() => import('@/views/settings-page'), 'SettingsPage')
 
 function RouteFallback() {

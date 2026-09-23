@@ -156,10 +156,49 @@ class MockAuthService implements AuthService {
       mockUsers.push(user)
     }
     if (!user) throw new Error('User not found')
+    const now = new Date().toISOString()
+    auditLogs.unshift({
+      id: `aud-${Date.now()}`,
+      user: user.name,
+      actorId: user.id,
+      actorName: user.name,
+      actorEmail: user.email,
+      actorRole: user.role,
+      action: 'auth.login',
+      module: 'auth',
+      record: `auth:${user.id}`,
+      status: 'SUCCESS',
+      at: now,
+      summary: `${user.name} signed in (${user.role.replaceAll('_', ' ')})`,
+    })
+    const appUser = appUsers.find((u) => u.email.toLowerCase() === normalized)
+    if (appUser) appUser.lastLogin = now
     return { ...user }
   }
 
   async logout() {
+    try {
+      const raw = localStorage.getItem('viste.auth.user') ?? sessionStorage.getItem('viste.auth.user')
+      if (raw) {
+        const user = JSON.parse(raw) as AuthUser
+        auditLogs.unshift({
+          id: `aud-${Date.now()}`,
+          user: user.name,
+          actorId: user.id,
+          actorName: user.name,
+          actorEmail: user.email,
+          actorRole: user.role,
+          action: 'auth.logout',
+          module: 'auth',
+          record: `auth:${user.id}`,
+          status: 'SUCCESS',
+          at: new Date().toISOString(),
+          summary: `${user.name} signed out`,
+        })
+      }
+    } catch {
+      /* ignore */
+    }
     await mockRequest(undefined, 150)
   }
 
@@ -968,10 +1007,55 @@ const mockCatalogService = {
     transportPayments.push(row)
     return mockRequest(row)
   },
-  getUsers: (): Promise<AppUser[]> => mockRequest(appUsers),
-  getRolePermissions: (): Promise<RolePermission[]> => mockRequest(rolePermissions),
+  getUsers: (): Promise<AppUser[]> => mockRequest([...appUsers]),
+  createUser: async (input: {
+    name: string
+    email: string
+    password: string
+    role: string
+    title?: string
+  }) => {
+    const row: AppUser = {
+      id: `u-${Date.now()}`,
+      name: input.name,
+      email: input.email.toLowerCase(),
+      role: input.role as AppUser['role'],
+      status: 'ACTIVE',
+      title: input.title,
+      lastLogin: undefined,
+    }
+    appUsers.push(row)
+    return mockRequest(row)
+  },
+  updateUser: async (
+    id: string,
+    patch: { name?: string; role?: string; status?: 'ACTIVE' | 'DISABLED'; title?: string },
+  ) => {
+    const i = appUsers.findIndex((u) => u.id === id)
+    if (i < 0) throw new Error('User not found')
+    appUsers[i] = {
+      ...appUsers[i]!,
+      ...patch,
+      role: (patch.role as AppUser['role']) ?? appUsers[i]!.role,
+      id,
+    }
+    return mockRequest(appUsers[i]!)
+  },
+  getRolePermissions: (): Promise<RolePermission[]> => mockRequest([...rolePermissions]),
+  updateRolePermissions: async (input: { role: string; permissions: string[] }) => {
+    const next: RolePermission = {
+      role: input.role as RolePermission['role'],
+      permissions: [...input.permissions],
+      grant: [],
+      deny: [],
+    }
+    const i = rolePermissions.findIndex((r) => r.role === input.role)
+    if (i >= 0) rolePermissions[i] = next
+    else rolePermissions.push(next)
+    return mockRequest(next)
+  },
   getPermissionCatalog: () => mockRequest(permissionCatalog),
-  getAuditLogs: (): Promise<AuditLog[]> => mockRequest(auditLogs),
+  getAuditLogs: (): Promise<AuditLog[]> => mockRequest([...auditLogs]),
   getResultPortals: (): Promise<ResultPortalView[]> => mockRequest(resultPortals),
   getResultPortal: async (studentId: string) => {
     const existing = resultPortals.find((p) => p.studentId === studentId)

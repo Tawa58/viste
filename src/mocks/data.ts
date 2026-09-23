@@ -595,25 +595,23 @@ export const appUsers: AppUser[] = [
 ]
 
 export const permissionCatalog = [
-  'students.view',
+  'students.read',
   'students.create',
   'students.update',
-  'students.delete',
-  'fees.view',
+  'students.archive',
+  'fees.read',
   'fees.create',
-  'fees.record_payment',
-  'attendance.view',
-  'attendance.record',
-  'results.view',
+  'payments.create',
+  'attendance.read',
+  'attendance.create',
+  'results.read',
   'results.enter',
   'results.approve',
   'results.publish',
-  'users.view',
-  'users.create',
-  'users.update',
-  'reports.view',
-  'reports.export',
-  'system.settings',
+  'users.manage',
+  'roles.manage',
+  'settings.manage',
+  'audit.read',
 ]
 
 export const rolePermissions: RolePermission[] = [
@@ -624,30 +622,57 @@ export const rolePermissions: RolePermission[] = [
   {
     role: 'TEACHER',
     permissions: [
-      'students.view',
-      'attendance.view',
-      'attendance.record',
-      'results.view',
+      'students.read',
+      'attendance.read',
+      'attendance.create',
+      'results.read',
       'results.enter',
-      'reports.view',
     ],
   },
   {
     role: 'ACCOUNTANT',
-    permissions: ['students.view', 'fees.view', 'fees.create', 'fees.record_payment', 'reports.view', 'reports.export'],
+    permissions: ['students.read', 'fees.read', 'fees.create', 'payments.create'],
   },
   {
     role: 'PARENT',
-    permissions: ['students.view', 'fees.view', 'attendance.view', 'results.view'],
+    permissions: ['students.read', 'fees.read', 'attendance.read', 'results.read'],
   },
   {
     role: 'STUDENT',
-    permissions: ['attendance.view', 'results.view', 'fees.view'],
+    permissions: ['attendance.read', 'results.read', 'fees.read'],
   },
 ]
 
-export const auditLogs: AuditLog[] = []
-
+export const auditLogs: AuditLog[] = [
+  {
+    id: 'aud-1',
+    user: 'Caxton Nyathi',
+    actorId: 'u-admin',
+    actorName: 'Caxton Nyathi',
+    actorEmail: 'admin@viste.school',
+    actorRole: 'SCHOOL_ADMIN',
+    action: 'auth.login',
+    module: 'auth',
+    record: 'auth:u-admin',
+    status: 'SUCCESS',
+    at: '2026-09-23T07:50:00.000Z',
+    summary: 'Caxton Nyathi signed in (SCHOOL ADMIN)',
+  },
+  {
+    id: 'aud-2',
+    user: 'Teacher Portal',
+    actorId: 'u-teacher',
+    actorName: 'Teacher Portal',
+    actorEmail: 'teacher@viste.school',
+    actorRole: 'TEACHER',
+    action: 'auth.login',
+    module: 'auth',
+    record: 'auth:u-teacher',
+    status: 'SUCCESS',
+    at: '2026-09-23T08:05:00.000Z',
+    summary: 'Teacher Portal signed in (TEACHER)',
+  },
+]
 export const dashboardStats: DashboardStats = {
   totalStudents: students.filter((s) => s.status === 'ACTIVE').length,
   totalTeachers: staff.filter((s) => s.status === 'ACTIVE').length,

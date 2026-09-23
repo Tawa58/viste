@@ -654,21 +654,40 @@ export interface AppUser {
   role: UserRole
   status: 'ACTIVE' | 'DISABLED'
   lastLogin?: string
+  title?: string
+  staffId?: string
+  createdAt?: string
 }
 
 export interface RolePermission {
   role: UserRole
+  /** Effective permissions after school-level grant/deny. */
   permissions: string[]
+  /** School-level adds on top of the role baseline. */
+  grant?: string[]
+  /** School-level removals from the role baseline. */
+  deny?: string[]
+  /** True when this role’s matrix is locked (e.g. SUPER_ADMIN). */
+  locked?: boolean
 }
 
 export interface AuditLog {
   id: string
+  /** Display name when known; falls back to actor id. */
   user: string
+  actorId?: string
+  actorName?: string
+  actorEmail?: string
+  actorRole?: UserRole
   action: string
   module: string
   record: string
+  entityId?: string
   status: 'SUCCESS' | 'FAILED' | 'WARNING'
   at: string
+  metadata?: Record<string, unknown> | null
+  /** Human-readable summary for the UI. */
+  summary?: string
 }
 
 export interface DashboardStats {

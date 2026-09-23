@@ -161,17 +161,27 @@ export async function verifyBearerToken(request: Request): Promise<SessionContex
   return remember(cacheKey, 20_000, async () => {
     const profile = await loadOrCreateProfile(decoded.uid, email, decoded.name)
     let overrides: PermissionOverrides | null = null
+    try {
+      const { getRoleOverrides } = await import('@/server/services/admin-users-service')
+      const schoolOverrides = await getRoleOverrides(profile.role)
+      if (schoolOverrides) overrides = schoolOverrides
+    } catch {
+      overrides = null
+    }
     if (profile.staffId) {
       try {
         const { assertStaffAccountActive } = await import('@/server/services/staff-service')
         const staff = await assertStaffAccountActive(profile.staffId)
         if (staff && profile.role === 'TEACHER') {
-          overrides = staff.permissionOverrides ?? null
+          const staffOverrides = staff.permissionOverrides ?? null
+          overrides = {
+            grant: [...(overrides?.grant ?? []), ...(staffOverrides?.grant ?? [])],
+            deny: [...(overrides?.deny ?? []), ...(staffOverrides?.deny ?? [])],
+          }
         }
       } catch (err) {
         // Re-throw AppError (e.g. ACCOUNT_SUSPENDED); ignore soft lookup failures
         if (err && typeof err === 'object' && 'statusCode' in err) throw err
-        overrides = null
       }
     }
     const permissions = resolveEffectivePermissions(profile.role, overrides)

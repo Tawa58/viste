@@ -164,8 +164,8 @@ export async function listAnnouncementsService(session: SessionContext): Promise
 }
 
 export async function listAuditLogsService(session: SessionContext): Promise<AuditLog[]> {
-  requirePermission(session, 'audit.read')
-  return queryCollection<AuditLog>('auditLogs', { limit: 100, orderBy: 'at', orderDirection: 'desc' })
+  const { listAuditLogsDetailedService } = await import('@/server/services/admin-users-service')
+  return listAuditLogsDetailedService(session)
 }
 
 // Re-export attendance helpers expected by early API routes

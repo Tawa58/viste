@@ -62,6 +62,10 @@ export class ApiAuthService implements AuthService {
     )
     try {
       const me = await this.session()
+      void apiFetch('/api/v1/auth/activity', {
+        method: 'POST',
+        body: JSON.stringify({ event: 'login' }),
+      }).catch(() => undefined)
       return me.user
     } catch (err) {
       await signOut(getFirebaseAuth()).catch(() => undefined)
@@ -70,6 +74,14 @@ export class ApiAuthService implements AuthService {
   }
 
   async logout() {
+    try {
+      await apiFetch('/api/v1/auth/activity', {
+        method: 'POST',
+        body: JSON.stringify({ event: 'logout' }),
+      })
+    } catch {
+      /* still sign out locally */
+    }
     await signOut(getFirebaseAuth())
   }
 
@@ -627,9 +639,38 @@ export const apiCatalogService = {
       method: 'POST',
       body: JSON.stringify({ kind: 'payment', ...input }),
     }),
-  getUsers: async (): Promise<AppUser[]> => [],
-  getRolePermissions: async (): Promise<RolePermission[]> => [],
-  getPermissionCatalog: async () => [] as string[],
+  getUsers: () => apiFetch<AppUser[]>('/api/v1/users'),
+  createUser: (input: {
+    name: string
+    email: string
+    password: string
+    role: string
+    title?: string
+  }) =>
+    apiFetch<AppUser>('/api/v1/users', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  updateUser: (
+    id: string,
+    patch: { name?: string; role?: string; status?: 'ACTIVE' | 'DISABLED'; title?: string },
+  ) =>
+    apiFetch<AppUser>(`/api/v1/users/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+  getRolePermissions: () => apiFetch<RolePermission[]>('/api/v1/roles'),
+  updateRolePermissions: (input: { role: string; permissions: string[] }) =>
+    apiFetch<RolePermission>('/api/v1/roles', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  getPermissionCatalog: async () =>
+    apiFetch<RolePermission[]>('/api/v1/roles').then((roles) => {
+      const set = new Set<string>()
+      for (const r of roles) for (const p of r.permissions) set.add(p)
+      return [...set].sort()
+    }),
   getAuditLogs: () => apiFetch<AuditLog[]>('/api/v1/audit-logs'),
   getResultPortals: async (): Promise<ResultPortalView[]> => [],
   getResultPortal: (studentId: string) =>

@@ -401,16 +401,41 @@ export const firestoreCatalogService = {
     return apiCatalogService.createTransportPayment(input)
   },
   async getUsers() {
-    return []
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.getUsers()
+  },
+  async createUser(input: {
+    name: string
+    email: string
+    password: string
+    role: string
+    title?: string
+  }) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.createUser(input)
+  },
+  async updateUser(
+    id: string,
+    patch: { name?: string; role?: string; status?: 'ACTIVE' | 'DISABLED'; title?: string },
+  ) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.updateUser(id, patch)
   },
   async getRolePermissions() {
-    return []
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.getRolePermissions()
+  },
+  async updateRolePermissions(input: { role: string; permissions: string[] }) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.updateRolePermissions(input)
   },
   async getPermissionCatalog() {
-    return []
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.getPermissionCatalog()
   },
   async getAuditLogs() {
-    return []
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.getAuditLogs()
   },
   async getResultPortals() {
     return []
