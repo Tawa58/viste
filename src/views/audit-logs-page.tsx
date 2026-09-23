@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { KeyRound, LogIn, LogOut, RefreshCw } from 'lucide-react'
+import { Download, KeyRound, LogIn, LogOut, RefreshCw } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { LoadingState } from '@/components/shared/loading-state'
 import { SearchInput } from '@/components/shared/search-input'
@@ -21,13 +21,18 @@ import { Select } from '@/components/ui/select'
 import { catalogService } from '@/services/api'
 import { notify } from '@/lib/notify'
 import { roleLabel } from '@/lib/permission-labels'
-import { formatDateTime } from '@/lib/utils'
+import { downloadReportPdf } from '@/lib/reports-export'
+import { cn, formatDateTime } from '@/lib/utils'
 import type { AuditLog } from '@/types'
 
 function actionKind(action: string): 'login' | 'logout' | 'other' {
   if (action === 'auth.login') return 'login'
   if (action === 'auth.logout') return 'logout'
   return 'other'
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10)
 }
 
 export function AuditLogsPage() {
@@ -37,10 +42,15 @@ export function AuditLogsPage() {
   const [moduleFilter, setModuleFilter] = useState('all')
   const [userFilter, setUserFilter] = useState('all')
   const [kindFilter, setKindFilter] = useState<'all' | 'login' | 'logout' | 'actions'>('all')
+  const [schoolName, setSchoolName] = useState('Viste High School')
 
   async function reload() {
-    const a = await catalogService.getAuditLogs()
+    const [a, profile] = await Promise.all([
+      catalogService.getAuditLogs(),
+      catalogService.getSchoolProfile().catch(() => null),
+    ])
     setRows(a)
+    if (profile?.name) setSchoolName(profile.name)
   }
 
   useEffect(() => {
@@ -80,39 +90,77 @@ export function AuditLogsPage() {
     return { logins, logouts, actions, total: rows.length }
   }, [rows])
 
+  function exportPdf() {
+    if (filtered.length === 0) {
+      notify.info('No audit rows to export')
+      return
+    }
+    try {
+      downloadReportPdf({
+        schoolName,
+        filename: `viste-audit-log-${today()}`,
+        table: {
+          title: 'Audit log',
+          headers: ['#', 'When', 'Who', 'Email', 'Role', 'What happened', 'Module', 'Status'],
+          rows: filtered.map((r, i) => [
+            String(i + 1),
+            formatDateTime(r.at),
+            r.actorName || r.user,
+            r.actorEmail || '—',
+            r.actorRole ? roleLabel(r.actorRole) : '—',
+            r.summary || r.action.replaceAll('.', ' · '),
+            r.module,
+            r.status,
+          ]),
+          summary: `${filtered.length} event(s) · filters applied`,
+        },
+      })
+      notify.success('Audit log PDF downloaded')
+    } catch (err) {
+      notify.error(err instanceof Error ? err.message : 'Could not create PDF')
+    }
+  }
+
   if (loading) return <LoadingState message="Loading audit logs…" />
 
   return (
-    <div>
+    <div className="text-[12px] leading-snug">
       <PageHeader
         title="Audit Logs"
-        description="Who signed in, when, and what they changed in the school system."
+        description="Who signed in, when, and what they changed."
         breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Audit Logs' }]}
         actions={
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setLoading(true)
-              reload()
-                .catch(() => notify.error('Could not refresh'))
-                .finally(() => setLoading(false))
-            }}
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={exportPdf}>
+              <Download className="h-3.5 w-3.5" />
+              Download PDF
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setLoading(true)
+                reload()
+                  .catch(() => notify.error('Could not refresh'))
+                  .finally(() => setLoading(false))
+              }}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Refresh
+            </Button>
+          </div>
         }
       />
 
-      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Sign-ins recorded" value={String(stats.logins)} icon={LogIn} compact />
+      <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Sign-ins" value={String(stats.logins)} icon={LogIn} compact />
         <StatCard label="Sign-outs" value={String(stats.logouts)} icon={LogOut} compact />
-        <StatCard label="Other actions" value={String(stats.actions)} icon={KeyRound} compact />
-        <StatCard label="Events shown" value={String(stats.total)} icon={KeyRound} compact />
+        <StatCard label="Actions" value={String(stats.actions)} icon={KeyRound} compact />
+        <StatCard label="Shown" value={String(filtered.length)} icon={KeyRound} compact />
       </div>
 
-      <div className="mb-4 grid gap-3 md:grid-cols-4">
+      <div className="mb-3 grid gap-2 md:grid-cols-4">
         <SearchInput
           id="audit-search"
           name="audit-search"
@@ -126,6 +174,7 @@ export function AuditLogsPage() {
           <Select
             value={kindFilter}
             onChange={(e) => setKindFilter(e.target.value as typeof kindFilter)}
+            className="h-9 text-xs"
           >
             <option value="all">All events</option>
             <option value="login">Sign-ins only</option>
@@ -135,7 +184,11 @@ export function AuditLogsPage() {
         </Field>
         <Field>
           <Label className="sr-only">Module</Label>
-          <Select value={moduleFilter} onChange={(e) => setModuleFilter(e.target.value)}>
+          <Select
+            value={moduleFilter}
+            onChange={(e) => setModuleFilter(e.target.value)}
+            className="h-9 text-xs"
+          >
             <option value="all">All modules</option>
             {modules.map((m) => (
               <option key={m} value={m}>
@@ -146,7 +199,11 @@ export function AuditLogsPage() {
         </Field>
         <Field className="md:col-span-2 lg:col-span-1">
           <Label className="sr-only">User</Label>
-          <Select value={userFilter} onChange={(e) => setUserFilter(e.target.value)}>
+          <Select
+            value={userFilter}
+            onChange={(e) => setUserFilter(e.target.value)}
+            className="h-9 text-xs"
+          >
             <option value="all">All people</option>
             {users.map((u) => (
               <option key={u} value={u}>
@@ -158,57 +215,71 @@ export function AuditLogsPage() {
       </div>
 
       {filtered.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-          No audit events match these filters yet. Sign-ins and admin actions appear here
-          automatically.
+        <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-xs text-muted-foreground">
+          No audit events match these filters yet.
         </p>
       ) : (
         <DataTableShell>
-          <DataTable>
+          <DataTable className="min-w-[720px] text-[11px]">
             <DataTableHead>
               <tr>
-                <DataTableHeaderCell>When</DataTableHeaderCell>
-                <DataTableHeaderCell>Who</DataTableHeaderCell>
-                <DataTableHeaderCell>What happened</DataTableHeaderCell>
-                <DataTableHeaderCell>Module</DataTableHeaderCell>
-                <DataTableHeaderCell>Status</DataTableHeaderCell>
+                <DataTableHeaderCell className="px-2 py-1.5 text-[10px]">When</DataTableHeaderCell>
+                <DataTableHeaderCell className="px-2 py-1.5 text-[10px]">Who</DataTableHeaderCell>
+                <DataTableHeaderCell className="px-2 py-1.5 text-[10px]">
+                  What happened
+                </DataTableHeaderCell>
+                <DataTableHeaderCell className="px-2 py-1.5 text-[10px]">Module</DataTableHeaderCell>
+                <DataTableHeaderCell className="px-2 py-1.5 text-[10px]">Status</DataTableHeaderCell>
               </tr>
             </DataTableHead>
             <DataTableBody>
               {filtered.map((r) => {
                 const kind = actionKind(r.action)
                 return (
-                  <DataTableRow key={r.id}>
-                    <DataTableCell className="whitespace-nowrap text-sm">
+                  <DataTableRow key={r.id} className="border-border/50">
+                    <DataTableCell className="whitespace-nowrap px-2 py-1 text-[11px] text-muted-foreground">
                       {formatDateTime(r.at)}
                     </DataTableCell>
-                    <DataTableCell>
-                      <p className="font-medium">{r.actorName || r.user}</p>
-                      <p className="text-xs text-muted-foreground">
+                    <DataTableCell className="px-2 py-1">
+                      <p className="text-[11px] font-medium leading-tight">
+                        {r.actorName || r.user}
+                      </p>
+                      <p className="text-[10px] leading-tight text-muted-foreground">
                         {r.actorEmail || '—'}
                         {r.actorRole ? ` · ${roleLabel(r.actorRole)}` : ''}
                       </p>
                     </DataTableCell>
-                    <DataTableCell>
-                      <div className="flex items-start gap-2">
+                    <DataTableCell className="px-2 py-1">
+                      <div className="flex items-start gap-1.5">
                         {kind === 'login' ? (
-                          <LogIn className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                          <LogIn className="mt-0.5 h-3 w-3 shrink-0 text-success" />
                         ) : kind === 'logout' ? (
-                          <LogOut className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                          <LogOut className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
                         ) : (
-                          <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                          <KeyRound className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
                         )}
-                        <div>
-                          <p className="text-sm font-medium">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-medium leading-tight">
                             {r.summary || r.action.replaceAll('.', ' · ')}
                           </p>
-                          <p className="text-xs text-muted-foreground">{r.record}</p>
+                          <p className="truncate text-[10px] leading-tight text-muted-foreground">
+                            {r.record}
+                          </p>
                         </div>
                       </div>
                     </DataTableCell>
-                    <DataTableCell className="text-sm">{r.module}</DataTableCell>
-                    <DataTableCell>
-                      <StatusBadge status={r.status} />
+                    <DataTableCell className="px-2 py-1 text-[11px]">{r.module}</DataTableCell>
+                    <DataTableCell className="px-2 py-1">
+                      <span
+                        className={cn(
+                          'inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide',
+                          r.status === 'SUCCESS' && 'bg-success/15 text-success',
+                          r.status === 'FAILED' && 'bg-destructive/15 text-destructive',
+                          r.status === 'WARNING' && 'bg-warning/15 text-warning',
+                        )}
+                      >
+                        {r.status}
+                      </span>
                     </DataTableCell>
                   </DataTableRow>
                 )
