@@ -36,12 +36,9 @@ export async function listClasses(session: SessionContext): Promise<ClassDto[]> 
 
   const staffId = session.profile.staffId
   if (!staffId) return []
-  const staff = await getDoc<Staff>('staff', staffId)
-  const classIds = new Set(staff?.classIds ?? [])
-  // Class teachers also see classes they own even if classIds lagged
-  return normalized.filter(
-    (c) => classIds.has(c.id) || c.classTeacherId === staffId,
-  )
+  const { resolveTeacherClassIds } = await import('@/server/authorization/isolation')
+  const classIds = new Set(await resolveTeacherClassIds(session))
+  return normalized.filter((c) => classIds.has(c.id))
 }
 
 export async function getClass(session: SessionContext, id: string): Promise<ClassDto> {

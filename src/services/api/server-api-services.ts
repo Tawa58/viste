@@ -2,7 +2,7 @@
  * Server-backed school data via Next.js /api/v1 (Firebase Admin).
  * Preserves existing service interfaces so UI views stay unchanged.
  */
-import { apiFetch } from '@/services/api/http-client'
+import { apiFetch, ApiClientError } from '@/services/api/http-client'
 import type { AuthService, DashboardService, StudentService } from '@/services/api/contracts'
 import type {
   Announcement,
@@ -325,10 +325,37 @@ export const apiCatalogService = {
   async getHouses(): Promise<House[]> {
     return (await loadCatalogOnce()).houses ?? []
   },
-  getStaff: () => apiFetch<Staff[]>('/api/v1/teachers'),
-  getGuardians: () => apiFetch<Guardian[]>('/api/v1/parents'),
+  getStaff: async () => {
+    try {
+      return await apiFetch<Staff[]>('/api/v1/teachers')
+    } catch (err) {
+      if (err instanceof ApiClientError && (err.status === 403 || err.status === 401)) {
+        return []
+      }
+      throw err
+    }
+  },
+  getGuardians: async () => {
+    try {
+      return await apiFetch<Guardian[]>('/api/v1/parents')
+    } catch (err) {
+      if (err instanceof ApiClientError && (err.status === 403 || err.status === 401)) {
+        return []
+      }
+      throw err
+    }
+  },
   getGuardian: (id: string) => apiFetch<Guardian>(`/api/v1/parents/${id}`),
-  getStaffMember: (id: string) => apiFetch<Staff>(`/api/v1/teachers/${id}`),
+  getStaffMember: async (id: string) => {
+    try {
+      return await apiFetch<Staff>(`/api/v1/teachers/${id}`)
+    } catch (err) {
+      if (err instanceof ApiClientError && (err.status === 403 || err.status === 404 || err.status === 401)) {
+        return undefined as unknown as Staff
+      }
+      throw err
+    }
+  },
   updateStaff: (id: string, patch: Partial<Staff>) =>
     apiFetch<Staff>(`/api/v1/teachers/${id}`, {
       method: 'PATCH',

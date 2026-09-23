@@ -70,8 +70,6 @@ export const ROLE_ROUTES: Record<UserRole, '*' | string[]> = {
     '/attendance',
     '/examinations',
     '/results',
-    '/fees',
-    '/parents',
     '/announcements',
     '/reports',
     '/settings',

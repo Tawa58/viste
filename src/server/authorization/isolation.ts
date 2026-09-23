@@ -3,7 +3,7 @@ import 'server-only'
 import { getAdminDb } from '@/lib/firebase/admin'
 import type { SessionContext } from '@/server/auth/session'
 import { forbidden, notFound } from '@/server/errors'
-import type { Guardian, Staff, Student } from '@/types'
+import type { Guardian, SchoolClass, Staff, Student, Subject } from '@/types'
 
 const FULL_STUDENT_ACCESS = new Set([
   'SUPER_ADMIN',
@@ -35,6 +35,37 @@ async function getStaffForSession(session: SessionContext): Promise<Staff | null
   const snap = await getAdminDb().collection('staff').doc(staffId).get()
   if (!snap.exists) return null
   return { id: snap.id, ...(snap.data() as Omit<Staff, 'id'>) }
+}
+
+/**
+ * Classes a teacher may access: subject teaching assignments (classIds)
+ * plus classes where they are the class teacher.
+ */
+export async function resolveTeacherClassIds(session: SessionContext): Promise<string[]> {
+  const staff = await getStaffForSession(session)
+  if (!staff) return []
+  const ids = new Set(staff.classIds ?? [])
+  const snap = await getAdminDb().collection('classes').limit(200).get()
+  for (const doc of snap.docs) {
+    const data = doc.data() as Pick<SchoolClass, 'classTeacherId' | 'status'>
+    if ((data.status ?? 'ACTIVE') === 'ARCHIVED') continue
+    if (data.classTeacherId === staff.id) ids.add(doc.id)
+  }
+  return [...ids]
+}
+
+/** Subjects assigned on the staff record or listed on the subject.teacherIds. */
+export async function resolveTeacherSubjectIds(session: SessionContext): Promise<string[]> {
+  const staff = await getStaffForSession(session)
+  if (!staff) return []
+  const ids = new Set(staff.subjectIds ?? [])
+  const snap = await getAdminDb().collection('subjects').limit(200).get()
+  for (const doc of snap.docs) {
+    const data = doc.data() as Pick<Subject, 'teacherIds' | 'active'>
+    if (data.active === false) continue
+    if ((data.teacherIds ?? []).includes(staff.id)) ids.add(doc.id)
+  }
+  return [...ids]
 }
 
 /** Ensure session parent is linked to the given student via guardians/{guardianId}. */
@@ -69,9 +100,7 @@ export async function assertCanAccessStudent(
   if (FULL_STUDENT_ACCESS.has(session.role)) return loaded
 
   if (session.role === 'TEACHER') {
-    const staff = await getStaffForSession(session)
-    if (!staff) throw forbidden('Teacher profile is not linked to staff')
-    const classIds = staff.classIds ?? []
+    const classIds = await resolveTeacherClassIds(session)
     if (!classIds.includes(loaded.classId)) {
       throw forbidden("Teacher is not assigned to this student's class")
     }
@@ -142,8 +171,7 @@ export async function listAccessibleStudents(session: SessionContext): Promise<S
   }
 
   if (session.role === 'TEACHER') {
-    const staff = await getStaffForSession(session)
-    const classIds = new Set(staff?.classIds ?? [])
+    const classIds = new Set(await resolveTeacherClassIds(session))
     if (classIds.size === 0) return []
     const snap = await db.collection('students').limit(500).get()
     return snap.docs
@@ -155,15 +183,14 @@ export async function listAccessibleStudents(session: SessionContext): Promise<S
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Student, 'id'>) }))
 }
 
-/** Teachers may only manage students in assigned classIds (when staff profile exists). */
+/** Teachers may manage students in taught classes and classes they own as class teacher. */
 export async function assertTeacherOwnsClass(
   session: SessionContext,
   classId: string,
 ): Promise<void> {
   if (session.role !== 'TEACHER') return
-  const staff = await getStaffForSession(session)
-  if (!staff) throw forbidden('Teacher profile is not linked to staff')
-  if (!staff.classIds?.includes(classId)) {
+  const classIds = await resolveTeacherClassIds(session)
+  if (!classIds.includes(classId)) {
     throw forbidden('Teacher is not assigned to this class')
   }
 }

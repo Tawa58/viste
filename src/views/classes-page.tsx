@@ -18,6 +18,7 @@ import { EmptyState } from '@/components/shared/empty-state'
 import { SearchInput } from '@/components/shared/search-input'
 import { StatCard } from '@/components/shared/stat-card'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { Badge } from '@/components/ui/badge'
 import {
   DataTable,
   DataTableBody,
@@ -263,7 +264,11 @@ export function ClassesPage() {
     <div>
       <PageHeader
         title="Class Management"
-        description="Manage ECD through Form 6 classes for the current academic structure."
+        description={
+          canManage
+            ? 'Manage ECD through Form 6 classes for the current academic structure.'
+            : 'Your class-teacher classes and the classes you teach.'
+        }
         breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Classes' }]}
         actions={
           canManage ? (
@@ -386,7 +391,18 @@ export function ClassesPage() {
                       {educationLevelName(cls.educationLevelId) || cls.level}
                     </DataTableCell>
                     <DataTableCell>
-                      {teacher ? `${teacher.firstName} ${teacher.lastName}` : '—'}
+                      <div className="space-y-0.5">
+                        <p>
+                          {teacher
+                            ? `${teacher.firstName} ${teacher.lastName}`
+                            : cls.classTeacherId
+                              ? 'Assigned'
+                              : '—'}
+                        </p>
+                        {!canManage && user?.staffId && cls.classTeacherId === user.staffId ? (
+                          <Badge className="text-[10px]">Class teacher</Badge>
+                        ) : null}
+                      </div>
                     </DataTableCell>
                     <DataTableCell className="text-muted-foreground">
                       {year?.name ?? '—'}

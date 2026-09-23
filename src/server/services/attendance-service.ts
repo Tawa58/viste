@@ -64,10 +64,8 @@ export async function listAttendance(
   }
 
   if (session.role === 'TEACHER') {
-    const staffId = session.profile.staffId
-    if (!staffId) return []
-    const staff = await getDoc<Staff>('staff', staffId)
-    const allowed = new Set(staff?.classIds ?? [])
+    const { resolveTeacherClassIds } = await import('@/server/authorization/isolation')
+    const allowed = new Set(await resolveTeacherClassIds(session))
     if (opts?.classId && !allowed.has(opts.classId)) {
       throw forbidden('Teacher is not assigned to this class')
     }
@@ -95,9 +93,8 @@ export async function listAttendance(
   if (opts?.date) rows = rows.filter((r) => r.date === opts.date)
 
   if (session.role === 'TEACHER' && !opts?.classId) {
-    const staffId = session.profile.staffId
-    const staff = staffId ? await getDoc<Staff>('staff', staffId) : null
-    const allowed = new Set(staff?.classIds ?? [])
+    const { resolveTeacherClassIds } = await import('@/server/authorization/isolation')
+    const allowed = new Set(await resolveTeacherClassIds(session))
     rows = rows.filter((r) => allowed.has(r.classId))
   }
 
@@ -138,10 +135,8 @@ export async function listAttendanceSessions(
   rows.sort((a, b) => String(b.submittedAt ?? '').localeCompare(String(a.submittedAt ?? '')))
 
   if (session.role === 'TEACHER') {
-    const staffId = session.profile.staffId
-    if (!staffId) return []
-    const staff = await getDoc<Staff>('staff', staffId)
-    const allowed = new Set(staff?.classIds ?? [])
+    const { resolveTeacherClassIds } = await import('@/server/authorization/isolation')
+    const allowed = new Set(await resolveTeacherClassIds(session))
     rows = rows.filter((r) => allowed.has(r.classId))
   }
 

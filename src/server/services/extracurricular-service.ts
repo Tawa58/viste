@@ -56,7 +56,13 @@ function normalizeSubject(row: Subject): Subject {
 export async function listSubjects(session: SessionContext): Promise<Subject[]> {
   requirePermission(session, 'subjects.read')
   const rows = await queryCollection<Subject>('subjects', { limit: 100, orderBy: 'code' })
-  return rows.map(normalizeSubject)
+  const normalized = rows.map(normalizeSubject)
+  if (session.role !== 'TEACHER') return normalized
+
+  const { resolveTeacherSubjectIds } = await import('@/server/authorization/isolation')
+  const allowed = new Set(await resolveTeacherSubjectIds(session))
+  if (allowed.size === 0) return []
+  return normalized.filter((s) => allowed.has(s.id))
 }
 
 export async function createSubject(

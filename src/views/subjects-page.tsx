@@ -43,8 +43,9 @@ const emptyForm = (): SubjectForm => ({
 })
 
 export function SubjectsPage() {
-  const { user } = useAuth()
+  const { user, hasPermission } = useAuth()
   const canManage = user ? canManageAcademics(user.role) : false
+  const canReadStaff = hasPermission('teachers.read')
   const [loading, setLoading] = useState(true)
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [staff, setStaff] = useState<Staff[]>([])
@@ -58,7 +59,9 @@ export function SubjectsPage() {
   async function reload() {
     const [s, sf] = await Promise.all([
       subjectAdminService.list(),
-      catalogService.getStaff(),
+      canReadStaff || canManage
+        ? catalogService.getStaff().catch(() => [] as Staff[])
+        : Promise.resolve([] as Staff[]),
     ])
     setSubjects(s)
     setStaff(sf)
@@ -159,7 +162,11 @@ export function SubjectsPage() {
     <div>
       <PageHeader
         title="Subjects"
-        description="Assign subjects to education levels so registration only shows relevant options."
+        description={
+          canManage
+            ? 'Assign subjects to education levels so registration only shows relevant options.'
+            : 'Subjects you are assigned to teach.'
+        }
         breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Subjects' }]}
         actions={
           canManage ? (
