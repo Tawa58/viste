@@ -3,7 +3,6 @@ import { Download, KeyRound, LogIn, LogOut, RefreshCw } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
 import { LoadingState } from '@/components/shared/loading-state'
 import { SearchInput } from '@/components/shared/search-input'
-import { StatusBadge } from '@/components/shared/status-badge'
 import { StatCard } from '@/components/shared/stat-card'
 import {
   DataTable,
