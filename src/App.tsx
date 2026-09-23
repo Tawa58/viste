@@ -88,9 +88,9 @@ const ParentDetailPage = lazyPage(() => import('@/views/fees-parents-page'), 'Pa
 const ReportsPage = lazyPage(() => import('@/views/reports-page'), 'ReportsPage')
 const AnnouncementsPage = lazyPage(() => import('@/views/ops-pages'), 'AnnouncementsPage')
 const AuditLogsPage = lazyPage(() => import('@/views/ops-pages'), 'AuditLogsPage')
-const InventoryPage = lazyPage(() => import('@/views/ops-pages'), 'InventoryPage')
+const InventoryPage = lazyPage(() => import('@/views/inventory-page'), 'InventoryPage')
 const LibraryPage = lazyPage(() => import('@/views/ops-pages'), 'LibraryPage')
-const TransportPage = lazyPage(() => import('@/views/ops-pages'), 'TransportPage')
+const TransportPage = lazyPage(() => import('@/views/transport-page'), 'TransportPage')
 const UsersRolesPage = lazyPage(() => import('@/views/ops-pages'), 'UsersRolesPage')
 const SettingsPage = lazyPage(() => import('@/views/settings-page'), 'SettingsPage')
 

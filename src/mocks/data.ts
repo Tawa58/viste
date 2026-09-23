@@ -454,18 +454,26 @@ export const inventoryItems: InventoryItem[] = [
     name: 'Science Lab Microscope',
     category: 'Equipment',
     sku: 'SCI-MIC-01',
+    registrationNumber: 'AST-SCI-0018',
     quantity: 18,
     location: 'Lab Store A',
     supplier: 'EduSupply Co.',
+    purchaseValue: 4200,
+    purchaseDate: '2024-02-12',
+    status: 'IN_STOCK',
   },
   {
     id: 'invt-2',
     name: 'Football Kit Set',
     category: 'Sports',
     sku: 'PE-FB-12',
+    registrationNumber: 'AST-PE-0040',
     quantity: 40,
     location: 'Sports Store',
     supplier: 'PlayField Ltd',
+    purchaseValue: 1800,
+    purchaseDate: '2024-08-01',
+    status: 'IN_STOCK',
   },
   {
     id: 'invt-3',
@@ -475,6 +483,44 @@ export const inventoryItems: InventoryItem[] = [
     quantity: 120,
     location: 'Admin Store',
     supplier: 'OfficeMart',
+    purchaseValue: 95,
+    purchaseDate: '2025-11-20',
+    status: 'IN_STOCK',
+  },
+  {
+    id: 'invt-4',
+    name: 'Dell OptiPlex Desktop',
+    category: 'ICT',
+    sku: 'ICT-PC-07',
+    registrationNumber: 'LAP-VHS-2023-07',
+    quantity: 1,
+    location: 'Computer Lab',
+    supplier: 'TechZone',
+    purchaseValue: 650,
+    purchaseDate: '2023-05-10',
+    status: 'SOLD',
+    soldAmount: 200,
+    soldAt: '2025-06-01',
+    notes: 'Replaced during lab refresh',
+  },
+]
+
+export const transportVehicles = [
+  {
+    id: 'bus-1',
+    name: 'Bus VHS-01',
+    registrationNumber: 'AFB-1021',
+    capacity: 45,
+    type: 'BUS' as const,
+    status: 'ACTIVE' as const,
+  },
+  {
+    id: 'bus-2',
+    name: 'Bus VHS-02',
+    registrationNumber: 'AFB-2044',
+    capacity: 40,
+    type: 'BUS' as const,
+    status: 'ACTIVE' as const,
   },
 ]
 
@@ -482,28 +528,39 @@ export const transportRoutes: TransportRoute[] = [
   {
     id: 'tr-1',
     name: 'North Circuit',
-    vehicle: 'Bus VHS-01',
+    vehicleId: 'bus-1',
+    vehicle: 'Bus VHS-01 (AFB-1021)',
     driver: 'Samuel K.',
-    fee: 450,
+    driverPhone: '+263 77 111 0001',
+    fee: 45,
     studentIds: [],
+    active: true,
+    stops: [
+      { id: 'st-1a', name: 'Borrowdale Gate', pickupTime: '06:15', dropTime: '16:40', order: 0 },
+      { id: 'st-1b', name: 'Sam Levy', pickupTime: '06:30', dropTime: '16:25', order: 1 },
+      { id: 'st-1c', name: 'School', pickupTime: '07:00', dropTime: '15:50', order: 2 },
+    ],
   },
   {
     id: 'tr-2',
     name: 'Lake District',
-    vehicle: 'Bus VHS-02',
+    vehicleId: 'bus-2',
+    vehicle: 'Bus VHS-02 (AFB-2044)',
     driver: 'Helen R.',
-    fee: 520,
+    driverPhone: '+263 77 222 0002',
+    fee: 50,
     studentIds: [],
-  },
-  {
-    id: 'tr-3',
-    name: 'Hillcrest Loop',
-    vehicle: 'Van VHS-05',
-    driver: 'Ibrahim M.',
-    fee: 380,
-    studentIds: [],
+    active: true,
+    stops: [
+      { id: 'st-2a', name: 'Crowhill', pickupTime: '06:10', dropTime: '16:45', order: 0 },
+      { id: 'st-2b', name: 'Greendale', pickupTime: '06:35', dropTime: '16:20', order: 1 },
+      { id: 'st-2c', name: 'School', pickupTime: '07:05', dropTime: '15:50', order: 2 },
+    ],
   },
 ]
+
+export const transportRiders: import('@/types').TransportRider[] = []
+export const transportPayments: import('@/types').TransportPayment[] = []
 
 export const appUsers: AppUser[] = [
   {

@@ -33,6 +33,9 @@ import {
   terms,
   academicYears,
   transportRoutes,
+  transportVehicles,
+  transportRiders,
+  transportPayments,
 } from '@/mocks/data'
 import type {
   Announcement,
@@ -61,6 +64,9 @@ import type {
   Term,
   AcademicYear,
   TransportRoute,
+  TransportRider,
+  TransportPayment,
+  TransportVehicle,
 } from '@/types'
 import { mockRequest, USE_MOCK_API } from './client'
 import type { AuthService, DashboardService, StudentService } from './contracts'
@@ -838,8 +844,130 @@ const mockCatalogService = {
   markAllNotificationsRead: async () => mockRequest({ marked: 0 }),
   getBooks: (): Promise<LibraryBook[]> => mockRequest(libraryBooks),
   getLoans: (): Promise<LibraryLoan[]> => mockRequest(libraryLoans),
-  getInventory: (): Promise<InventoryItem[]> => mockRequest(inventoryItems),
-  getTransport: (): Promise<TransportRoute[]> => mockRequest(transportRoutes),
+  getInventory: (): Promise<InventoryItem[]> => mockRequest([...inventoryItems]),
+  createInventoryItem: async (input: Partial<InventoryItem>) => {
+    const row: InventoryItem = {
+      id: `invt-${Date.now()}`,
+      name: input.name || 'Asset',
+      category: input.category || 'General',
+      sku: input.sku || `SKU-${Date.now()}`,
+      registrationNumber: input.registrationNumber,
+      quantity: input.quantity ?? 1,
+      location: input.location || '',
+      supplier: input.supplier || '',
+      purchaseValue: input.purchaseValue ?? 0,
+      purchaseDate: input.purchaseDate || new Date().toISOString().slice(0, 10),
+      receiptFileId: input.receiptFileId,
+      status: input.status || 'IN_STOCK',
+      dispatchedTo: input.dispatchedTo,
+      dispatchedAt: input.dispatchedAt,
+      soldAmount: input.soldAmount,
+      soldAt: input.soldAt,
+      notes: input.notes,
+    }
+    inventoryItems.push(row)
+    return mockRequest(row)
+  },
+  updateInventoryItem: async (id: string, patch: Partial<InventoryItem>) => {
+    const i = inventoryItems.findIndex((x) => x.id === id)
+    if (i < 0) throw new Error('Asset not found')
+    inventoryItems[i] = { ...inventoryItems[i]!, ...patch, id }
+    return mockRequest(inventoryItems[i]!)
+  },
+  deleteInventoryItem: async (id: string) => {
+    const i = inventoryItems.findIndex((x) => x.id === id)
+    if (i >= 0) inventoryItems.splice(i, 1)
+    return mockRequest({ ok: true })
+  },
+  getTransport: (): Promise<TransportRoute[]> => mockRequest([...transportRoutes]),
+  getTransportVehicles: () => mockRequest([...transportVehicles]),
+  getTransportRiders: () => mockRequest([...transportRiders]),
+  getTransportPayments: () => mockRequest([...transportPayments]),
+  createTransportRoute: async (input: Record<string, unknown>) => {
+    const row: TransportRoute = {
+      id: `tr-${Date.now()}`,
+      name: String(input.name || 'Route'),
+      vehicleId: input.vehicleId ? String(input.vehicleId) : undefined,
+      vehicle: String(input.vehicle || ''),
+      driver: String(input.driver || ''),
+      driverPhone: input.driverPhone ? String(input.driverPhone) : undefined,
+      fee: Number(input.fee) || 0,
+      stops: Array.isArray(input.stops) ? (input.stops as TransportRoute['stops']) : [],
+      studentIds: [],
+      active: input.active !== false,
+    }
+    transportRoutes.push(row)
+    return mockRequest(row)
+  },
+  updateTransportRoute: async (id: string, patch: Record<string, unknown>) => {
+    const i = transportRoutes.findIndex((x) => x.id === id)
+    if (i < 0) throw new Error('Route not found')
+    transportRoutes[i] = { ...transportRoutes[i]!, ...patch, id } as TransportRoute
+    return mockRequest(transportRoutes[i]!)
+  },
+  deleteTransportRoute: async (id: string) => {
+    const i = transportRoutes.findIndex((x) => x.id === id)
+    if (i >= 0) transportRoutes.splice(i, 1)
+    return mockRequest({ ok: true })
+  },
+  createTransportVehicle: async (input: Record<string, unknown>) => {
+    const row = {
+      id: `bus-${Date.now()}`,
+      name: String(input.name || 'Bus'),
+      registrationNumber: String(input.registrationNumber || '').toUpperCase(),
+      capacity: Number(input.capacity) || 30,
+      type: (input.type as 'BUS') || 'BUS',
+      status: (input.status as 'ACTIVE') || 'ACTIVE',
+      notes: input.notes ? String(input.notes) : undefined,
+    }
+    transportVehicles.push(row)
+    return mockRequest(row)
+  },
+  updateTransportVehicle: async (id: string, patch: Record<string, unknown>) => {
+    const i = transportVehicles.findIndex((x) => x.id === id)
+    if (i < 0) throw new Error('Vehicle not found')
+    transportVehicles[i] = { ...transportVehicles[i]!, ...patch, id } as (typeof transportVehicles)[0]
+    return mockRequest(transportVehicles[i]!)
+  },
+  createTransportRider: async (input: Record<string, unknown>) => {
+    const route = transportRoutes.find((r) => r.id === input.routeId)
+    const row = {
+      id: `trd-${Date.now()}`,
+      studentId: String(input.studentId),
+      routeId: String(input.routeId),
+      monthlyFee: Number(input.monthlyFee ?? route?.fee ?? 0),
+      status: (input.status as 'ACTIVE') || 'ACTIVE',
+      startedAt: String(input.startedAt || new Date().toISOString().slice(0, 10)),
+      notes: input.notes ? String(input.notes) : undefined,
+    }
+    transportRiders.push(row)
+    if (route && !route.studentIds.includes(row.studentId)) route.studentIds.push(row.studentId)
+    return mockRequest(row)
+  },
+  updateTransportRider: async (id: string, patch: Record<string, unknown>) => {
+    const i = transportRiders.findIndex((x) => x.id === id)
+    if (i < 0) throw new Error('Rider not found')
+    transportRiders[i] = { ...transportRiders[i]!, ...patch, id } as (typeof transportRiders)[0]
+    return mockRequest(transportRiders[i]!)
+  },
+  createTransportPayment: async (input: Record<string, unknown>) => {
+    const rider = transportRiders.find((r) => r.id === input.riderId)
+    if (!rider) throw new Error('Rider not found')
+    const row = {
+      id: `tpay-${Date.now()}`,
+      riderId: rider.id,
+      studentId: rider.studentId,
+      routeId: rider.routeId,
+      amount: Number(input.amount),
+      month: String(input.month),
+      paidAt: String(input.paidAt || new Date().toISOString().slice(0, 10)),
+      method: String(input.method || 'Cash'),
+      receiptNumber: input.receiptNumber ? String(input.receiptNumber) : undefined,
+      notes: input.notes ? String(input.notes) : undefined,
+    }
+    transportPayments.push(row)
+    return mockRequest(row)
+  },
   getUsers: (): Promise<AppUser[]> => mockRequest(appUsers),
   getRolePermissions: (): Promise<RolePermission[]> => mockRequest(rolePermissions),
   getPermissionCatalog: () => mockRequest(permissionCatalog),

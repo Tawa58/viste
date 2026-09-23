@@ -547,23 +547,104 @@ export interface LibraryLoan {
   fine: number
 }
 
+/** School asset / inventory stock status. */
+export type InventoryAssetStatus = 'IN_STOCK' | 'DISPATCHED' | 'SOLD' | 'WRITTEN_OFF'
+
 export interface InventoryItem {
   id: string
   name: string
   category: string
+  /** Internal stock / catalogue code. */
   sku: string
+  /** Official registration / serial / asset tag. */
+  registrationNumber?: string
   quantity: number
   location: string
   supplier: string
+  /** Purchase / acquisition value (unit or lot). */
+  purchaseValue: number
+  purchaseDate: string
+  /** Firestore file id for receipt photo / scan. */
+  receiptFileId?: string
+  status: InventoryAssetStatus
+  dispatchedTo?: string
+  dispatchedAt?: string
+  soldAmount?: number
+  soldAt?: string
+  notes?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type TransportVehicleType = 'BUS' | 'VAN' | 'MINIBUS' | 'OTHER'
+export type TransportVehicleStatus = 'ACTIVE' | 'MAINTENANCE' | 'RETIRED'
+
+export interface TransportVehicle {
+  id: string
+  name: string
+  registrationNumber: string
+  capacity: number
+  type: TransportVehicleType
+  status: TransportVehicleStatus
+  notes?: string
+}
+
+export interface TransportStop {
+  id: string
+  name: string
+  /** Morning pickup HH:mm */
+  pickupTime: string
+  /** Afternoon drop HH:mm */
+  dropTime: string
+  order: number
 }
 
 export interface TransportRoute {
   id: string
   name: string
+  /** Linked fleet vehicle (preferred). */
+  vehicleId?: string
+  /** Display label when vehicleId is unset (legacy). */
   vehicle: string
   driver: string
+  driverPhone?: string
+  /** Monthly transport fee for this route. */
   fee: number
+  stops: TransportStop[]
+  /** @deprecated Prefer TransportRider records. Kept for display fallbacks. */
   studentIds: string[]
+  active: boolean
+}
+
+export type TransportRiderStatus = 'ACTIVE' | 'SUSPENDED' | 'LEFT'
+
+/** Student subscribed to a bus route. */
+export interface TransportRider {
+  id: string
+  studentId: string
+  routeId: string
+  /** Monthly amount due (defaults to route fee). */
+  monthlyFee: number
+  status: TransportRiderStatus
+  startedAt: string
+  endedAt?: string
+  notes?: string
+}
+
+/** One month’s transport payment for a rider. */
+export interface TransportPayment {
+  id: string
+  riderId: string
+  studentId: string
+  routeId: string
+  amount: number
+  /** Billing month YYYY-MM */
+  month: string
+  paidAt: string
+  method: string
+  receiptNumber?: string
+  recordedBy?: string
+  notes?: string
 }
 
 export interface AppUser {

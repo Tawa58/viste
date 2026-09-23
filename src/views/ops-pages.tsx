@@ -25,15 +25,15 @@ import type {
   Announcement,
   AppUser,
   AuditLog,
-  InventoryItem,
   LibraryBook,
   LibraryLoan,
   RolePermission,
-  TransportRoute,
   UserRole,
 } from '@/types'
 
 export { ReportsPage } from '@/views/reports-page'
+export { InventoryPage } from '@/views/inventory-page'
+export { TransportPage } from '@/views/transport-page'
 
 export function AnnouncementsPage() {
   const [rows, setRows] = useState<Announcement[]>([])
@@ -179,83 +179,6 @@ export function LibraryPage() {
             ))}
           </CardContent>
         </Card>
-      </div>
-    </div>
-  )
-}
-
-export function InventoryPage() {
-  const [items, setItems] = useState<InventoryItem[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    catalogService.getInventory().then((i) => {
-      setItems(i)
-      setLoading(false)
-    })
-  }, [])
-
-  if (loading) return <LoadingState message="Loading inventory…" />
-
-  return (
-    <div>
-      <PageHeader
-        title="Inventory"
-        description="Assets, equipment, stock, and suppliers."
-        breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Inventory' }]}
-      />
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {items.map((item) => (
-          <Card key={item.id}>
-            <CardContent className="space-y-1 p-5 text-sm">
-              <p className="font-display text-lg font-semibold">{item.name}</p>
-              <p className="text-muted-foreground">
-                {item.category} · {item.sku}
-              </p>
-              <p>Qty {item.quantity}</p>
-              <p>{item.location}</p>
-              <p className="text-muted-foreground">Supplier: {item.supplier}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-export function TransportPage() {
-  const [routes, setRoutes] = useState<TransportRoute[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    catalogService.getTransport().then((r) => {
-      setRoutes(r)
-      setLoading(false)
-    })
-  }, [])
-
-  if (loading) return <LoadingState message="Loading transport routes…" />
-
-  return (
-    <div>
-      <PageHeader
-        title="Transport"
-        description="Vehicles, drivers, routes, and assigned students."
-        breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Transport' }]}
-      />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {routes.map((r) => (
-          <Card key={r.id}>
-            <CardContent className="space-y-2 p-5 text-sm">
-              <p className="font-display text-lg font-semibold">{r.name}</p>
-              <p>
-                {r.vehicle} · Driver {r.driver}
-              </p>
-              <p>Fee ${r.fee}/term</p>
-              <p className="text-muted-foreground">{r.studentIds.length} students assigned</p>
-            </CardContent>
-          </Card>
-        ))}
       </div>
     </div>
   )

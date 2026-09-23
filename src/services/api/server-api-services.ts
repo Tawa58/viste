@@ -35,7 +35,10 @@ import type {
   Subject,
   Term,
   AcademicYear,
+  TransportPayment,
+  TransportRider,
   TransportRoute,
+  TransportVehicle,
   AppUser,
 } from '@/types'
 import { demoCredentials } from '@/mocks/data'
@@ -564,8 +567,66 @@ export const apiCatalogService = {
     }),
   getBooks: async (): Promise<LibraryBook[]> => [],
   getLoans: async (): Promise<LibraryLoan[]> => [],
-  getInventory: async (): Promise<InventoryItem[]> => [],
-  getTransport: async (): Promise<TransportRoute[]> => [],
+  getInventory: () => apiFetch<InventoryItem[]>('/api/v1/inventory'),
+  createInventoryItem: (input: Partial<InventoryItem>) =>
+    apiFetch<InventoryItem>('/api/v1/inventory', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  updateInventoryItem: (id: string, patch: Partial<InventoryItem>) =>
+    apiFetch<InventoryItem>(`/api/v1/inventory/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+  deleteInventoryItem: (id: string) =>
+    apiFetch<{ ok: boolean }>(`/api/v1/inventory/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
+  getTransport: () => apiFetch<TransportRoute[]>('/api/v1/transport?kind=routes'),
+  getTransportVehicles: () =>
+    apiFetch<TransportVehicle[]>('/api/v1/transport?kind=vehicles'),
+  getTransportRiders: () => apiFetch<TransportRider[]>('/api/v1/transport?kind=riders'),
+  getTransportPayments: () =>
+    apiFetch<TransportPayment[]>('/api/v1/transport?kind=payments'),
+  createTransportRoute: (input: Record<string, unknown>) =>
+    apiFetch<TransportRoute>('/api/v1/transport', {
+      method: 'POST',
+      body: JSON.stringify({ kind: 'route', ...input }),
+    }),
+  updateTransportRoute: (id: string, patch: Record<string, unknown>) =>
+    apiFetch<TransportRoute>(`/api/v1/transport/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ kind: 'route', ...patch }),
+    }),
+  deleteTransportRoute: (id: string) =>
+    apiFetch<{ ok: boolean }>(`/api/v1/transport/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
+  createTransportVehicle: (input: Record<string, unknown>) =>
+    apiFetch<TransportVehicle>('/api/v1/transport', {
+      method: 'POST',
+      body: JSON.stringify({ kind: 'vehicle', ...input }),
+    }),
+  updateTransportVehicle: (id: string, patch: Record<string, unknown>) =>
+    apiFetch<TransportVehicle>(`/api/v1/transport/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ kind: 'vehicle', ...patch }),
+    }),
+  createTransportRider: (input: Record<string, unknown>) =>
+    apiFetch<TransportRider>('/api/v1/transport', {
+      method: 'POST',
+      body: JSON.stringify({ kind: 'rider', ...input }),
+    }),
+  updateTransportRider: (id: string, patch: Record<string, unknown>) =>
+    apiFetch<TransportRider>(`/api/v1/transport/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ kind: 'rider', ...patch }),
+    }),
+  createTransportPayment: (input: Record<string, unknown>) =>
+    apiFetch<TransportPayment>('/api/v1/transport', {
+      method: 'POST',
+      body: JSON.stringify({ kind: 'payment', ...input }),
+    }),
   getUsers: async (): Promise<AppUser[]> => [],
   getRolePermissions: async (): Promise<RolePermission[]> => [],
   getPermissionCatalog: async () => [] as string[],

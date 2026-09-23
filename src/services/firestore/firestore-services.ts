@@ -1,6 +1,7 @@
 import type {
   AttendanceRecord,
   Guardian,
+  InventoryItem,
   Invoice,
   Mark,
   Payment,
@@ -336,10 +337,68 @@ export const firestoreCatalogService = {
     return []
   },
   async getInventory() {
-    return []
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.getInventory()
+  },
+  async createInventoryItem(input: Partial<InventoryItem>) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.createInventoryItem(input)
+  },
+  async updateInventoryItem(id: string, patch: Partial<InventoryItem>) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.updateInventoryItem(id, patch)
+  },
+  async deleteInventoryItem(id: string) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.deleteInventoryItem(id)
   },
   async getTransport() {
-    return []
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.getTransport()
+  },
+  async getTransportVehicles() {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.getTransportVehicles()
+  },
+  async getTransportRiders() {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.getTransportRiders()
+  },
+  async getTransportPayments() {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.getTransportPayments()
+  },
+  async createTransportRoute(input: Record<string, unknown>) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.createTransportRoute(input)
+  },
+  async updateTransportRoute(id: string, patch: Record<string, unknown>) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.updateTransportRoute(id, patch)
+  },
+  async deleteTransportRoute(id: string) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.deleteTransportRoute(id)
+  },
+  async createTransportVehicle(input: Record<string, unknown>) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.createTransportVehicle(input)
+  },
+  async updateTransportVehicle(id: string, patch: Record<string, unknown>) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.updateTransportVehicle(id, patch)
+  },
+  async createTransportRider(input: Record<string, unknown>) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.createTransportRider(input)
+  },
+  async updateTransportRider(id: string, patch: Record<string, unknown>) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.updateTransportRider(id, patch)
+  },
+  async createTransportPayment(input: Record<string, unknown>) {
+    const { apiCatalogService } = await import('@/services/api/server-api-services')
+    return apiCatalogService.createTransportPayment(input)
   },
   async getUsers() {
     return []
