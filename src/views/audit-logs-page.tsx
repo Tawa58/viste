@@ -131,7 +131,7 @@ export function AuditLogsPage() {
         breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Audit Logs' }]}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={exportPdf}>
+            <Button type="button" size="sm" onClick={exportPdf} disabled={filtered.length === 0}>
               <Download className="h-3.5 w-3.5" />
               Download PDF
             </Button>
@@ -212,6 +212,16 @@ export function AuditLogsPage() {
             ))}
           </Select>
         </Field>
+      </div>
+
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] text-muted-foreground">
+          {filtered.length} event{filtered.length === 1 ? '' : 's'} in view
+        </p>
+        <Button type="button" size="sm" onClick={exportPdf} disabled={filtered.length === 0}>
+          <Download className="h-3.5 w-3.5" />
+          Download audit PDF
+        </Button>
       </div>
 
       {filtered.length === 0 ? (
