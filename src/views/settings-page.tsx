@@ -83,6 +83,8 @@ export function SettingsPage() {
 
   const staff = user ? isStaffRole(user.role) : false
   const schoolAdmin = user ? canManageSchoolSettings(user.role) : false
+  /** Title, department, and employee # are set by admin — teachers cannot change them. */
+  const adminManagedHrFields = user?.role === 'TEACHER'
 
   const allowedTabs = useMemo(() => {
     const tabs = ['profile', 'notifications', 'security', 'appearance'] as const
@@ -119,9 +121,15 @@ export function SettingsPage() {
             name: nextForm.name.trim(),
             email: nextForm.email.trim(),
             phone: nextForm.phone.trim() || undefined,
-            title: nextForm.title.trim() || undefined,
-            department: staff ? nextForm.department.trim() || undefined : undefined,
-            employeeNumber: staff ? nextForm.employeeNumber.trim() || undefined : undefined,
+            title: adminManagedHrFields ? undefined : nextForm.title.trim() || undefined,
+            department:
+              adminManagedHrFields || !staff
+                ? undefined
+                : nextForm.department.trim() || undefined,
+            employeeNumber:
+              adminManagedHrFields || !staff
+                ? undefined
+                : nextForm.employeeNumber.trim() || undefined,
             bio: nextForm.bio.trim() || undefined,
             preferredLanguage: nextForm.preferredLanguage,
             timezone: nextForm.timezone,
@@ -266,8 +274,14 @@ export function SettingsPage() {
                     <Input
                       id="profile-title"
                       value={form.title}
+                      disabled={adminManagedHrFields}
                       onChange={(e) => setForm((f) => (f ? { ...f, title: e.target.value } : f))}
                     />
+                    {adminManagedHrFields ? (
+                      <p className="text-xs text-muted-foreground">
+                        Set by school admin (e.g. Science teacher) — not editable here.
+                      </p>
+                    ) : null}
                   </Field>
                   <Field>
                     <Label>Role</Label>
@@ -281,20 +295,32 @@ export function SettingsPage() {
                         <Input
                           id="profile-dept"
                           value={form.department}
+                          disabled={adminManagedHrFields}
                           onChange={(e) =>
                             setForm((f) => (f ? { ...f, department: e.target.value } : f))
                           }
                         />
+                        {adminManagedHrFields ? (
+                          <p className="text-xs text-muted-foreground">
+                            Set by school admin — not editable here.
+                          </p>
+                        ) : null}
                       </Field>
                       <Field>
                         <Label htmlFor="profile-emp">Employee number</Label>
                         <Input
                           id="profile-emp"
                           value={form.employeeNumber}
+                          disabled={adminManagedHrFields}
                           onChange={(e) =>
                             setForm((f) => (f ? { ...f, employeeNumber: e.target.value } : f))
                           }
                         />
+                        {adminManagedHrFields ? (
+                          <p className="text-xs text-muted-foreground">
+                            Set by school admin — not editable here.
+                          </p>
+                        ) : null}
                       </Field>
                     </>
                   )}

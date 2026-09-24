@@ -32,7 +32,7 @@ export function ClassesPage() {
     Promise.all([
       catalogService.getClasses(),
       catalogService.getStreams(),
-      catalogService.getStaff(),
+      catalogService.getStaff().catch(() => [] as Staff[]),
       studentService.list(),
       catalogService.getYears(),
       catalogService.getTerms(),

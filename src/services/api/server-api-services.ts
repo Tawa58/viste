@@ -17,6 +17,9 @@ import type {
   AuthUser,
   ClassTransfer,
   ClubActivity,
+  ClassTeacherReport,
+  DutyRoster,
+  DutyRosterEntry,
   Examination,
   FeeStructure,
   Guardian,
@@ -234,6 +237,30 @@ export const apiClassService = {
     apiFetch<SchoolClass>(`/api/v1/classes/${id}?mode=archive`, { method: 'DELETE' }),
   remove: (id: string) =>
     apiFetch<{ deleted: true; id: string }>(`/api/v1/classes/${id}`, { method: 'DELETE' }),
+  getTeacherReports: (classId: string, termId: string) =>
+    apiFetch<ClassTeacherReport[]>(
+      `/api/v1/classes/${encodeURIComponent(classId)}/teacher-reports?termId=${encodeURIComponent(termId)}`,
+    ),
+  saveTeacherReports: (
+    classId: string,
+    input: { termId: string; entries: { studentId: string; comment: string }[] },
+  ) =>
+    apiFetch<ClassTeacherReport[]>(
+      `/api/v1/classes/${encodeURIComponent(classId)}/teacher-reports`,
+      { method: 'PUT', body: JSON.stringify(input) },
+    ),
+  getDutyRoster: (classId: string, weekOf: string) =>
+    apiFetch<DutyRoster | null>(
+      `/api/v1/classes/${encodeURIComponent(classId)}/duty-roster?weekOf=${encodeURIComponent(weekOf)}`,
+    ),
+  saveDutyRoster: (
+    classId: string,
+    input: { weekOf: string; entries: DutyRosterEntry[] },
+  ) =>
+    apiFetch<DutyRoster>(`/api/v1/classes/${encodeURIComponent(classId)}/duty-roster`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
 }
 
 export const apiSubjectAdminService = {
@@ -334,11 +361,13 @@ export const apiCatalogService = {
     try {
       return await apiFetch<Staff[]>('/api/v1/teachers')
     } catch (err) {
+      // Teachers never have teachers.read — treat as empty list, never crash UI.
       if (isForbiddenOrUnauthorized(err)) {
         seedApiCache('GET:/api/v1/teachers', [])
         return []
       }
-      throw err
+      console.warn('[catalog] getStaff failed', err)
+      return []
     }
   },
   getGuardians: async () => {
@@ -349,7 +378,8 @@ export const apiCatalogService = {
         seedApiCache('GET:/api/v1/parents', [])
         return []
       }
-      throw err
+      console.warn('[catalog] getGuardians failed', err)
+      return []
     }
   },
   getGuardian: async (id: string) => {
@@ -357,7 +387,8 @@ export const apiCatalogService = {
       return await apiFetch<Guardian>(`/api/v1/parents/${id}`)
     } catch (err) {
       if (isForbiddenOrUnauthorized(err)) return undefined as unknown as Guardian
-      throw err
+      console.warn('[catalog] getGuardian failed', err)
+      return undefined as unknown as Guardian
     }
   },
   getStaffMember: async (id: string) => {
@@ -370,7 +401,8 @@ export const apiCatalogService = {
       ) {
         return undefined as unknown as Staff
       }
-      throw err
+      console.warn('[catalog] getStaffMember failed', err)
+      return undefined as unknown as Staff
     }
   },
   updateStaff: (id: string, patch: Partial<Staff>) =>

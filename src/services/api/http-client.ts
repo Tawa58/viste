@@ -25,7 +25,20 @@ export function isApiClientError(err: unknown): err is ApiClientError {
 }
 
 export function isForbiddenOrUnauthorized(err: unknown): boolean {
-  return isApiClientError(err) && (err.status === 403 || err.status === 401)
+  if (isApiClientError(err) && (err.status === 403 || err.status === 401)) return true
+  const msg =
+    err instanceof Error
+      ? err.message
+      : typeof err === 'string'
+        ? err
+        : err && typeof err === 'object' && 'message' in err
+          ? String((err as { message: unknown }).message)
+          : ''
+  return (
+    msg.includes('Missing permission') ||
+    msg.includes('Insufficient permissions') ||
+    msg.includes('FORBIDDEN')
+  )
 }
 
 let tokenPromise: Promise<string> | null = null
@@ -126,6 +139,9 @@ export async function apiFetch<T>(
 
   if (!skipCache) {
     inflight.set(cacheKey, run)
+    // Mark rejection handled so soft-fail callers don't trip "Uncaught (in promise)"
+    // while other awaiters still receive the rejection.
+    void run.catch(() => undefined)
     run.finally(() => inflight.delete(cacheKey))
   }
 

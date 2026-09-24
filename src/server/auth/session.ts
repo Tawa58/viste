@@ -159,7 +159,7 @@ export async function verifyBearerToken(request: Request): Promise<SessionContex
   const cacheKey = `session:${decoded.uid}`
   const { remember } = await import('@/server/http/memo')
   return remember(cacheKey, 20_000, async () => {
-    const profile = await loadOrCreateProfile(decoded.uid, email, decoded.name)
+    let profile = await loadOrCreateProfile(decoded.uid, email, decoded.name)
     let overrides: PermissionOverrides | null = null
     try {
       const { getRoleOverrides } = await import('@/server/services/admin-users-service')
@@ -172,6 +172,16 @@ export async function verifyBearerToken(request: Request): Promise<SessionContex
       try {
         const { assertStaffAccountActive } = await import('@/server/services/staff-service')
         const staff = await assertStaffAccountActive(profile.staffId)
+        if (staff) {
+          // Keep HR fields from the staff directory (admin-managed) on the session profile.
+          profile = {
+            ...profile,
+            title: staff.title || profile.title,
+            department: staff.department || profile.department,
+            employeeNumber: staff.employeeNumber || profile.employeeNumber,
+            phone: profile.phone || staff.phone,
+          }
+        }
         if (staff && profile.role === 'TEACHER') {
           const staffOverrides = staff.permissionOverrides ?? null
           overrides = {
@@ -212,7 +222,10 @@ export function sessionHasPermission(session: SessionContext, permission: Permis
 }
 
 /** Strip privileged fields from client profile patches. */
-export function sanitizeProfilePatch(patch: Partial<AuthUser>): Partial<AuthUser> {
+export function sanitizeProfilePatch(
+  patch: Partial<AuthUser>,
+  opts?: { role?: string },
+): Partial<AuthUser> {
   const {
     id: _id,
     role: _role,
@@ -222,5 +235,13 @@ export function sanitizeProfilePatch(patch: Partial<AuthUser>): Partial<AuthUser
     email: _email,
     ...safe
   } = patch
+
+  // Title / department / employee number are admin-managed for teachers.
+  if (opts?.role === 'TEACHER') {
+    delete (safe as Partial<AuthUser>).title
+    delete (safe as Partial<AuthUser>).department
+    delete (safe as Partial<AuthUser>).employeeNumber
+  }
+
   return omitUndefined(safe as Record<string, unknown>) as Partial<AuthUser>
 }
