@@ -47,7 +47,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { catalogService, classService, studentService } from '@/services/api'
-import { fullName } from '@/lib/utils'
+import { cn, fullName } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 import { EDUCATION_LEVELS, educationLevelName } from '@/lib/education-levels'
 import { previewNextVhsNumber } from '@/lib/student-numbers'
 import type {
@@ -95,14 +96,23 @@ export function StudentsPage() {
 
   useEffect(() => {
     let mounted = true
+    // Teachers only need their assigned classes; directory catalogs are admin tools.
     Promise.all([
       isTeacher ? classService.list() : catalogService.getClasses(),
-      catalogService.getStreams(),
-      catalogService.getSubjects(),
-      catalogService.getSports?.() ?? Promise.resolve([]),
-      catalogService.getClubs?.() ?? Promise.resolve([]),
-      catalogService.getHouses?.() ?? Promise.resolve([]),
-      catalogService.getGuardians().catch(() => [] as import('@/types').Guardian[]),
+      isTeacher ? Promise.resolve([] as Stream[]) : catalogService.getStreams(),
+      isTeacher ? Promise.resolve([] as Subject[]) : catalogService.getSubjects(),
+      isTeacher
+        ? Promise.resolve([] as Sport[])
+        : (catalogService.getSports?.() ?? Promise.resolve([] as Sport[])),
+      isTeacher
+        ? Promise.resolve([] as ClubActivity[])
+        : (catalogService.getClubs?.() ?? Promise.resolve([] as ClubActivity[])),
+      isTeacher
+        ? Promise.resolve([] as House[])
+        : (catalogService.getHouses?.() ?? Promise.resolve([] as House[])),
+      isTeacher
+        ? Promise.resolve([] as Guardian[])
+        : catalogService.getGuardians().catch(() => [] as Guardian[]),
       isTeacher ? Promise.resolve(null) : classService.getStats().catch(() => null),
     ])
       .then(([c, st, sub, sp, cl, ho, g]) => {
@@ -180,7 +190,6 @@ export function StudentsPage() {
   }, [loading, isTeacher, classFilter])
 
   const filtered = useMemo(() => {
-    if (isTeacher && !classFilter) return []
     const q = search.toLowerCase()
     let rows = students.filter((s) => {
       const name = fullName(s).toLowerCase()
@@ -189,8 +198,7 @@ export function StudentsPage() {
         name.includes(q) ||
         s.studentNumber.toLowerCase().includes(q) ||
         s.admissionNumber.toLowerCase().includes(q)
-      const matchesClass =
-        isTeacher || classFilter === 'all' || s.classId === classFilter
+      const matchesClass = classFilter === 'all' || s.classId === classFilter
       const cls = classes.find((c) => c.id === s.classId)
       const levelId = s.educationLevelId || cls?.educationLevelId
       const matchesLevel = levelFilter === 'all' || levelId === levelFilter
@@ -227,7 +235,6 @@ export function StudentsPage() {
     subjectFilter,
     sportFilter,
     sort,
-    isTeacher,
   ])
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -352,15 +359,29 @@ export function StudentsPage() {
 
   if (loading) return <TableSkeleton rows={6} message="Loading students…" />
 
+  if (isTeacher) {
+    return (
+      <TeacherStudentsView
+        classes={classes}
+        staffId={user?.staffId}
+        classId={classFilter}
+        onClassChange={(id) => {
+          setSearch('')
+          setClassFilter(id)
+        }}
+        students={students}
+        loading={studentsLoading}
+        search={search}
+        onSearchChange={setSearch}
+      />
+    )
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
         title="Students"
-        description={
-          isTeacher
-            ? 'Select a class you teach or own as class teacher to view its student list.'
-            : 'Browse, register, and manage the school student directory.'
-        }
+        description="Browse, register, and manage the school student directory."
         breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Students' }]}
         actions={
           canManage ? (
@@ -379,33 +400,16 @@ export function StudentsPage() {
               onChange={setSearch}
               placeholder="Search name or admission number…"
               className="md:col-span-2"
-              disabled={isTeacher && !classFilter}
             />
-            <Select
-              value={classFilter}
-              onChange={(e) => setClassFilter(e.target.value)}
-            >
-              {isTeacher ? (
-                <option value="">Select a class…</option>
-              ) : (
-                <option value="all">All classes</option>
-              )}
-              {classes
-                .filter((c) => (c.status ?? 'ACTIVE') === 'ACTIVE')
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                    {isTeacher && user?.staffId && c.classTeacherId === user.staffId
-                      ? ' (class teacher)'
-                      : ''}
-                  </option>
-                ))}
+            <Select value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
+              <option value="all">All classes</option>
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
             </Select>
-            <Select
-              value={levelFilter}
-              onChange={(e) => setLevelFilter(e.target.value)}
-              disabled={isTeacher && !classFilter}
-            >
+            <Select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)}>
               <option value="all">All levels</option>
               {EDUCATION_LEVELS.map((l) => (
                 <option key={l.id} value={l.id}>
@@ -413,11 +417,7 @@ export function StudentsPage() {
                 </option>
               ))}
             </Select>
-            <Select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              disabled={isTeacher && !classFilter}
-            >
+            <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="all">All statuses</option>
               <option value="ACTIVE">Active</option>
               <option value="SUSPENDED">Suspended</option>
@@ -427,20 +427,12 @@ export function StudentsPage() {
               <option value="ARCHIVED">Archived</option>
               <option value="INACTIVE">Inactive</option>
             </Select>
-            <Select
-              value={genderFilter}
-              onChange={(e) => setGenderFilter(e.target.value)}
-              disabled={isTeacher && !classFilter}
-            >
+            <Select value={genderFilter} onChange={(e) => setGenderFilter(e.target.value)}>
               <option value="all">All genders</option>
               <option value="Male">Male</option>
               <option value="Female">Female</option>
             </Select>
-            <Select
-              value={subjectFilter}
-              onChange={(e) => setSubjectFilter(e.target.value)}
-              disabled={isTeacher && !classFilter}
-            >
+            <Select value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)}>
               <option value="all">All subjects</option>
               {subjects.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -448,11 +440,7 @@ export function StudentsPage() {
                 </option>
               ))}
             </Select>
-            <Select
-              value={sportFilter}
-              onChange={(e) => setSportFilter(e.target.value)}
-              disabled={isTeacher && !classFilter}
-            >
+            <Select value={sportFilter} onChange={(e) => setSportFilter(e.target.value)}>
               <option value="all">All sports</option>
               {sports.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -463,24 +451,13 @@ export function StudentsPage() {
           </div>
         </div>
 
-        {isTeacher && !classFilter ? (
-          <EmptyState
-            icon={Users}
-            title="Select a class"
-            description="Choose a class you teach or are assigned as class teacher to view its students."
-            className="m-6"
-          />
-        ) : studentsLoading ? (
-          <TableSkeleton rows={6} message="Loading class roster…" />
+        {studentsLoading ? (
+          <TableSkeleton rows={6} message="Loading students…" />
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={Users}
             title="No students found"
-            description={
-              isTeacher
-                ? 'This class has no students matching your filters.'
-                : 'Try adjusting filters or register a new student.'
-            }
+            description="Try adjusting filters or register a new student."
             className="m-6"
           />
         ) : (
@@ -654,6 +631,200 @@ export function StudentsPage() {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+function TeacherStudentsView({
+  classes,
+  staffId,
+  classId,
+  onClassChange,
+  students,
+  loading,
+  search,
+  onSearchChange,
+}: {
+  classes: SchoolClass[]
+  staffId?: string
+  classId: string
+  onClassChange: (id: string) => void
+  students: Student[]
+  loading: boolean
+  search: string
+  onSearchChange: (value: string) => void
+}) {
+  const active = classes.filter((c) => (c.status ?? 'ACTIVE') === 'ACTIVE')
+  const myClasses = active.filter((c) => staffId && c.classTeacherId === staffId)
+  const taughtClasses = active.filter((c) => !staffId || c.classTeacherId !== staffId)
+  const selectedClass = active.find((c) => c.id === classId)
+  const isMyClass = Boolean(selectedClass && staffId && selectedClass.classTeacherId === staffId)
+
+  const roster = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return students
+      .filter((s) => s.status === 'ACTIVE')
+      .filter(
+        (s) =>
+          !q ||
+          fullName(s).toLowerCase().includes(q) ||
+          s.studentNumber.toLowerCase().includes(q) ||
+          s.admissionNumber.toLowerCase().includes(q),
+      )
+      .sort((a, b) => fullName(a).localeCompare(fullName(b)))
+  }, [students, search])
+
+  function classButton(c: SchoolClass, mine: boolean) {
+    const selected = c.id === classId
+    return (
+      <button
+        key={c.id}
+        type="button"
+        onClick={() => onClassChange(c.id)}
+        className={cn(
+          'flex items-center justify-between gap-2 rounded-xl border px-4 py-3 text-left text-sm transition-colors',
+          selected
+            ? 'border-primary bg-primary/10 text-foreground'
+            : 'border-border/70 bg-card hover:border-primary/40',
+        )}
+      >
+        <span className="min-w-0">
+          <span className="block truncate font-medium">{c.name}</span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {educationLevelName(c.educationLevelId) || c.level}
+          </span>
+        </span>
+        {mine ? <Badge variant="secondary">My class</Badge> : null}
+      </button>
+    )
+  }
+
+  return (
+    <div className="space-y-5">
+      <PageHeader
+        title="Students"
+        description="Pick one of your classes to view its students."
+        breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Students' }]}
+      />
+
+      {active.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title="No classes assigned"
+          description="Ask an admin to assign you as a class teacher or add classes to your teacher profile."
+        />
+      ) : (
+        <div className="space-y-4">
+          {myClasses.length > 0 ? (
+            <section className="space-y-2">
+              <h2 className="text-sm font-semibold text-muted-foreground">My class (class teacher)</h2>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {myClasses.map((c) => classButton(c, true))}
+              </div>
+            </section>
+          ) : null}
+          {taughtClasses.length > 0 ? (
+            <section className="space-y-2">
+              <h2 className="text-sm font-semibold text-muted-foreground">Classes I teach</h2>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {taughtClasses.map((c) => classButton(c, false))}
+              </div>
+            </section>
+          ) : null}
+        </div>
+      )}
+
+      {!selectedClass ? (
+        active.length > 0 ? (
+          <EmptyState
+            icon={Users}
+            title="Select a class"
+            description="Choose a class above to see its student list."
+          />
+        ) : null
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-card">
+          <div className="flex flex-col gap-3 border-b border-border/70 bg-muted/25 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+            <div>
+              <h2 className="font-display text-lg font-semibold">{selectedClass.name}</h2>
+              <p className="text-sm text-muted-foreground">
+                {loading ? 'Loading…' : `${roster.length} students`}
+                {isMyClass ? ' · You are the class teacher' : ''}
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <SearchInput
+                value={search}
+                onChange={onSearchChange}
+                placeholder="Search name or number…"
+                className="sm:w-64"
+              />
+              {isMyClass ? (
+                <Button asChild variant="outline">
+                  <Link to={`/attendance?classId=${selectedClass.id}`}>Mark register</Link>
+                </Button>
+              ) : null}
+            </div>
+          </div>
+
+          {loading ? (
+            <TableSkeleton rows={6} message="Loading class roster…" />
+          ) : roster.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="No students found"
+              description={
+                search ? 'No students match your search.' : 'No active students in this class yet.'
+              }
+              className="m-6"
+            />
+          ) : (
+            <DataTableShell className="rounded-none border-0 shadow-none">
+              <DataTable>
+                <DataTableHead>
+                  <tr>
+                    <DataTableHeaderCell className="w-12">#</DataTableHeaderCell>
+                    <DataTableHeaderCell>Student</DataTableHeaderCell>
+                    <DataTableHeaderCell>Student no.</DataTableHeaderCell>
+                    <DataTableHeaderCell>Gender</DataTableHeaderCell>
+                    <DataTableHeaderCell className="text-right">Profile</DataTableHeaderCell>
+                  </tr>
+                </DataTableHead>
+                <DataTableBody>
+                  {roster.map((s, index) => (
+                    <DataTableRow key={s.id}>
+                      <DataTableCell className="text-muted-foreground">{index + 1}</DataTableCell>
+                      <DataTableCell>
+                        <Link
+                          to={`/students/${s.id}`}
+                          className="flex min-w-0 items-center gap-3 font-medium text-primary hover:underline"
+                        >
+                          <Avatar name={fullName(s)} className="h-8 w-8 text-xs" />
+                          <span className="truncate">{fullName(s)}</span>
+                        </Link>
+                      </DataTableCell>
+                      <DataTableCell className="text-muted-foreground">
+                        {s.studentNumber || s.admissionNumber}
+                      </DataTableCell>
+                      <DataTableCell className="text-muted-foreground">{s.gender}</DataTableCell>
+                      <DataTableCell>
+                        <div className="flex justify-end">
+                          <Button variant="outline" size="sm" className="h-8 gap-1 px-2.5" asChild>
+                            <Link to={`/students/${s.id}`}>
+                              View
+                              <ArrowUpRight className="h-3.5 w-3.5" />
+                            </Link>
+                          </Button>
+                        </div>
+                      </DataTableCell>
+                    </DataTableRow>
+                  ))}
+                </DataTableBody>
+              </DataTable>
+            </DataTableShell>
+          )}
+        </div>
+      )}
     </div>
   )
 }
