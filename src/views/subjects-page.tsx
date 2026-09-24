@@ -20,8 +20,8 @@ import { useAuth } from '@/contexts/auth-context'
 import { EDUCATION_LEVELS, educationLevelName } from '@/lib/education-levels'
 import { notify } from '@/lib/notify'
 import { canManageAcademics } from '@/lib/roles'
-import { catalogService, subjectAdminService } from '@/services/api'
-import type { Staff, Subject } from '@/types'
+import { catalogService, classService, subjectAdminService } from '@/services/api'
+import type { SchoolClass, Staff, Subject } from '@/types'
 import { BookOpen } from 'lucide-react'
 
 type SubjectForm = {
@@ -46,9 +46,11 @@ export function SubjectsPage() {
   const { user, hasPermission } = useAuth()
   const canManage = user ? canManageAcademics(user.role) : false
   const canReadStaff = hasPermission('teachers.read')
+  const isTeacherView = user?.role === 'TEACHER' && !canManage
   const [loading, setLoading] = useState(true)
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [staff, setStaff] = useState<Staff[]>([])
+  const [myClasses, setMyClasses] = useState<SchoolClass[]>([])
   const [levelFilter, setLevelFilter] = useState('all')
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Subject | null>(null)
@@ -57,14 +59,24 @@ export function SubjectsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   async function reload() {
-    const [s, sf] = await Promise.all([
+    const [s, sf, cls] = await Promise.all([
       subjectAdminService.list(),
       canReadStaff || canManage
         ? catalogService.getStaff().catch(() => [] as Staff[])
         : Promise.resolve([] as Staff[]),
+      isTeacherView
+        ? classService.list().catch(() => [] as SchoolClass[])
+        : Promise.resolve([] as SchoolClass[]),
     ])
     setSubjects(s)
     setStaff(sf)
+    setMyClasses(cls.filter((c) => (c.status ?? 'ACTIVE') === 'ACTIVE'))
+  }
+
+  function teacherClassesFor(subject: Subject) {
+    return myClasses.filter(
+      (c) => !c.subjectIds?.length || c.subjectIds.includes(subject.id),
+    )
   }
 
   useEffect(() => {
@@ -77,13 +89,13 @@ export function SubjectsPage() {
   }, [])
 
   const filtered = useMemo(() => {
-    if (levelFilter === 'all') return subjects
+    if (isTeacherView || levelFilter === 'all') return subjects
     return subjects.filter(
       (s) =>
         !s.educationLevelIds?.length ||
         s.educationLevelIds.includes(levelFilter),
     )
-  }, [subjects, levelFilter])
+  }, [subjects, levelFilter, isTeacherView])
 
   function openCreate() {
     setEditing(null)
@@ -178,26 +190,32 @@ export function SubjectsPage() {
         }
       />
 
-      <div className="mb-4">
-        <Select
-          value={levelFilter}
-          onChange={(e) => setLevelFilter(e.target.value)}
-          className="max-w-xs"
-        >
-          <option value="all">All education levels</option>
-          {EDUCATION_LEVELS.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.name}
-            </option>
-          ))}
-        </Select>
-      </div>
+      {isTeacherView ? null : (
+        <div className="mb-4">
+          <Select
+            value={levelFilter}
+            onChange={(e) => setLevelFilter(e.target.value)}
+            className="max-w-xs"
+          >
+            <option value="all">All education levels</option>
+            {EDUCATION_LEVELS.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <EmptyState
           icon={BookOpen}
-          title="No subjects"
-          description="Create subjects and assign them to ECD, primary, or secondary levels."
+          title={isTeacherView ? 'No subjects assigned' : 'No subjects'}
+          description={
+            isTeacherView
+              ? 'Ask an admin to assign the subjects you teach on your teacher profile.'
+              : 'Create subjects and assign them to ECD, primary, or secondary levels.'
+          }
           actionLabel={canManage ? 'Add subject' : undefined}
           onAction={canManage ? openCreate : undefined}
         />
@@ -219,12 +237,23 @@ export function SubjectsPage() {
                     <Badge variant="secondary">Inactive</Badge>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Levels:{' '}
-                  {subject.educationLevelIds?.length
-                    ? subject.educationLevelIds.map(educationLevelName).join(', ')
-                    : 'All levels'}
-                </p>
+                {isTeacherView ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Classes:{' '}
+                    {teacherClassesFor(subject).length
+                      ? teacherClassesFor(subject)
+                          .map((c) => c.name)
+                          .join(', ')
+                      : 'No classes assigned yet'}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Levels:{' '}
+                    {subject.educationLevelIds?.length
+                      ? subject.educationLevelIds.map(educationLevelName).join(', ')
+                      : 'All levels'}
+                  </p>
+                )}
               </div>
               {canManage ? (
                 <div className="flex gap-2">
