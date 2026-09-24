@@ -10,7 +10,9 @@ import { rateLimit } from '@/server/http/rate-limit'
 
 export const GET = withApiHandler(async (request) => {
   const session = await requireSession(request)
-  const data = await listStudentsService(session)
+  const url = new URL(request.url)
+  const classId = url.searchParams.get('classId')?.trim() || undefined
+  const data = await listStudentsService(session, classId ? { classId } : undefined)
   return jsonOk(data)
 })
 

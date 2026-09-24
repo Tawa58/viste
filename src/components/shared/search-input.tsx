@@ -9,6 +9,7 @@ export function SearchInput({
   className,
   id = 'search',
   name = 'search',
+  disabled,
 }: {
   value: string
   onChange: (value: string) => void
@@ -16,6 +17,7 @@ export function SearchInput({
   className?: string
   id?: string
   name?: string
+  disabled?: boolean
 }) {
   return (
     <div className={cn('relative', className)}>
@@ -28,6 +30,7 @@ export function SearchInput({
         placeholder={placeholder}
         aria-label={placeholder || 'Search'}
         className="pl-9"
+        disabled={disabled}
       />
     </div>
   )

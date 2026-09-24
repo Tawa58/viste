@@ -297,8 +297,11 @@ class MockAuthService implements AuthService {
 }
 
 class MockStudentService implements StudentService {
-  list() {
-    return mockRequest([...students])
+  list(opts?: { classId?: string }) {
+    const rows = opts?.classId
+      ? students.filter((s) => s.classId === opts.classId)
+      : [...students]
+    return mockRequest(rows)
   }
   getById(id: string) {
     return mockRequest(students.find((s) => s.id === id))

@@ -67,23 +67,28 @@ export function AttendancePage() {
     : sessions.slice(0, SESSIONS_PREVIEW)
 
   async function loadBase() {
-    const [stu, cls] = await Promise.all([studentService.list(), classService.list()])
-    setStudents(stu)
+    const cls = await classService.list()
     const active = cls.filter((c) => (c.status ?? 'ACTIVE') === 'ACTIVE')
-    // Daily register is a class-teacher duty — prefer owned classes for teachers.
+    // Daily register is class-teacher only — never fall back to taught-only classes.
     const registerClasses =
       user?.role === 'TEACHER' && user.staffId
         ? active.filter((c) => c.classTeacherId === user.staffId)
         : active
-    const pool = registerClasses.length > 0 ? registerClasses : active
-    setClasses(pool)
+    setClasses(registerClasses)
     const fromUrl = searchParams.get('classId')
-    setClassId((prev) => {
-      if (fromUrl && pool.some((c) => c.id === fromUrl)) return fromUrl
-      if (fromUrl && active.some((c) => c.id === fromUrl)) return fromUrl
-      if (prev && pool.some((c) => c.id === prev)) return prev
-      return pool[0]?.id ?? ''
-    })
+    const nextClassId = (() => {
+      if (fromUrl && registerClasses.some((c) => c.id === fromUrl)) return fromUrl
+      if (classId && registerClasses.some((c) => c.id === classId)) return classId
+      return registerClasses[0]?.id ?? ''
+    })()
+    setClassId(nextClassId)
+
+    if (nextClassId) {
+      const stu = await studentService.list({ classId: nextClassId })
+      setStudents(stu)
+    } else {
+      setStudents([])
+    }
   }
 
   async function loadRegister(forDate: string, forClassId: string) {
@@ -144,11 +149,29 @@ export function AttendancePage() {
   }, [])
 
   useEffect(() => {
-    if (!classId) return
-    void loadRegister(date, classId).catch((err) => {
-      console.error(err)
-      notify.error('Could not load register for this class')
-    })
+    if (!classId) {
+      setStudents([])
+      setMarks({})
+      setSession(null)
+      return
+    }
+    let mounted = true
+    ;(async () => {
+      try {
+        const stu = await studentService.list({ classId })
+        if (mounted) setStudents(stu)
+        await loadRegister(date, classId)
+      } catch (err) {
+        console.error(err)
+        if (mounted) {
+          setStudents([])
+          notify.error('Could not load register for this class')
+        }
+      }
+    })()
+    return () => {
+      mounted = false
+    }
   }, [date, classId])
 
   useEffect(() => {
@@ -397,8 +420,16 @@ export function AttendancePage() {
       {!classId ? (
         <EmptyState
           icon={ClipboardList}
-          title="Select a class"
-          description="Choose a class to open today’s register."
+          title={
+            user?.role === 'TEACHER'
+              ? 'No class-teacher assignment'
+              : 'Select a class'
+          }
+          description={
+            user?.role === 'TEACHER'
+              ? 'Daily registers are only available for classes where you are the assigned class teacher.'
+              : 'Choose a class to open today’s register.'
+          }
         />
       ) : roster.length === 0 ? (
         <EmptyState

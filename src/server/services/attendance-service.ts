@@ -64,11 +64,24 @@ export async function listAttendance(
       .filter((r) => (opts?.kind ? (r.kind ?? 'PERIOD') === opts.kind : true))
   }
 
+  // Daily registers are class-teacher only; period marks use taught ∪ CT classes.
+  const dailyOnly = opts?.kind === 'DAILY'
   if (session.role === 'TEACHER') {
-    const { resolveTeacherClassIds } = await import('@/server/authorization/isolation')
-    const allowed = new Set(await resolveTeacherClassIds(session))
+    const {
+      resolveClassTeacherClassIds,
+      resolveTeacherClassIds,
+    } = await import('@/server/authorization/isolation')
+    const allowed = new Set(
+      dailyOnly
+        ? await resolveClassTeacherClassIds(session)
+        : await resolveTeacherClassIds(session),
+    )
     if (opts?.classId && !allowed.has(opts.classId)) {
-      throw forbidden('Teacher is not assigned to this class')
+      throw forbidden(
+        dailyOnly
+          ? 'Only the class teacher can view this register'
+          : 'Teacher is not assigned to this class',
+      )
     }
   }
 
@@ -94,8 +107,15 @@ export async function listAttendance(
   if (opts?.date) rows = rows.filter((r) => r.date === opts.date)
 
   if (session.role === 'TEACHER' && !opts?.classId) {
-    const { resolveTeacherClassIds } = await import('@/server/authorization/isolation')
-    const allowed = new Set(await resolveTeacherClassIds(session))
+    const {
+      resolveClassTeacherClassIds,
+      resolveTeacherClassIds,
+    } = await import('@/server/authorization/isolation')
+    const allowed = new Set(
+      dailyOnly
+        ? await resolveClassTeacherClassIds(session)
+        : await resolveTeacherClassIds(session),
+    )
     rows = rows.filter((r) => allowed.has(r.classId))
   }
 
@@ -136,8 +156,11 @@ export async function listAttendanceSessions(
   rows.sort((a, b) => String(b.submittedAt ?? '').localeCompare(String(a.submittedAt ?? '')))
 
   if (session.role === 'TEACHER') {
-    const { resolveTeacherClassIds } = await import('@/server/authorization/isolation')
-    const allowed = new Set(await resolveTeacherClassIds(session))
+    const { resolveClassTeacherClassIds } = await import('@/server/authorization/isolation')
+    const allowed = new Set(await resolveClassTeacherClassIds(session))
+    if (opts?.classId && !allowed.has(opts.classId)) {
+      throw forbidden('Only the class teacher can view this register')
+    }
     rows = rows.filter((r) => allowed.has(r.classId))
   }
 
@@ -152,9 +175,15 @@ export async function upsertAttendance(
 ): Promise<AttendanceDto> {
   requirePermission(session, 'attendance.create')
   await assertCanAccessStudent(session, input.studentId)
-  await assertTeacherOwnsClass(session, input.classId)
 
   const kind = input.kind ?? (input.subjectId ? 'PERIOD' : 'DAILY')
+  // Daily register marks are class-teacher only; period marks use taught classes.
+  if (kind === 'DAILY' && session.role === 'TEACHER') {
+    await assertIsClassTeacher(session, input.classId)
+  } else {
+    await assertTeacherOwnsClass(session, input.classId)
+  }
+
   if (kind === 'DAILY' && !options?.bypassDailyLock) {
     const existingSession = await getDoc<AttendanceSession>(
       'attendanceSessions',

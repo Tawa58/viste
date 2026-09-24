@@ -66,7 +66,9 @@ const PAGE_SIZE = 8
 export function StudentsPage() {
   const { user } = useAuth()
   const canManage = user ? canManageStudents(user.role) : false
+  const isTeacher = user?.role === 'TEACHER'
   const [loading, setLoading] = useState(true)
+  const [studentsLoading, setStudentsLoading] = useState(false)
   const [students, setStudents] = useState<Student[]>([])
   const [classes, setClasses] = useState<SchoolClass[]>([])
   const [streams, setStreams] = useState<Stream[]>([])
@@ -76,7 +78,8 @@ export function StudentsPage() {
   const [houses, setHouses] = useState<House[]>([])
   const [guardians, setGuardians] = useState<Guardian[]>([])
   const [search, setSearch] = useState('')
-  const [classFilter, setClassFilter] = useState('all')
+  // Teachers must pick a class first — no school-wide "all" directory.
+  const [classFilter, setClassFilter] = useState(isTeacher ? '' : 'all')
   const [levelFilter, setLevelFilter] = useState('all')
   const [genderFilter, setGenderFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -93,19 +96,17 @@ export function StudentsPage() {
   useEffect(() => {
     let mounted = true
     Promise.all([
-      studentService.list(),
-      catalogService.getClasses(),
+      isTeacher ? classService.list() : catalogService.getClasses(),
       catalogService.getStreams(),
       catalogService.getSubjects(),
       catalogService.getSports?.() ?? Promise.resolve([]),
       catalogService.getClubs?.() ?? Promise.resolve([]),
       catalogService.getHouses?.() ?? Promise.resolve([]),
       catalogService.getGuardians().catch(() => [] as import('@/types').Guardian[]),
-      classService.getStats().catch(() => null),
+      isTeacher ? Promise.resolve(null) : classService.getStats().catch(() => null),
     ])
-      .then(([s, c, st, sub, sp, cl, ho, g]) => {
+      .then(([c, st, sub, sp, cl, ho, g]) => {
         if (!mounted) return
-        setStudents(s)
         setClasses(c)
         setStreams(st)
         setSubjects(sub)
@@ -113,6 +114,13 @@ export function StudentsPage() {
         setClubs(cl)
         setHouses(ho)
         setGuardians(g)
+        if (isTeacher) {
+          const active = c.filter((x) => (x.status ?? 'ACTIVE') === 'ACTIVE')
+          setClassFilter((prev) => {
+            if (prev && active.some((x) => x.id === prev)) return prev
+            return ''
+          })
+        }
       })
       .catch((err) => {
         console.error(err)
@@ -127,9 +135,52 @@ export function StudentsPage() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [isTeacher])
+
+  useEffect(() => {
+    if (loading) return
+    let mounted = true
+
+    // Teachers: wait for a class selection before loading any roster.
+    if (isTeacher && !classFilter) {
+      setStudents([])
+      setStudentsLoading(false)
+      return () => {
+        mounted = false
+      }
+    }
+
+    setStudentsLoading(true)
+    const opts =
+      isTeacher || (classFilter && classFilter !== 'all')
+        ? { classId: classFilter }
+        : undefined
+
+    studentService
+      .list(opts)
+      .then((s) => {
+        if (!mounted) return
+        setStudents(s)
+        setSelected([])
+      })
+      .catch((err) => {
+        console.error(err)
+        if (mounted) {
+          setStudents([])
+          notify.error('Could not load students for this class')
+        }
+      })
+      .finally(() => {
+        if (mounted) setStudentsLoading(false)
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [loading, isTeacher, classFilter])
 
   const filtered = useMemo(() => {
+    if (isTeacher && !classFilter) return []
     const q = search.toLowerCase()
     let rows = students.filter((s) => {
       const name = fullName(s).toLowerCase()
@@ -138,7 +189,8 @@ export function StudentsPage() {
         name.includes(q) ||
         s.studentNumber.toLowerCase().includes(q) ||
         s.admissionNumber.toLowerCase().includes(q)
-      const matchesClass = classFilter === 'all' || s.classId === classFilter
+      const matchesClass =
+        isTeacher || classFilter === 'all' || s.classId === classFilter
       const cls = classes.find((c) => c.id === s.classId)
       const levelId = s.educationLevelId || cls?.educationLevelId
       const matchesLevel = levelFilter === 'all' || levelId === levelFilter
@@ -175,6 +227,7 @@ export function StudentsPage() {
     subjectFilter,
     sportFilter,
     sort,
+    isTeacher,
   ])
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -303,7 +356,11 @@ export function StudentsPage() {
     <div className="space-y-5">
       <PageHeader
         title="Students"
-        description="Browse, register, and manage the school student directory."
+        description={
+          isTeacher
+            ? 'Select a class you teach or own as class teacher to view its student list.'
+            : 'Browse, register, and manage the school student directory.'
+        }
         breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Students' }]}
         actions={
           canManage ? (
@@ -322,16 +379,33 @@ export function StudentsPage() {
               onChange={setSearch}
               placeholder="Search name or admission number…"
               className="md:col-span-2"
+              disabled={isTeacher && !classFilter}
             />
-            <Select value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
-              <option value="all">All classes</option>
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
+            <Select
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+            >
+              {isTeacher ? (
+                <option value="">Select a class…</option>
+              ) : (
+                <option value="all">All classes</option>
+              )}
+              {classes
+                .filter((c) => (c.status ?? 'ACTIVE') === 'ACTIVE')
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {isTeacher && user?.staffId && c.classTeacherId === user.staffId
+                      ? ' (class teacher)'
+                      : ''}
+                  </option>
+                ))}
             </Select>
-            <Select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)}>
+            <Select
+              value={levelFilter}
+              onChange={(e) => setLevelFilter(e.target.value)}
+              disabled={isTeacher && !classFilter}
+            >
               <option value="all">All levels</option>
               {EDUCATION_LEVELS.map((l) => (
                 <option key={l.id} value={l.id}>
@@ -339,7 +413,11 @@ export function StudentsPage() {
                 </option>
               ))}
             </Select>
-            <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <Select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              disabled={isTeacher && !classFilter}
+            >
               <option value="all">All statuses</option>
               <option value="ACTIVE">Active</option>
               <option value="SUSPENDED">Suspended</option>
@@ -349,12 +427,20 @@ export function StudentsPage() {
               <option value="ARCHIVED">Archived</option>
               <option value="INACTIVE">Inactive</option>
             </Select>
-            <Select value={genderFilter} onChange={(e) => setGenderFilter(e.target.value)}>
+            <Select
+              value={genderFilter}
+              onChange={(e) => setGenderFilter(e.target.value)}
+              disabled={isTeacher && !classFilter}
+            >
               <option value="all">All genders</option>
               <option value="Male">Male</option>
               <option value="Female">Female</option>
             </Select>
-            <Select value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)}>
+            <Select
+              value={subjectFilter}
+              onChange={(e) => setSubjectFilter(e.target.value)}
+              disabled={isTeacher && !classFilter}
+            >
               <option value="all">All subjects</option>
               {subjects.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -362,7 +448,11 @@ export function StudentsPage() {
                 </option>
               ))}
             </Select>
-            <Select value={sportFilter} onChange={(e) => setSportFilter(e.target.value)}>
+            <Select
+              value={sportFilter}
+              onChange={(e) => setSportFilter(e.target.value)}
+              disabled={isTeacher && !classFilter}
+            >
               <option value="all">All sports</option>
               {sports.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -373,11 +463,24 @@ export function StudentsPage() {
           </div>
         </div>
 
-        {filtered.length === 0 ? (
+        {isTeacher && !classFilter ? (
+          <EmptyState
+            icon={Users}
+            title="Select a class"
+            description="Choose a class you teach or are assigned as class teacher to view its students."
+            className="m-6"
+          />
+        ) : studentsLoading ? (
+          <TableSkeleton rows={6} message="Loading class roster…" />
+        ) : filtered.length === 0 ? (
           <EmptyState
             icon={Users}
             title="No students found"
-            description="Try adjusting filters or register a new student."
+            description={
+              isTeacher
+                ? 'This class has no students matching your filters.'
+                : 'Try adjusting filters or register a new student.'
+            }
             className="m-6"
           />
         ) : (

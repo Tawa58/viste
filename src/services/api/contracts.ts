@@ -28,7 +28,7 @@ export type GuardianInput = Omit<Guardian, 'id'>
 export type GuardianUpdate = Partial<Omit<Guardian, 'id'>>
 
 export interface StudentService {
-  list(): Promise<Student[]>
+  list(opts?: { classId?: string }): Promise<Student[]>
   getById(id: string): Promise<Student | undefined>
   create(input: StudentInput): Promise<Student>
   update(id: string, patch: StudentUpdate): Promise<Student>

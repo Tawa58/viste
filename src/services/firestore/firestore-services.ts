@@ -14,9 +14,10 @@ import { buildLiveDashboard } from '@/services/firestore/live-dashboard'
 import { firestoreSchool } from '@/services/firestore/school-repository'
 
 class FirestoreStudentService implements StudentService {
-  async list() {
+  async list(opts?: { classId?: string }) {
     await firestoreSchool.ensureSchoolCatalog()
-    return firestoreSchool.listStudents()
+    const rows = await firestoreSchool.listStudents()
+    return opts?.classId ? rows.filter((s) => s.classId === opts.classId) : rows
   }
   async getById(id: string) {
     await firestoreSchool.ensureSchoolCatalog()

@@ -5,6 +5,7 @@ import type { SessionContext } from '@/server/auth/session'
 import { requirePermission } from '@/server/authorization/permissions'
 import {
   assertCanAccessStudent,
+  assertTeacherOwnsClass,
   listAccessibleStudents,
 } from '@/server/authorization/isolation'
 import { badRequest, notFound } from '@/server/errors'
@@ -66,8 +67,27 @@ async function allocateVhsStudentNumber(admissionDate: string): Promise<string> 
   })
 }
 
-export async function listStudents(session: SessionContext): Promise<StudentDto[]> {
+export async function listStudents(
+  session: SessionContext,
+  opts?: { classId?: string },
+): Promise<StudentDto[]> {
   requirePermission(session, 'students.read')
+
+  if (opts?.classId) {
+    if (session.role === 'TEACHER') {
+      await assertTeacherOwnsClass(session, opts.classId)
+    }
+    if (session.role === 'PARENT' || session.role === 'STUDENT') {
+      const accessible = await listAccessibleStudents(session)
+      return accessible.filter((s) => s.classId === opts.classId)
+    }
+    const rows = await queryCollection<Student>('students', {
+      limit: 300,
+      where: [{ field: 'classId', op: '==', value: opts.classId }],
+    })
+    return rows
+  }
+
   return listAccessibleStudents(session)
 }
 

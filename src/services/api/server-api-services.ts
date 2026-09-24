@@ -155,7 +155,10 @@ export class ApiAuthService implements AuthService {
 }
 
 export const apiStudentService: StudentService = {
-  list: () => apiFetch<Student[]>('/api/v1/students'),
+  list: (opts) => {
+    const q = opts?.classId ? `?classId=${encodeURIComponent(opts.classId)}` : ''
+    return apiFetch<Student[]>(`/api/v1/students${q}`)
+  },
   getById: async (id) => {
     try {
       return await apiFetch<Student>(`/api/v1/students/${id}`)

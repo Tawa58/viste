@@ -37,7 +37,11 @@ export async function listClasses(session: SessionContext): Promise<ClassDto[]> 
 
 export async function listStreams(session: SessionContext): Promise<StreamDto[]> {
   requirePermission(session, 'classes.read')
-  return queryCollection<Stream>('streams', { limit: 100 })
+  const rows = await queryCollection<Stream>('streams', { limit: 100 })
+  if (session.role !== 'TEACHER') return rows
+  const { resolveTeacherClassIds } = await import('@/server/authorization/isolation')
+  const allowed = new Set(await resolveTeacherClassIds(session))
+  return rows.filter((s) => allowed.has(s.classId))
 }
 
 export async function listSubjects(session: SessionContext): Promise<SubjectDto[]> {
@@ -65,9 +69,10 @@ export async function getCatalogSnapshot(session: SessionContext) {
 
     const [classes, streams, subjects, academicYears, terms, sports, clubs, houses] =
       await Promise.all([
-        queryCollection<SchoolClass>('classes', { limit: 100 }),
-        queryCollection<Stream>('streams', { limit: 100 }),
-        queryCollection<Subject>('subjects', { limit: 100 }),
+        // Prefer managed lists so teachers only receive assigned classes/subjects.
+        listClassesManaged(session),
+        listStreams(session),
+        listSubjectsManaged(session),
         queryCollection<AcademicYear>('academicYears', { limit: 100 }),
         queryCollection<Term>('terms', { limit: 100 }),
         queryCollection<Sport>('sports', { limit: 100 }).catch(() => [] as Sport[]),
