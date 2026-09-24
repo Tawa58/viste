@@ -109,6 +109,7 @@ export function StudentEditorForm({
   houses = [],
   guardians = [],
   fullAccess,
+  classTeacherAccess = false,
   numberPreview,
   className,
 }: {
@@ -125,6 +126,8 @@ export function StudentEditorForm({
   guardians?: Guardian[]
   /** Admin/registrar: full fields. Teacher: phone + address only. */
   fullAccess: boolean
+  /** Class (homeroom) teacher: contact + house / sports / clubs. */
+  classTeacherAccess?: boolean
   /** Preview of auto-assigned VHS number on create. */
   numberPreview?: string
   className?: string
@@ -159,6 +162,97 @@ export function StudentEditorForm({
     setField(
       key,
       current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
+    )
+  }
+
+  if (!fullAccess && classTeacherAccess) {
+    return (
+      <div className={cn('space-y-4', className)}>
+        <p className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          As class teacher you can update contact details, house, sports, and clubs. Registration
+          numbers, class placement, and guardians remain with school admin.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field>
+            <Label>Middle name</Label>
+            <Input
+              value={values.middleName}
+              onChange={(e) => setField('middleName', e.target.value)}
+            />
+          </Field>
+          <Field>
+            <Label>Phone</Label>
+            <Input
+              value={values.phone}
+              onChange={(e) => setField('phone', e.target.value)}
+              placeholder="+263 …"
+            />
+          </Field>
+          <Field>
+            <Label>Email</Label>
+            <Input
+              type="email"
+              value={values.email}
+              onChange={(e) => setField('email', e.target.value)}
+            />
+          </Field>
+          <Field>
+            <Label>House</Label>
+            <Select value={values.houseId} onChange={(e) => setField('houseId', e.target.value)}>
+              <option value="">None</option>
+              {houses.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field className="sm:col-span-2">
+            <Label>Address</Label>
+            <Textarea
+              value={values.address}
+              onChange={(e) => setField('address', e.target.value)}
+              rows={3}
+            />
+          </Field>
+        </div>
+        <div className="space-y-2">
+          <Label>Sports</Label>
+          <div className="grid max-h-36 gap-2 overflow-y-auto rounded-xl border border-border p-3 sm:grid-cols-2">
+            {sports.length === 0 ? (
+              <p className="text-sm text-muted-foreground sm:col-span-2">No sports configured.</p>
+            ) : (
+              sports.map((sport) => (
+                <label key={sport.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={values.sportIds.includes(sport.id)}
+                    onCheckedChange={() => toggleId('sportIds', sport.id)}
+                  />
+                  {sport.name}
+                </label>
+              ))
+            )}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label>Clubs</Label>
+          <div className="grid max-h-36 gap-2 overflow-y-auto rounded-xl border border-border p-3 sm:grid-cols-2">
+            {clubs.length === 0 ? (
+              <p className="text-sm text-muted-foreground sm:col-span-2">No clubs configured.</p>
+            ) : (
+              clubs.map((club) => (
+                <label key={club.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={values.clubIds.includes(club.id)}
+                    onCheckedChange={() => toggleId('clubIds', club.id)}
+                  />
+                  {club.name}
+                </label>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
     )
   }
 

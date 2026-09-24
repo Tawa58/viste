@@ -12,7 +12,9 @@ export const PATCH = withApiHandler(async (request, { requestId }) => {
   const parsed = profileUpdateSchema.safeParse(body)
   if (!parsed.success) throw badRequest('Invalid profile payload', parsed.error.flatten())
 
-  const safe = sanitizeProfilePatch(parsed.data as Partial<AuthUser>)
+  const safe = sanitizeProfilePatch(parsed.data as Partial<AuthUser>, {
+    role: session.role,
+  })
   // Never persist ephemeral browser blob/data URLs — only durable file ids.
   if (
     typeof safe.avatarUrl === 'string' &&

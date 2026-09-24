@@ -822,6 +822,15 @@ function StudentProgressCard({ view }: { view: ResultPortalView }) {
             </p>
           ) : (
             <>
+              {view.teacherComment ? (
+                <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
+                  <h3 className="font-display text-base font-semibold">Class teacher comment</h3>
+                  <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">
+                    {view.teacherComment}
+                  </p>
+                </div>
+              ) : null}
+
               {(view.monthly?.length ?? 0) > 0 ? (
                 <ResultsBlockTable title="Monthly progress tests" blocks={view.monthly!} />
               ) : null}

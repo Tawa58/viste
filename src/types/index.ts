@@ -744,5 +744,38 @@ export interface ResultPortalView {
   }[]
   /** Academic cumulative average (ACC) across published scores. */
   overallAverage?: number
+  /** Class (homeroom) teacher end-of-term / final report comment. */
   teacherComment?: string
+}
+
+export interface ClassTeacherReport {
+  id: string
+  classId: string
+  studentId: string
+  termId: string
+  comment: string
+  updatedAt: string
+  updatedBy: string
+  updatedByName?: string
+}
+
+export type DutyDay = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI'
+
+export interface DutyRosterEntry {
+  day: DutyDay
+  duty: string
+  assigneeName?: string
+  studentId?: string
+  notes?: string
+}
+
+export interface DutyRoster {
+  id: string
+  classId: string
+  /** YYYY-MM-DD week starting Monday */
+  weekOf: string
+  entries: DutyRosterEntry[]
+  updatedAt: string
+  updatedBy: string
+  updatedByName?: string
 }

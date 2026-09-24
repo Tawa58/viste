@@ -5,6 +5,7 @@ import type { SessionContext } from '@/server/auth/session'
 import { requirePermission } from '@/server/authorization/permissions'
 import {
   assertCanAccessStudent,
+  assertIsClassTeacher,
   assertTeacherOwnsClass,
   listAccessibleStudents,
 } from '@/server/authorization/isolation'
@@ -221,7 +222,12 @@ export async function submitDailyRegister(
   requestId?: string,
 ): Promise<{ session: AttendanceSessionDto; records: AttendanceDto[] }> {
   requirePermission(session, 'attendance.create')
-  await assertTeacherOwnsClass(session, input.classId)
+  // Daily registers are a class-teacher duty (admins always allowed).
+  if (session.role === 'TEACHER') {
+    await assertIsClassTeacher(session, input.classId)
+  } else {
+    await assertTeacherOwnsClass(session, input.classId)
+  }
 
   const cls = await getDoc<SchoolClass>('classes', input.classId)
   if (!cls) throw notFound('Class not found')

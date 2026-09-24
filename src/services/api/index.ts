@@ -231,20 +231,27 @@ class MockAuthService implements AuthService {
     if (index < 0) throw new Error('User not found')
 
     const current = mockUsers[index]
+    const patchSafe =
+      current.role === 'TEACHER'
+        ? (() => {
+            const { title: _t, department: _d, employeeNumber: _e, ...rest } = patch
+            return rest
+          })()
+        : patch
     const next: AuthUser = {
       ...current,
-      ...patch,
+      ...patchSafe,
       id: current.id,
       role: current.role,
-      email: patch.email?.trim() || current.email,
+      email: patchSafe.email?.trim() || current.email,
       notificationPrefs: {
-        email: patch.notificationPrefs?.email ?? current.notificationPrefs?.email ?? true,
-        sms: patch.notificationPrefs?.sms ?? current.notificationPrefs?.sms ?? false,
-        inApp: patch.notificationPrefs?.inApp ?? current.notificationPrefs?.inApp ?? true,
+        email: patchSafe.notificationPrefs?.email ?? current.notificationPrefs?.email ?? true,
+        sms: patchSafe.notificationPrefs?.sms ?? current.notificationPrefs?.sms ?? false,
+        inApp: patchSafe.notificationPrefs?.inApp ?? current.notificationPrefs?.inApp ?? true,
       },
     }
 
-    if (Object.prototype.hasOwnProperty.call(patch, 'avatarUrl') && !patch.avatarUrl) {
+    if (Object.prototype.hasOwnProperty.call(patchSafe, 'avatarUrl') && !patchSafe.avatarUrl) {
       delete next.avatarUrl
     }
 
@@ -258,9 +265,12 @@ class MockAuthService implements AuthService {
         member.lastName = rest.join(' ') || member.lastName
         member.email = next.email
         if (next.phone) member.phone = next.phone
-        if (next.title) member.title = next.title
-        if (next.department) member.department = next.department
-        if (next.employeeNumber) member.employeeNumber = next.employeeNumber
+        // HR fields stay admin-managed for teachers.
+        if (current.role !== 'TEACHER') {
+          if (next.title) member.title = next.title
+          if (next.department) member.department = next.department
+          if (next.employeeNumber) member.employeeNumber = next.employeeNumber
+        }
         if (next.avatarFileId) member.profilePhotoId = next.avatarFileId
         else if (Object.prototype.hasOwnProperty.call(patch, 'avatarFileId')) {
           delete member.profilePhotoId
@@ -1163,6 +1173,32 @@ export const classService = USE_MOCK_API
         classes.splice(idx, 1)
         return mockRequest({ deleted: true as const, id }, 200)
       },
+      getTeacherReports: async () => mockRequest([]),
+      saveTeacherReports: async (_classId: string, input: { termId: string; entries: { studentId: string; comment: string }[] }) =>
+        mockRequest(
+          input.entries.map((e) => ({
+            id: `ctr-${e.studentId}`,
+            classId: _classId,
+            studentId: e.studentId,
+            termId: input.termId,
+            comment: e.comment,
+            updatedAt: new Date().toISOString(),
+            updatedBy: 'mock',
+          })),
+        ),
+      getDutyRoster: async () => mockRequest(null),
+      saveDutyRoster: async (
+        classId: string,
+        input: { weekOf: string; entries: import('@/types').DutyRosterEntry[] },
+      ) =>
+        mockRequest({
+          id: `duty-${classId}`,
+          classId,
+          weekOf: input.weekOf,
+          entries: input.entries,
+          updatedAt: new Date().toISOString(),
+          updatedBy: 'mock',
+        }),
     }
   : apiClassService
 

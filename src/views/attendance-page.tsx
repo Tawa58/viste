@@ -70,12 +70,19 @@ export function AttendancePage() {
     const [stu, cls] = await Promise.all([studentService.list(), classService.list()])
     setStudents(stu)
     const active = cls.filter((c) => (c.status ?? 'ACTIVE') === 'ACTIVE')
-    setClasses(active)
+    // Daily register is a class-teacher duty — prefer owned classes for teachers.
+    const registerClasses =
+      user?.role === 'TEACHER' && user.staffId
+        ? active.filter((c) => c.classTeacherId === user.staffId)
+        : active
+    const pool = registerClasses.length > 0 ? registerClasses : active
+    setClasses(pool)
     const fromUrl = searchParams.get('classId')
     setClassId((prev) => {
+      if (fromUrl && pool.some((c) => c.id === fromUrl)) return fromUrl
       if (fromUrl && active.some((c) => c.id === fromUrl)) return fromUrl
-      if (prev && active.some((c) => c.id === prev)) return prev
-      return active[0]?.id ?? ''
+      if (prev && pool.some((c) => c.id === prev)) return prev
+      return pool[0]?.id ?? ''
     })
   }
 
@@ -281,7 +288,7 @@ export function AttendancePage() {
         description={
           isAdmin
             ? 'Teachers submit class registers; admins review and download PDFs.'
-            : 'Mark Present / Absent for your assigned class, then submit the register.'
+            : 'Mark Present / Absent for your class (class teacher), then submit the register.'
         }
         breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Attendance' }]}
         actions={
@@ -305,17 +312,19 @@ export function AttendancePage() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
         {[
           { label: 'Marked attendance', value: `${stats.pct}%` },
           { label: 'Present', value: stats.present },
           { label: 'Absent', value: stats.absent },
           { label: 'Unmarked', value: stats.unmarked },
         ].map((item) => (
-          <Card key={item.label}>
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground">{item.label}</p>
-              <p className="font-display text-2xl font-semibold">{item.value}</p>
+          <Card key={item.label} className="shadow-none">
+            <CardContent className="px-3 py-2 sm:px-4 sm:py-3">
+              <p className="text-[10px] text-muted-foreground sm:text-xs">{item.label}</p>
+              <p className="font-display text-lg font-semibold leading-tight sm:text-2xl">
+                {item.value}
+              </p>
             </CardContent>
           </Card>
         ))}

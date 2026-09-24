@@ -422,6 +422,35 @@ export const academicSettingsSchema = z.object({
     .max(6),
 })
 
+/** Class teacher final / term report comments (one per student per term). */
+export const classTeacherReportsUpsertSchema = z.object({
+  termId: idSchema,
+  entries: z
+    .array(
+      z.object({
+        studentId: idSchema,
+        comment: z.string().trim().max(2000),
+      }),
+    )
+    .min(1)
+    .max(200),
+})
+
+export const dutyRosterUpsertSchema = z.object({
+  weekOf: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  entries: z
+    .array(
+      z.object({
+        day: z.enum(['MON', 'TUE', 'WED', 'THU', 'FRI']),
+        duty: z.string().trim().min(1).max(120),
+        assigneeName: z.string().trim().max(120).optional(),
+        studentId: idSchema.optional(),
+        notes: z.string().trim().max(500).optional(),
+      }),
+    )
+    .max(50),
+})
+
 export type StudentCreateInput = z.infer<typeof studentCreateSchema>
 export type StudentUpdateInput = z.infer<typeof studentUpdateSchema>
 export type GuardianCreateInput = z.infer<typeof guardianCreateSchema>

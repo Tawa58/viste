@@ -54,6 +54,44 @@ export async function resolveTeacherClassIds(session: SessionContext): Promise<s
   return [...ids]
 }
 
+/** Classes where this teacher is the appointed class (homeroom) teacher. */
+export async function resolveClassTeacherClassIds(session: SessionContext): Promise<string[]> {
+  const staff = await getStaffForSession(session)
+  if (!staff) return []
+  const snap = await getAdminDb().collection('classes').limit(200).get()
+  const ids: string[] = []
+  for (const doc of snap.docs) {
+    const data = doc.data() as Pick<SchoolClass, 'classTeacherId' | 'status'>
+    if ((data.status ?? 'ACTIVE') === 'ARCHIVED') continue
+    if (data.classTeacherId === staff.id) ids.push(doc.id)
+  }
+  return ids
+}
+
+export async function isClassTeacherOf(
+  session: SessionContext,
+  classId: string,
+): Promise<boolean> {
+  if (session.role !== 'TEACHER') return false
+  const staffId = session.profile.staffId
+  if (!staffId) return false
+  const snap = await getAdminDb().collection('classes').doc(classId).get()
+  if (!snap.exists) return false
+  const data = snap.data() as Pick<SchoolClass, 'classTeacherId' | 'status'>
+  if ((data.status ?? 'ACTIVE') === 'ARCHIVED') return false
+  return data.classTeacherId === staffId
+}
+
+export async function assertIsClassTeacher(
+  session: SessionContext,
+  classId: string,
+): Promise<void> {
+  if (session.role !== 'TEACHER') return
+  if (!(await isClassTeacherOf(session, classId))) {
+    throw forbidden('Only the class teacher can perform this action for this class')
+  }
+}
+
 /** Subjects assigned on the staff record or listed on the subject.teacherIds. */
 export async function resolveTeacherSubjectIds(session: SessionContext): Promise<string[]> {
   const staff = await getStaffForSession(session)

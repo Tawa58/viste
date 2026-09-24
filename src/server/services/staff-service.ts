@@ -119,15 +119,11 @@ export async function assignClassTeacher(
   previousTeacherId: string | undefined,
   nextTeacherId: string | undefined,
 ): Promise<void> {
-  if (previousTeacherId && previousTeacherId !== nextTeacherId) {
-    const prev = await getDoc<Staff>('staff', previousTeacherId)
-    if (prev) {
-      await setDoc('staff', previousTeacherId, {
-        ...prev,
-        classIds: (prev.classIds ?? []).filter((id) => id !== classId),
-      })
-    }
-  }
+  // Access for class teachers is resolved via classes.classTeacherId.
+  // Only ensure the new class teacher also has the class on staff.classIds
+  // so teaching + homeroom assignments stay aligned. Do not strip the previous
+  // teacher's classIds — they may still teach subjects in that class.
+  void previousTeacherId
   if (nextTeacherId) {
     const next = await getDoc<Staff>('staff', nextTeacherId)
     if (next) {

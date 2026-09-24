@@ -195,19 +195,34 @@ export async function updateStudent(
   requestId?: string,
 ): Promise<StudentDto> {
   requirePermission(session, 'students.update')
-  await assertCanAccessStudent(session, id)
+  const current = await assertCanAccessStudent(session, id)
 
   if (session.role === 'TEACHER') {
-    const allowed = new Set(['phone', 'email', 'address', 'profilePhotoId'])
+    const { isClassTeacherOf } = await import('@/server/authorization/isolation')
+    const asClassTeacher = await isClassTeacherOf(session, current.classId)
+    // Class teachers maintain homeroom profile fields; subject teachers contact only.
+    const allowed = asClassTeacher
+      ? new Set([
+          'phone',
+          'email',
+          'address',
+          'profilePhotoId',
+          'houseId',
+          'sportIds',
+          'clubIds',
+          'middleName',
+        ])
+      : new Set(['phone', 'email', 'address', 'profilePhotoId'])
     for (const key of Object.keys(patch)) {
       if (!allowed.has(key)) {
-        throw badRequest(`Teachers cannot update field: ${key}`)
+        throw badRequest(
+          asClassTeacher
+            ? `Class teachers cannot update field: ${key}`
+            : `Teachers cannot update field: ${key}`,
+        )
       }
     }
   }
-
-  const current = await getDoc<Student>('students', id)
-  if (!current) throw notFound('Student not found')
 
   if (patch.classId && patch.classId !== current.classId) {
     throw badRequest('Use the transfer endpoint to change a student class')

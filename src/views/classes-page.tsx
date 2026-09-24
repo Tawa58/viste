@@ -651,158 +651,168 @@ export function ClassesPage() {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[min(90vh,720px)] w-[calc(100%-1.5rem)] max-w-4xl flex-col gap-0 overflow-hidden p-0 sm:w-[calc(100%-2rem)]">
+          <DialogHeader className="shrink-0 border-b border-border px-6 py-4">
             <DialogTitle>{editing ? 'Edit class' : 'Create class'}</DialogTitle>
             <DialogDescription>
               Class names are free-form — e.g. ECD A, Grade 4 Blue, Form 6 Upper Six.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3">
-            <Field>
-              <Label htmlFor="class-name">Class name</Label>
-              <Input
-                id="class-name"
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="Form 1A"
-              />
-            </Field>
-            <Field>
-              <Label htmlFor="class-level">Education level</Label>
-              <Select
-                id="class-level"
-                value={form.educationLevelId}
-                onChange={(e) => {
-                  const educationLevelId = e.target.value
-                  setForm((f) => ({
-                    ...f,
-                    educationLevelId,
-                    subjectIds: f.subjectIds.filter((id) => {
-                      const sub = subjects.find((s) => s.id === id)
-                      if (!sub?.educationLevelIds?.length) return true
-                      return sub.educationLevelIds.includes(educationLevelId)
-                    }),
-                  }))
-                }}
-              >
-                {EDUCATION_LEVELS.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name} ({l.band})
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field>
-                <Label htmlFor="class-year">Academic year</Label>
-                <Input
-                  id="class-year"
-                  value={
-                    (years.find((y) => y.id === (form.academicYearId || currentYear?.id))
-                      ?.name ??
-                      currentYear?.name ??
-                      'Current year') + ' (automatic)'
-                  }
-                  disabled
-                />
-                <p className="text-xs text-muted-foreground">
-                  Set automatically to the school’s current academic year.
-                </p>
-              </Field>
-              <Field>
-                <Label htmlFor="class-term">Term</Label>
-                <Select
-                  id="class-term"
-                  value={String(form.termSequence)}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      termSequence: Number(e.target.value) as 1 | 2 | 3,
-                    }))
-                  }
-                >
-                  <option value="1">Term 1</option>
-                  <option value="2">Term 2</option>
-                  <option value="3">Term 3</option>
-                </Select>
-              </Field>
-            </div>
-            <Field>
-              <Label htmlFor="class-teacher">Class teacher</Label>
-              <Select
-                id="class-teacher"
-                value={form.classTeacherId}
-                onChange={(e) => setForm((f) => ({ ...f, classTeacherId: e.target.value }))}
-              >
-                <option value="">Select teacher</option>
-                {staff
-                  .filter((s) => s.status === 'ACTIVE')
-                  .map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.firstName} {s.lastName}
-                    </option>
-                  ))}
-              </Select>
-              {staff.filter((s) => s.status === 'ACTIVE').length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  No active staff yet. Register teachers under Teachers & Staff first.
-                </p>
-              ) : null}
-            </Field>
-            <div className="space-y-2">
-              <Label>Subjects undertaken by this class</Label>
-              <div className="grid max-h-48 gap-2 overflow-y-auto rounded-xl border border-border p-3 sm:grid-cols-2">
-                {levelSubjects.length === 0 ? (
-                  <p className="text-sm text-muted-foreground sm:col-span-2">
-                    No subjects for this level. Add subjects under Subjects management.
-                  </p>
-                ) : (
-                  levelSubjects.map((subject) => {
-                    const checked = form.subjectIds.includes(subject.id)
-                    return (
-                      <label
-                        key={subject.id}
-                        className={cn(
-                          'flex cursor-pointer items-start gap-2 rounded-lg border px-2.5 py-2 text-sm',
-                          checked ? 'border-accent/40 bg-accent/5' : 'border-transparent',
-                        )}
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={() => toggleSubject(subject.id)}
-                          className="mt-0.5"
-                        />
-                        <span>
-                          <span className="font-medium">{subject.name}</span>
-                          <span className="block text-xs text-muted-foreground">
-                            {subject.code}
-                          </span>
-                        </span>
-                      </label>
-                    )
-                  })
-                )}
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+            <div className="grid gap-5 lg:grid-cols-2 lg:gap-6">
+              <div className="grid gap-3 content-start">
+                <Field>
+                  <Label htmlFor="class-name">Class name</Label>
+                  <Input
+                    id="class-name"
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="Form 1A"
+                  />
+                </Field>
+                <Field>
+                  <Label htmlFor="class-level">Education level</Label>
+                  <Select
+                    id="class-level"
+                    value={form.educationLevelId}
+                    onChange={(e) => {
+                      const educationLevelId = e.target.value
+                      setForm((f) => ({
+                        ...f,
+                        educationLevelId,
+                        subjectIds: f.subjectIds.filter((id) => {
+                          const sub = subjects.find((s) => s.id === id)
+                          if (!sub?.educationLevelIds?.length) return true
+                          return sub.educationLevelIds.includes(educationLevelId)
+                        }),
+                      }))
+                    }}
+                  >
+                    {EDUCATION_LEVELS.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name} ({l.band})
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field>
+                    <Label htmlFor="class-year">Academic year</Label>
+                    <Input
+                      id="class-year"
+                      value={
+                        (years.find((y) => y.id === (form.academicYearId || currentYear?.id))
+                          ?.name ??
+                          currentYear?.name ??
+                          'Current year') + ' (automatic)'
+                      }
+                      disabled
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Set automatically to the school’s current academic year.
+                    </p>
+                  </Field>
+                  <Field>
+                    <Label htmlFor="class-term">Term</Label>
+                    <Select
+                      id="class-term"
+                      value={String(form.termSequence)}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          termSequence: Number(e.target.value) as 1 | 2 | 3,
+                        }))
+                      }
+                    >
+                      <option value="1">Term 1</option>
+                      <option value="2">Term 2</option>
+                      <option value="3">Term 3</option>
+                    </Select>
+                  </Field>
+                </div>
+                <Field>
+                  <Label htmlFor="class-teacher">Class teacher</Label>
+                  <Select
+                    id="class-teacher"
+                    value={form.classTeacherId}
+                    onChange={(e) => setForm((f) => ({ ...f, classTeacherId: e.target.value }))}
+                  >
+                    <option value="">Select teacher</option>
+                    {staff
+                      .filter((s) => s.status === 'ACTIVE')
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.firstName} {s.lastName}
+                        </option>
+                      ))}
+                  </Select>
+                  {staff.filter((s) => s.status === 'ACTIVE').length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No active staff yet. Register teachers under Teachers & Staff first.
+                    </p>
+                  ) : null}
+                </Field>
+                <Field>
+                  <Label htmlFor="class-notes">Description / notes</Label>
+                  <Textarea
+                    id="class-notes"
+                    value={form.description}
+                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                    rows={3}
+                    placeholder="Optional notes about this class"
+                  />
+                </Field>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {form.subjectIds.length} selected · filtered for{' '}
-                {educationLevelName(form.educationLevelId)}
-              </p>
+
+              <div className="flex min-h-0 flex-col gap-2">
+                <Label>Subjects undertaken by this class</Label>
+                <div className="grid max-h-[min(50vh,360px)] flex-1 gap-2 overflow-y-auto rounded-xl border border-border p-3 sm:grid-cols-2 lg:max-h-none lg:min-h-[280px]">
+                  {levelSubjects.length === 0 ? (
+                    <p className="text-sm text-muted-foreground sm:col-span-2">
+                      No subjects for this level. Add subjects under Subjects management.
+                    </p>
+                  ) : (
+                    levelSubjects.map((subject) => {
+                      const checked = form.subjectIds.includes(subject.id)
+                      return (
+                        <label
+                          key={subject.id}
+                          className={cn(
+                            'flex cursor-pointer items-start gap-2 rounded-lg border px-2.5 py-2 text-sm',
+                            checked ? 'border-accent/40 bg-accent/5' : 'border-transparent',
+                          )}
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={() => toggleSubject(subject.id)}
+                            className="mt-0.5"
+                          />
+                          <span>
+                            <span className="font-medium">{subject.name}</span>
+                            <span className="block text-xs text-muted-foreground">
+                              {subject.code}
+                            </span>
+                          </span>
+                        </label>
+                      )
+                    })
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {form.subjectIds.length} selected · filtered for{' '}
+                  {educationLevelName(form.educationLevelId)}
+                </p>
+              </div>
             </div>
-            <Field>
-              <Label htmlFor="class-notes">Description / notes</Label>
-              <Textarea
-                id="class-notes"
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                rows={3}
-                placeholder="Optional notes about this class"
-              />
-            </Field>
           </div>
-          <Button loading={saving} onClick={() => void saveClass()}>
-            {editing ? 'Save changes' : 'Create class'}
-          </Button>
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border bg-card px-6 py-3">
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button loading={saving} onClick={() => void saveClass()}>
+              {editing ? 'Save changes' : 'Create class'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -447,6 +447,15 @@ export async function getResultsPortal(
         ? subjects.reduce((s, x) => s + x.score, 0) / subjects.length
         : undefined
 
+  const { getClassTeacherCommentForStudent } = await import(
+    '@/server/services/class-teacher-service'
+  )
+  const teacherComment = await getClassTeacherCommentForStudent(
+    studentId,
+    student.classId,
+    term?.id,
+  )
+
   return {
     ...base,
     accessState: 'RESULTS_AVAILABLE',
@@ -454,6 +463,7 @@ export async function getResultsPortal(
     monthly,
     termly,
     overallAverage,
+    teacherComment,
   }
 }
 

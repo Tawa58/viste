@@ -124,6 +124,12 @@ export function StudentDetailPage() {
     })
   }, [id])
 
+  const isClassTeacherOfStudent = Boolean(
+    user?.staffId &&
+      student &&
+      classes.find((c) => c.id === student.classId)?.classTeacherId === user.staffId,
+  )
+
   function openStudentEdit() {
     if (!student) return
     setForm(studentToFormValues(student))
@@ -168,14 +174,28 @@ export function StudentDetailPage() {
             studentNumber: form.studentNumber.trim() || student.studentNumber,
             admissionNumber: form.admissionNumber.trim() || student.admissionNumber,
           }
-        : {
-            phone: form.phone.trim() || undefined,
-            address: form.address.trim() || student.address,
-          }
+        : isClassTeacherOfStudent
+          ? {
+              middleName: form.middleName.trim() || undefined,
+              phone: form.phone.trim() || undefined,
+              email: form.email.trim() || undefined,
+              address: form.address.trim() || student.address,
+              houseId: form.houseId || undefined,
+              sportIds: form.sportIds,
+              clubIds: form.clubIds,
+            }
+          : {
+              phone: form.phone.trim() || undefined,
+              address: form.address.trim() || student.address,
+            }
 
       const updated = await notify.process(() => studentService.update(student.id, patch), {
         loading: 'Saving student…',
-        success: fullAccess ? 'Student profile updated' : 'Contact details updated',
+        success: fullAccess
+          ? 'Student profile updated'
+          : isClassTeacherOfStudent
+            ? 'Class student details updated'
+            : 'Contact details updated',
       })
       setStudent(updated)
       setGuardians(allGuardians.filter((x) => updated.guardianIds.includes(x.id)))
@@ -345,7 +365,11 @@ export function StudentDetailPage() {
             {canEdit ? (
               <Button onClick={openStudentEdit}>
                 <Pencil className="h-4 w-4" />
-                {fullAccess ? 'Edit profile' : 'Update contact'}
+                {fullAccess
+                  ? 'Edit profile'
+                  : isClassTeacherOfStudent
+                    ? 'Update student'
+                    : 'Update contact'}
               </Button>
             ) : null}
             {fullAccess ? (
@@ -684,11 +708,19 @@ export function StudentDetailPage() {
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{fullAccess ? 'Edit student profile' : 'Update contact info'}</DialogTitle>
+            <DialogTitle>
+              {fullAccess
+                ? 'Edit student profile'
+                : isClassTeacherOfStudent
+                  ? 'Update class student'
+                  : 'Update contact info'}
+            </DialogTitle>
             <DialogDescription>
               {fullAccess
                 ? 'Admin can update profile, enrolment, subjects, and guardians.'
-                : 'Teachers may update phone and address only.'}
+                : isClassTeacherOfStudent
+                  ? 'As class teacher you can update contact, house, sports, and clubs.'
+                  : 'Teachers may update phone and address only.'}
             </DialogDescription>
           </DialogHeader>
           <StudentEditorForm
@@ -703,6 +735,7 @@ export function StudentDetailPage() {
             houses={houses}
             guardians={allGuardians}
             fullAccess={fullAccess}
+            classTeacherAccess={isClassTeacherOfStudent}
           />
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setEditOpen(false)} disabled={saving}>
