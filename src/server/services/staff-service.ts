@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto'
 import { getAdminAuth, getAdminDb } from '@/lib/firebase/admin'
 import { writeAuditLog } from '@/server/audit/logger'
 import type { SessionContext } from '@/server/auth/session'
-import { requirePermission } from '@/server/authorization/permissions'
+import { requirePermission, sessionHasPermission } from '@/server/authorization/permissions'
 import { badRequest, conflict, notFound, accountSuspended } from '@/server/errors'
 import { getDoc, newId, queryCollection, setDoc, deleteDoc } from '@/server/repositories/firestore-repo'
 import type { StaffCreateInput, StaffSuspendInput } from '@/server/validators/school'
@@ -135,7 +135,12 @@ export async function assignClassTeacher(
 }
 
 export async function listStaff(session: SessionContext): Promise<StaffDto[]> {
-  requirePermission(session, 'teachers.read')
+  // Teachers lack teachers.read; return [] instead of 403 so class/exam UIs
+  // that hydrate staff catalogs don't crash on Forbidden.
+  if (!sessionHasPermission(session, 'teachers.read')) {
+    if (session.role === 'TEACHER') return []
+    requirePermission(session, 'teachers.read')
+  }
   // Ensure class-teacher assignments show on staff profiles
   await syncStaffClassIdsFromClasses().catch(() => undefined)
   return queryCollection<Staff>('staff', { limit: 100 })

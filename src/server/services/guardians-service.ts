@@ -2,7 +2,7 @@ import 'server-only'
 
 import { writeAuditLog } from '@/server/audit/logger'
 import type { SessionContext } from '@/server/auth/session'
-import { requirePermission } from '@/server/authorization/permissions'
+import { requirePermission, sessionHasPermission } from '@/server/authorization/permissions'
 import { assertParentLinked } from '@/server/authorization/isolation'
 import { notFound } from '@/server/errors'
 import { getDoc, newId, queryCollection, setDoc, deleteDoc } from '@/server/repositories/firestore-repo'
@@ -14,11 +14,16 @@ import type { Guardian, Student } from '@/types'
 export type GuardianDto = Guardian
 
 export async function listGuardians(session: SessionContext): Promise<GuardianDto[]> {
-  requirePermission(session, 'parents.read')
   if (session.role === 'PARENT') {
+    requirePermission(session, 'parents.read')
     if (!session.profile.guardianId) return []
     const g = await getDoc<Guardian>('guardians', session.profile.guardianId)
     return g ? [g] : []
+  }
+  // Teachers lack parents.read; return [] instead of 403 for catalog hydrators.
+  if (!sessionHasPermission(session, 'parents.read')) {
+    if (session.role === 'TEACHER') return []
+    requirePermission(session, 'parents.read')
   }
   return queryCollection<Guardian>('guardians', { limit: 100 })
 }

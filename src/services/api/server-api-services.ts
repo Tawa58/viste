@@ -357,31 +357,25 @@ export const apiCatalogService = {
   async getHouses(): Promise<House[]> {
     return (await loadCatalogOnce()).houses ?? []
   },
-  getStaff: async () => {
-    try {
-      return await apiFetch<Staff[]>('/api/v1/teachers')
-    } catch (err) {
+  getStaff: () =>
+    apiFetch<Staff[]>('/api/v1/teachers').catch((err) => {
       // Teachers never have teachers.read — treat as empty list, never crash UI.
       if (isForbiddenOrUnauthorized(err)) {
         seedApiCache('GET:/api/v1/teachers', [])
-        return []
+      } else {
+        console.warn('[catalog] getStaff failed', err)
       }
-      console.warn('[catalog] getStaff failed', err)
-      return []
-    }
-  },
-  getGuardians: async () => {
-    try {
-      return await apiFetch<Guardian[]>('/api/v1/parents')
-    } catch (err) {
+      return [] as Staff[]
+    }),
+  getGuardians: () =>
+    apiFetch<Guardian[]>('/api/v1/parents').catch((err) => {
       if (isForbiddenOrUnauthorized(err)) {
         seedApiCache('GET:/api/v1/parents', [])
-        return []
+      } else {
+        console.warn('[catalog] getGuardians failed', err)
       }
-      console.warn('[catalog] getGuardians failed', err)
-      return []
-    }
-  },
+      return [] as Guardian[]
+    }),
   getGuardian: async (id: string) => {
     try {
       return await apiFetch<Guardian>(`/api/v1/parents/${id}`)

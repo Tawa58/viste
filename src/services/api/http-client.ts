@@ -125,6 +125,18 @@ export async function apiFetch<T>(
 
     const payload = await res.json().catch(() => ({}))
     if (!res.ok) {
+      // Teachers (and similar roles) lack directory list permissions. Soft-resolve
+      // so callers never see Uncaught ApiClientError for catalog hydrators.
+      const pathOnly = url.split('?')[0]
+      if (
+        method === 'GET' &&
+        (res.status === 403 || res.status === 401) &&
+        (pathOnly === '/api/v1/teachers' || pathOnly === '/api/v1/parents')
+      ) {
+        const empty = [] as unknown as T
+        if (!skipCache) cache.set(cacheKey, { at: Date.now(), data: empty })
+        return empty
+      }
       throw new ApiClientError(
         res.status,
         payload?.error?.code ?? 'ERROR',
