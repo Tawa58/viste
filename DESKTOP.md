@@ -102,6 +102,18 @@ Ordinary pushes to `main` (no tag) still run validation and build an installer y
 download from the workflow run's **Artifacts** for testing — they do **not** publish a
 release, so installed apps are never updated by an untested push.
 
+## Distributing to the school
+
+Always share the **latest release page** — it never changes and always points at the
+newest installer:
+
+**https://github.com/Tawa58/viste-sms/releases/latest**
+
+Under *Assets*, download `Viste-SMS-Setup-<version>.exe` (the only file users need; the
+`.blockmap` and `latest.yml` files are for the auto-updater). You can also copy the `.exe`
+to a USB drive or shared folder and install it on each school PC. Once installed, PCs
+update themselves — you only redistribute the installer for new machines.
+
 ## First-time installation for users
 
 Download `Viste-SMS-Setup-<version>.exe` from the repository's

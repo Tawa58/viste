@@ -79,15 +79,31 @@ jobs:
             exit 1
           fi
 
-      - name: Build installer (no publish)
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+      - name: Build installer
         run: npm run dist
 
-      - name: Build installer and publish GitHub Release
+      # Published in one step (not by electron-builder's parallel uploader, which can
+      # race and create duplicate releases). Only releases for THIS tag are replaced,
+      # so re-running a tag is safe and older versions are never touched.
+      - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        run: npm run release
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          for id in $(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq ".[] | select(.tag_name==\"$GITHUB_REF_NAME\") | .id"); do
+            echo "Removing existing release $id for $GITHUB_REF_NAME"
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"
+          done
+          gh release create "$GITHUB_REF_NAME" \
+            "release/Viste-SMS-Setup-$VERSION.exe" \
+            "release/Viste-SMS-Setup-$VERSION.exe.blockmap" \
+            "release/latest.yml" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "Viste SMS $VERSION" \
+            --notes "Viste SMS desktop $VERSION for Windows. Download **Viste-SMS-Setup-$VERSION.exe** to install. Installed apps update automatically."
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4

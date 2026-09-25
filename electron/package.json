@@ -12,7 +12,6 @@
     "dev": "npm run compile && electron . --app-url=http://localhost:3000",
     "pack": "npm run compile && electron-builder --win --dir --publish never",
     "dist": "npm run compile && electron-builder --win --publish never",
-    "release": "npm run compile && electron-builder --win --publish always",
     "version:bump": "node scripts/bump-version.mjs"
   },
   "dependencies": {
