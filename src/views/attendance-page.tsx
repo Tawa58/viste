@@ -335,17 +335,19 @@ export function AttendancePage() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+      <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:items-center">
         {[
           { label: 'Marked attendance', value: `${stats.pct}%` },
           { label: 'Present', value: stats.present },
           { label: 'Absent', value: stats.absent },
           { label: 'Unmarked', value: stats.unmarked },
         ].map((item) => (
-          <Card key={item.label} className="shadow-none">
-            <CardContent className="px-3 py-2 sm:px-4 sm:py-3">
-              <p className="text-[10px] text-muted-foreground sm:text-xs">{item.label}</p>
-              <p className="font-display text-lg font-semibold leading-tight sm:text-2xl">
+          <Card key={item.label} className="shadow-none lg:rounded-xl">
+            <CardContent className="px-3 py-2 sm:px-4 sm:py-3 lg:flex lg:h-10 lg:items-center lg:gap-2 lg:px-4 lg:py-0">
+              <p className="text-[10px] text-muted-foreground sm:text-xs lg:text-sm">
+                {item.label}
+              </p>
+              <p className="font-display text-lg font-semibold leading-tight sm:text-2xl lg:text-base">
                 {item.value}
               </p>
             </CardContent>
