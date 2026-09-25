@@ -161,13 +161,15 @@ export function LoginPage() {
 
       <div className="relative mx-auto grid min-h-dvh max-w-6xl items-center gap-10 px-3 pb-8 pt-16 sm:px-4 sm:py-10 lg:grid-cols-2">
         <FadeIn className="hidden lg:block">
-          <BrandMark />
+          <BrandMark subtitle="School Management System" />
           <h1 className="mt-8 max-w-xl font-display text-4xl font-semibold tracking-tight text-foreground xl:text-5xl">
-            School operations, designed with clarity.
+            Your school.
+            <br />
+            Connected. Simplified.
           </h1>
           <p className="mt-4 max-w-lg text-base leading-relaxed text-muted-foreground">
-            A premium console for academics, attendance, fees, and communications — built for
-            Viste High School.
+            Manage your school operations, academics, students, attendance, fees and results — all
+            in one place.
           </p>
           <div className="mt-8 flex items-center gap-3 rounded-2xl border border-border/80 bg-card/80 p-4 shadow-card">
             <div className="rounded-xl bg-accent/10 p-2.5 text-accent">
@@ -175,12 +177,12 @@ export function LoginPage() {
             </div>
             <div>
               <p className="text-sm font-semibold">
-                {USE_MOCK_API ? 'Demo sign-in' : 'School portal sign-in'}
+                {USE_MOCK_API ? 'Demo sign-in' : 'Secure school access'}
               </p>
               <p className="text-xs text-muted-foreground">
                 {USE_MOCK_API
                   ? 'Using local demo users for UI development.'
-                  : 'Staff sign in with their email. Students use their student number and portal code.'}
+                  : 'Authorized staff and students can securely access their Viste High School portal from here.'}
               </p>
             </div>
           </div>
@@ -195,22 +197,22 @@ export function LoginPage() {
           >
             <CardHeader className="space-y-3">
               <div className="lg:hidden">
-                <BrandMark />
+                <BrandMark subtitle="School Management System" />
               </div>
-              <CardTitle className="text-2xl">Sign in</CardTitle>
-              <CardDescription>Access the Viste High School management console.</CardDescription>
+              <CardTitle className="text-2xl">Welcome back</CardTitle>
+              <CardDescription>Sign in to access your Viste High School account.</CardDescription>
             </CardHeader>
             <CardContent>
               <form className="space-y-4" onSubmit={handleSubmit}>
                 <Field>
-                  <Label htmlFor="email">Email or student number</Label>
+                  <Label htmlFor="email">Email address or student number</Label>
                   <Input
                     id="email"
                     autoComplete="username"
                     autoCapitalize="none"
                     disabled={busy}
                     {...form.register('email')}
-                    placeholder="you@viste.school or VHS-2026-001"
+                    placeholder="Enter your email or student number"
                   />
                   {form.formState.errors.email && (
                     <p className="text-xs text-destructive">
@@ -220,12 +222,13 @@ export function LoginPage() {
                 </Field>
 
                 <Field>
-                  <Label htmlFor="password">Password / portal code</Label>
+                  <Label htmlFor="password">Password or portal code</Label>
                   <div className="relative">
                     <Input
                       id="password"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
+                      placeholder="Enter your password or portal code"
                       className="pr-11"
                       disabled={busy}
                       {...form.register('password')}
@@ -262,7 +265,7 @@ export function LoginPage() {
                     disabled={busy}
                     onClick={() => void handleForgotPassword()}
                   >
-                    Forgot password
+                    Forgot password?
                   </button>
                 </div>
 

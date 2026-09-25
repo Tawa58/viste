@@ -6,10 +6,12 @@ export function BrandMark({
   compact = false,
   className,
   light = false,
+  subtitle = 'Management System',
 }: {
   compact?: boolean
   className?: string
   light?: boolean
+  subtitle?: string
 }) {
   return (
     <Link to="/dashboard" className={cn('flex items-center gap-3', className)}>
@@ -25,7 +27,7 @@ export function BrandMark({
             Viste High School
           </div>
           <div className={cn('text-xs', light ? 'text-white/70' : 'text-muted-foreground')}>
-            Management System
+            {subtitle}
           </div>
         </div>
       )}
