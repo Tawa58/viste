@@ -789,6 +789,34 @@ export interface ClassTeacherReport {
   updatedByName?: string
 }
 
+export type ClassResultsPeriod = 'TERM' | 'MONTH'
+
+export interface ClassResultsSubjectScore {
+  subjectId: string
+  subjectName: string
+  score: number
+  maxScore: number
+  percent: number
+  grade: string
+}
+
+export interface ClassResultsStudentRow {
+  studentId: string
+  subjects: ClassResultsSubjectScore[]
+  average: number | null
+  grade?: string
+  position?: number
+}
+
+export interface ClassResultsSummary {
+  classId: string
+  period: ClassResultsPeriod
+  termId?: string
+  month?: string
+  subjects: { id: string; name: string }[]
+  students: ClassResultsStudentRow[]
+}
+
 export type DutyDay = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI'
 
 export interface DutyRosterEntry {

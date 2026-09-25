@@ -14,11 +14,18 @@ import type {
   dutyRosterUpsertSchema,
 } from '@/server/validators/school'
 import type { z } from 'zod'
+import { getGradingScaleForEducationLevel, gradeFromScore } from '@/server/services/grading-service'
 import type {
+  Assessment,
+  ClassResultsPeriod,
+  ClassResultsStudentRow,
+  ClassResultsSummary,
   ClassTeacherReport,
   DutyRoster,
+  Mark,
   SchoolClass,
   Student,
+  Subject,
   Term,
 } from '@/types'
 
@@ -161,6 +168,106 @@ export async function upsertDutyRoster(
     metadata: { classId, weekOf: input.weekOf, count: row.entries.length },
   })
   return row
+}
+
+/** Per-student results across all subjects of a class for one month or term. */
+export async function getClassResultsSummary(
+  session: SessionContext,
+  classId: string,
+  input: { period: ClassResultsPeriod; termId?: string; month?: string },
+): Promise<ClassResultsSummary> {
+  requirePermission(session, 'results.read')
+  await assertClassTeacherOrAdmin(session, classId)
+
+  const cls = await getDoc<SchoolClass>('classes', classId)
+  if (!cls) throw notFound('Class not found')
+
+  const where =
+    input.period === 'MONTH'
+      ? [
+          { field: 'classId', op: '==' as const, value: classId },
+          { field: 'type', op: '==' as const, value: 'MONTHLY' },
+          { field: 'month', op: '==' as const, value: input.month },
+        ]
+      : [
+          { field: 'classId', op: '==' as const, value: classId },
+          { field: 'type', op: '==' as const, value: 'TERMLY' },
+          { field: 'termId', op: '==' as const, value: input.termId },
+        ]
+  const assessments = await queryCollection<Assessment>('assessments', { limit: 100, where })
+
+  const [students, markLists, subjectDocs, scale] = await Promise.all([
+    queryCollection<Student>('students', {
+      limit: 100,
+      where: [{ field: 'classId', op: '==', value: classId }],
+    }),
+    Promise.all(
+      assessments.map((a) =>
+        queryCollection<Mark>('marks', {
+          limit: 100,
+          where: [{ field: 'assessmentId', op: '==', value: a.id }],
+        }),
+      ),
+    ),
+    Promise.all(
+      [...new Set(assessments.map((a) => a.subjectId))].map((sid) =>
+        getDoc<Subject>('subjects', sid),
+      ),
+    ),
+    getGradingScaleForEducationLevel(cls.educationLevelId),
+  ])
+
+  const subjectName = new Map<string, string>()
+  for (const s of subjectDocs) if (s) subjectName.set(s.id, s.name)
+
+  const active = students.filter((s) => s.status === 'ACTIVE')
+  const rows = new Map<string, ClassResultsStudentRow>(
+    active.map((s) => [s.id, { studentId: s.id, subjects: [], average: null }]),
+  )
+
+  assessments.forEach((a, i) => {
+    const max = a.maxScore > 0 ? a.maxScore : 100
+    for (const m of markLists[i]) {
+      const row = rows.get(m.studentId)
+      if (!row || typeof m.score !== 'number') continue
+      const percent = Math.round((m.score / max) * 1000) / 10
+      row.subjects.push({
+        subjectId: a.subjectId,
+        subjectName: subjectName.get(a.subjectId) ?? a.name,
+        score: m.score,
+        maxScore: max,
+        percent,
+        grade: m.grade || gradeFromScore(m.score, max, scale),
+      })
+    }
+  })
+
+  for (const row of rows.values()) {
+    row.subjects.sort((a, b) => a.subjectName.localeCompare(b.subjectName))
+    if (row.subjects.length === 0) continue
+    const avg = row.subjects.reduce((sum, s) => sum + s.percent, 0) / row.subjects.length
+    row.average = Math.round(avg * 10) / 10
+    row.grade = gradeFromScore(row.average, 100, scale)
+  }
+
+  const ranked = [...rows.values()]
+    .filter((r) => r.average !== null)
+    .sort((a, b) => (b.average ?? 0) - (a.average ?? 0))
+  ranked.forEach((r, i) => {
+    const prev = ranked[i - 1]
+    r.position = prev && prev.average === r.average ? prev.position : i + 1
+  })
+
+  return {
+    classId,
+    period: input.period,
+    termId: input.termId,
+    month: input.month,
+    subjects: [...new Set(assessments.map((a) => a.subjectId))]
+      .map((id) => ({ id, name: subjectName.get(id) ?? id }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    students: [...rows.values()],
+  }
 }
 
 export async function getClassTeacherCommentForStudent(

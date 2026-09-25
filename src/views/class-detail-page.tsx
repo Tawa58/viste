@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ClipboardList, Pencil, Trash2, UserPlus, Users } from 'lucide-react'
+import {
+  ArrowLeft,
+  CalendarDays,
+  ClipboardList,
+  MessageSquareText,
+  Pencil,
+  Trash2,
+  UserPlus,
+  Users,
+} from 'lucide-react'
+import { ClassDutyRosterDialog } from '@/components/shared/class-duty-roster-dialog'
+import { ClassReportCommentsDialog } from '@/components/shared/class-report-comments-dialog'
 import { PageHeader } from '@/components/shared/page-header'
 import { LoadingState } from '@/components/shared/loading-state'
 import { StatusBadge } from '@/components/shared/status-badge'
@@ -27,31 +38,7 @@ import { notify } from '@/lib/notify'
 import { canManageClasses, canManageStudents } from '@/lib/roles'
 import { catalogService, classService, studentService } from '@/services/api'
 import { fullName } from '@/lib/utils'
-import type {
-  AcademicYear,
-  DutyDay,
-  DutyRosterEntry,
-  SchoolClass,
-  Staff,
-  Student,
-  Term,
-} from '@/types'
-
-const DUTY_DAYS: { day: DutyDay; label: string }[] = [
-  { day: 'MON', label: 'Monday' },
-  { day: 'TUE', label: 'Tuesday' },
-  { day: 'WED', label: 'Wednesday' },
-  { day: 'THU', label: 'Thursday' },
-  { day: 'FRI', label: 'Friday' },
-]
-
-function currentWeekStart() {
-  const d = new Date()
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  d.setDate(d.getDate() + diff)
-  return d.toISOString().slice(0, 10)
-}
+import type { AcademicYear, SchoolClass, Staff, Student, Term } from '@/types'
 
 export function ClassDetailPage() {
   const { id } = useParams()
@@ -85,13 +72,8 @@ export function ClassDetailPage() {
     description: '',
   })
   const [reportTermId, setReportTermId] = useState('')
-  const [reportComments, setReportComments] = useState<Record<string, string>>({})
-  const [weekOf, setWeekOf] = useState(currentWeekStart())
-  const [dutyEntries, setDutyEntries] = useState<DutyRosterEntry[]>(
-    DUTY_DAYS.map((d) => ({ day: d.day, duty: '', assigneeName: '' })),
-  )
-  const [dutySaving, setDutySaving] = useState(false)
-  const [reportSaving, setReportSaving] = useState(false)
+  const [dutyOpen, setDutyOpen] = useState(false)
+  const [reportsOpen, setReportsOpen] = useState(false)
 
   async function reload() {
     if (!id) return
@@ -111,7 +93,11 @@ export function ClassDetailPage() {
     setYears(y)
     setTerms(t)
     setSubjects(sub)
-    const termPick = t.find((x) => x.sequence === 1)?.id || t[0]?.id || ''
+    const termPick =
+      t.find((x) => x.id === c?.termId)?.id ||
+      t.find((x) => x.sequence === (c?.termSequence ?? 1))?.id ||
+      t[0]?.id ||
+      ''
     setReportTermId((prev) => prev || termPick)
   }
 
@@ -130,94 +116,9 @@ export function ClassDetailPage() {
   )
   const year = years.find((y) => y.id === cls?.academicYearId)
   const term = terms.find((t) => t.id === cls?.termId)
-  const activeStudents = students.filter((s) => s.status === 'ACTIVE')
+  const activeStudents = useMemo(() => students.filter((s) => s.status === 'ACTIVE'), [students])
   const isMyClass = Boolean(user?.staffId && cls?.classTeacherId === user.staffId)
   const canClassTeacherTools = isMyClass || canManage
-
-  useEffect(() => {
-    if (!id || !reportTermId || !canClassTeacherTools) return
-    void classService
-      .getTeacherReports?.(id, reportTermId)
-      .then((rows) => {
-        const next: Record<string, string> = {}
-        for (const s of students.filter((x) => x.status === 'ACTIVE')) {
-          next[s.id] = rows.find((r) => r.studentId === s.id)?.comment ?? ''
-        }
-        setReportComments(next)
-      })
-      .catch(() => {
-        const next: Record<string, string> = {}
-        for (const s of students.filter((x) => x.status === 'ACTIVE')) next[s.id] = ''
-        setReportComments(next)
-      })
-  }, [id, reportTermId, canClassTeacherTools, students])
-
-  useEffect(() => {
-    if (!id || !weekOf || !canClassTeacherTools) return
-    void classService
-      .getDutyRoster?.(id, weekOf)
-      .then((roster) => {
-        if (!roster?.entries?.length) {
-          setDutyEntries(DUTY_DAYS.map((d) => ({ day: d.day, duty: '', assigneeName: '' })))
-          return
-        }
-        setDutyEntries(
-          DUTY_DAYS.map((d) => {
-            const found = roster.entries.find((e) => e.day === d.day)
-            return (
-              found ?? {
-                day: d.day,
-                duty: '',
-                assigneeName: '',
-              }
-            )
-          }),
-        )
-      })
-      .catch(() => {
-        setDutyEntries(DUTY_DAYS.map((d) => ({ day: d.day, duty: '', assigneeName: '' })))
-      })
-  }, [id, weekOf, canClassTeacherTools])
-
-  async function saveReports() {
-    if (!id || !reportTermId || !classService.saveTeacherReports) return
-    const entries = activeStudents
-      .map((s) => ({
-        studentId: s.id,
-        comment: (reportComments[s.id] ?? '').trim(),
-      }))
-      .filter((e) => e.comment.length > 0)
-    if (entries.length === 0) {
-      notify.error('Enter at least one class teacher comment')
-      return
-    }
-    setReportSaving(true)
-    try {
-      await notify.process(
-        () => classService.saveTeacherReports!(id, { termId: reportTermId, entries }),
-        { loading: 'Saving report comments…', success: 'Final report comments saved' },
-      )
-    } finally {
-      setReportSaving(false)
-    }
-  }
-
-  async function saveDuties() {
-    if (!id || !classService.saveDutyRoster) return
-    setDutySaving(true)
-    try {
-      await notify.process(
-        () =>
-          classService.saveDutyRoster!(id, {
-            weekOf,
-            entries: dutyEntries.filter((e) => e.duty.trim()),
-          }),
-        { loading: 'Saving duty roster…', success: 'Duty roster saved' },
-      )
-    } finally {
-      setDutySaving(false)
-    }
-  }
 
   function openEdit() {
     if (!cls) return
@@ -469,119 +370,13 @@ export function ClassDetailPage() {
               <Button asChild variant="outline">
                 <Link to={`/examinations?classId=${cls.id}`}>Enter subject marks</Link>
               </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Final report comments</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Homeroom comments for each student — shown on the results portal after marks are
-                released.
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="max-w-xs space-y-1.5">
-                <Label>Term</Label>
-                <Select value={reportTermId} onChange={(e) => setReportTermId(e.target.value)}>
-                  <option value="">Select term</option>
-                  {terms.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              {activeStudents.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No active students.</p>
-              ) : (
-                <div className="space-y-3">
-                  {activeStudents.map((s) => (
-                    <div key={s.id} className="space-y-1.5">
-                      <Label>{fullName(s)}</Label>
-                      <Textarea
-                        rows={2}
-                        value={reportComments[s.id] ?? ''}
-                        onChange={(e) =>
-                          setReportComments((prev) => ({ ...prev, [s.id]: e.target.value }))
-                        }
-                        placeholder="Class teacher final remark…"
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-              <Button loading={reportSaving} onClick={() => void saveReports()}>
-                Save report comments
+              <Button variant="outline" onClick={() => setReportsOpen(true)}>
+                <MessageSquareText className="h-4 w-4" />
+                Final report comments
               </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Duty roster</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Weekly classroom duties for this class (monitors, cleaners, etc.).
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="max-w-xs space-y-1.5">
-                <Label>Week starting</Label>
-                <Input type="date" value={weekOf} onChange={(e) => setWeekOf(e.target.value)} />
-              </div>
-              <div className="overflow-x-auto rounded-xl border border-border">
-                <table className="w-full min-w-[520px] text-left text-sm">
-                  <thead className="bg-muted/60 text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2">Day</th>
-                      <th className="px-3 py-2">Duty</th>
-                      <th className="px-3 py-2">Assignee</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {DUTY_DAYS.map((d, i) => {
-                      const row = dutyEntries[i] ?? {
-                        day: d.day,
-                        duty: '',
-                        assigneeName: '',
-                      }
-                      return (
-                        <tr key={d.day} className="border-t border-border">
-                          <td className="px-3 py-2 font-medium">{d.label}</td>
-                          <td className="px-3 py-2">
-                            <Input
-                              value={row.duty}
-                              placeholder="e.g. Class monitor"
-                              onChange={(e) =>
-                                setDutyEntries((prev) =>
-                                  prev.map((x, idx) =>
-                                    idx === i ? { ...x, duty: e.target.value } : x,
-                                  ),
-                                )
-                              }
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <Input
-                              value={row.assigneeName ?? ''}
-                              placeholder="Student name"
-                              onChange={(e) =>
-                                setDutyEntries((prev) =>
-                                  prev.map((x, idx) =>
-                                    idx === i ? { ...x, assigneeName: e.target.value } : x,
-                                  ),
-                                )
-                              }
-                            />
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <Button loading={dutySaving} onClick={() => void saveDuties()}>
-                Save duty roster
+              <Button variant="outline" onClick={() => setDutyOpen(true)}>
+                <CalendarDays className="h-4 w-4" />
+                Duty roster
               </Button>
             </CardContent>
           </Card>
@@ -826,6 +621,27 @@ export function ClassDetailPage() {
           </Button>
         </DialogContent>
       </Dialog>
+
+      {canClassTeacherTools ? (
+        <>
+          <ClassReportCommentsDialog
+            classId={cls.id}
+            className={cls.name}
+            students={activeStudents}
+            terms={terms}
+            defaultTermId={reportTermId}
+            open={reportsOpen}
+            onOpenChange={setReportsOpen}
+          />
+          <ClassDutyRosterDialog
+            classId={cls.id}
+            className={cls.name}
+            students={activeStudents}
+            open={dutyOpen}
+            onOpenChange={setDutyOpen}
+          />
+        </>
+      ) : null}
     </div>
   )
 }

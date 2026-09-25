@@ -1189,6 +1189,18 @@ export const classService = USE_MOCK_API
             updatedBy: 'mock',
           })),
         ),
+      getResultsSummary: async (
+        classId: string,
+        query: { period: import('@/types').ClassResultsPeriod; termId?: string; month?: string },
+      ) =>
+        mockRequest<import('@/types').ClassResultsSummary>({
+          classId,
+          period: query.period,
+          termId: query.termId,
+          month: query.month,
+          subjects: [],
+          students: [],
+        }),
       getDutyRoster: async () => mockRequest(null),
       saveDutyRoster: async (
         classId: string,

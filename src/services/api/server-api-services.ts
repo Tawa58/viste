@@ -17,6 +17,8 @@ import type {
   AuthUser,
   ClassTransfer,
   ClubActivity,
+  ClassResultsPeriod,
+  ClassResultsSummary,
   ClassTeacherReport,
   DutyRoster,
   DutyRosterEntry,
@@ -290,6 +292,18 @@ export const apiClassService = {
       `/api/v1/classes/${encodeURIComponent(classId)}/teacher-reports`,
       { method: 'PUT', body: JSON.stringify(input) },
     ),
+  getResultsSummary: (
+    classId: string,
+    query: { period: ClassResultsPeriod; termId?: string; month?: string },
+  ) => {
+    const params = new URLSearchParams({ period: query.period })
+    if (query.termId) params.set('termId', query.termId)
+    if (query.month) params.set('month', query.month)
+    return apiFetch<ClassResultsSummary>(
+      `/api/v1/classes/${encodeURIComponent(classId)}/results-summary?${params}`,
+      { skipCache: true },
+    )
+  },
   getDutyRoster: (classId: string, weekOf: string) =>
     apiFetch<DutyRoster | null>(
       `/api/v1/classes/${encodeURIComponent(classId)}/duty-roster?weekOf=${encodeURIComponent(weekOf)}`,
