@@ -1,0 +1,71 @@
+{
+  "name": "viste-sms-desktop",
+  "productName": "Viste SMS",
+  "version": "1.0.0",
+  "description": "Viste SMS — Windows desktop app for the Viste School Management System",
+  "author": "Viste High School",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "compile": "tsc -p tsconfig.json",
+    "start": "npm run compile && electron .",
+    "dev": "npm run compile && electron . --app-url=http://localhost:3000",
+    "pack": "npm run compile && electron-builder --win --dir --publish never",
+    "dist": "npm run compile && electron-builder --win --publish never",
+    "release": "npm run compile && electron-builder --win --publish always",
+    "version:bump": "node scripts/bump-version.mjs"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "typescript": "^5.9.3"
+  },
+  "build": {
+    "appId": "school.viste.sms",
+    "productName": "Viste SMS",
+    "copyright": "Copyright © Viste High School",
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "dist/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "artifactName": "Viste-SMS-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Viste SMS",
+      "uninstallDisplayName": "Viste SMS",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Tawa58",
+        "repo": "viste-sms",
+        "releaseType": "release"
+      }
+    ]
+  }
+}

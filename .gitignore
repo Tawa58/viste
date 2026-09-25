@@ -31,6 +31,9 @@ tsconfig.tsbuildinfo
 
 
 
+# Electron desktop build output
+electron/release/
+
 # Firebase Admin / service accounts (never commit)
 secrets/
 *.pem
