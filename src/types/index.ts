@@ -150,6 +150,36 @@ export interface StaffLoginCredential {
   lastResetAt?: string
 }
 
+export type StudentPortalStatus = 'NONE' | 'ACTIVE' | 'EXPIRED' | 'REVOKED'
+
+/** Student results-portal login (student number + admin-issued monthly code). */
+export interface StudentPortalAccess {
+  studentId: string
+  /** Sign-in username. */
+  studentNumber: string
+  status: StudentPortalStatus
+  /** Admin-issued code; empty once the student has changed it. */
+  code?: string
+  codeChangedByStudent?: boolean
+  /** `YYYY-MM` month the code is valid for. */
+  validMonth?: string
+  expiresAt?: string
+  issuedAt?: string
+  issuedByName?: string
+  feeCleared: boolean
+  /** Why a code cannot be issued right now (e.g. outstanding fees). */
+  feeMessage?: string
+}
+
+export interface StudentPortalBatchRow {
+  studentId: string
+  studentNumber: string
+  name: string
+  code?: string
+  expiresAt?: string
+  skipped?: string
+}
+
 export interface Guardian {
   id: string
   firstName: string

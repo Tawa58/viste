@@ -40,6 +40,8 @@ import type {
   Student,
   StudentClassStats,
   StudentExemption,
+  StudentPortalAccess,
+  StudentPortalBatchRow,
   Subject,
   Term,
   AcademicYear,
@@ -60,14 +62,33 @@ import {
   updateProfile,
 } from 'firebase/auth'
 import { getFirebaseAuth } from '@/services/firebase/app'
+import { isStudentNumberIdentifier, studentPortalEmail } from '@/lib/student-portal'
 
 export class ApiAuthService implements AuthService {
   async login(email: string, password: string) {
-    await signInWithEmailAndPassword(
-      getFirebaseAuth(),
-      email.trim().toLowerCase(),
-      password,
-    )
+    const isStudent = isStudentNumberIdentifier(email)
+    try {
+      await signInWithEmailAndPassword(
+        getFirebaseAuth(),
+        isStudent ? studentPortalEmail(email) : email.trim().toLowerCase(),
+        isStudent ? password.trim() : password,
+      )
+    } catch (err) {
+      const code = (err as { code?: string }).code
+      if (
+        isStudent &&
+        (code === 'auth/invalid-credential' ||
+          code === 'auth/wrong-password' ||
+          code === 'auth/user-not-found' ||
+          code === 'auth/invalid-email')
+      ) {
+        throw new Error('Invalid student number or portal code')
+      }
+      if (isStudent && code === 'auth/user-disabled') {
+        throw new Error('Your portal access has been revoked. Please contact the school office.')
+      }
+      throw err
+    }
     try {
       const me = await this.session()
       void apiFetch('/api/v1/auth/activity', {
@@ -198,6 +219,23 @@ export const apiStudentService: StudentService = {
     apiFetch<StudentExemption>(`/api/v1/students/${studentId}/exemptions`, {
       method: 'PATCH',
       body: JSON.stringify({ id: exemptionId }),
+    }),
+  getPortalAccess: (studentId) =>
+    apiFetch<StudentPortalAccess>(`/api/v1/students/${studentId}/portal-access`, {
+      skipCache: true,
+    }),
+  issuePortalCode: (studentId) =>
+    apiFetch<StudentPortalAccess>(`/api/v1/students/${studentId}/portal-access`, {
+      method: 'POST',
+    }),
+  revokePortalAccess: (studentId) =>
+    apiFetch<StudentPortalAccess>(`/api/v1/students/${studentId}/portal-access`, {
+      method: 'DELETE',
+    }),
+  issuePortalCodesForClass: (classId) =>
+    apiFetch<StudentPortalBatchRow[]>('/api/v1/students/portal-codes', {
+      method: 'POST',
+      body: JSON.stringify({ classId }),
     }),
 }
 

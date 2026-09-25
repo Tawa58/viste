@@ -2,10 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowUpRight,
+  KeyRound,
   MoreHorizontal,
   Plus,
+  Printer,
   Users,
 } from 'lucide-react'
+import { printPortalSlips } from '@/components/shared/student-portal-access-card'
+import { currentPortalMonth, formatPortalMonth } from '@/lib/student-portal'
 import { notify } from '@/lib/notify'
 import { canManageStudents } from '@/lib/roles'
 import { useAuth } from '@/contexts/auth-context'
@@ -59,6 +63,7 @@ import type {
   Sport,
   Stream,
   Student,
+  StudentPortalBatchRow,
   Subject,
 } from '@/types'
 
@@ -93,6 +98,7 @@ export function StudentsPage() {
   const [editing, setEditing] = useState<Student | null>(null)
   const [form, setForm] = useState<StudentFormValues>(studentToFormValues())
   const [saving, setSaving] = useState(false)
+  const [portalOpen, setPortalOpen] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -345,7 +351,8 @@ export function StudentsPage() {
           () => studentService.create(payload as Parameters<typeof studentService.create>[0]),
           {
             loading: 'Registering student…',
-            success: 'Student registered',
+            success: (s) =>
+              `Student registered · student number ${s.studentNumber}. Issue a portal code from their profile once fees are paid.`,
           },
         )
         setStudents((prev) => [created, ...prev])
@@ -385,12 +392,23 @@ export function StudentsPage() {
         breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Students' }]}
         actions={
           canManage ? (
-            <Button onClick={openCreate}>
-              <Plus /> Register student
-            </Button>
+            <>
+              {studentService.issuePortalCodesForClass ? (
+                <Button variant="outline" onClick={() => setPortalOpen(true)}>
+                  <KeyRound /> Portal codes
+                </Button>
+              ) : null}
+              <Button onClick={openCreate}>
+                <Plus /> Register student
+              </Button>
+            </>
           ) : null
         }
       />
+
+      {canManage ? (
+        <PortalCodesDialog open={portalOpen} onOpenChange={setPortalOpen} classes={classes} />
+      ) : null}
 
       <div className="overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-b from-card to-card/80 shadow-card">
         <div className="space-y-4 border-b border-border/70 bg-muted/25 p-3 sm:p-5">
@@ -828,5 +846,145 @@ function TeacherStudentsView({
         </div>
       )}
     </div>
+  )
+}
+
+function PortalCodesDialog({
+  open,
+  onOpenChange,
+  classes,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  classes: SchoolClass[]
+}) {
+  const active = classes.filter((c) => (c.status ?? 'ACTIVE') === 'ACTIVE')
+  const [classId, setClassId] = useState('')
+  const [running, setRunning] = useState(false)
+  const [rows, setRows] = useState<StudentPortalBatchRow[] | null>(null)
+  const month = formatPortalMonth(currentPortalMonth())
+  const selectedClass = active.find((c) => c.id === classId)
+  const issued = rows?.filter((r) => r.code) ?? []
+  const skipped = rows?.filter((r) => r.skipped) ?? []
+
+  useEffect(() => {
+    if (open && !classId && active[0]) setClassId(active[0].id)
+  }, [open, classId, active])
+
+  async function generate() {
+    if (!classId || !studentService.issuePortalCodesForClass) return
+    const ok = window.confirm(
+      `Generate new ${month} portal codes for fee-cleared students in ${selectedClass?.name ?? 'this class'}? Previous codes will stop working.`,
+    )
+    if (!ok) return
+    setRunning(true)
+    setRows(null)
+    try {
+      const result = await notify.process(
+        () => studentService.issuePortalCodesForClass!(classId),
+        {
+          loading: 'Generating portal codes…',
+          success: (r) => `${r.filter((x) => x.code).length} codes issued`,
+        },
+      )
+      setRows(result)
+    } catch {
+      /* toast already shown */
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next)
+        if (!next) setRows(null)
+      }}
+    >
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Student portal codes</DialogTitle>
+          <DialogDescription>
+            Issue {month} sign-in codes for a class. Only students whose fees are cleared get a
+            code; codes expire at the end of the month.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Select
+            value={classId}
+            onChange={(e) => {
+              setClassId(e.target.value)
+              setRows(null)
+            }}
+            className="sm:flex-1"
+          >
+            {active.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+          <Button loading={running} disabled={!classId} onClick={() => void generate()}>
+            <KeyRound /> Generate codes
+          </Button>
+        </div>
+
+        {rows ? (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">
+                {issued.length} issued · {skipped.length} skipped
+              </p>
+              {issued.length > 0 ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    printPortalSlips(
+                      issued.map((r) => ({
+                        name: r.name,
+                        studentNumber: r.studentNumber,
+                        code: r.code!,
+                        expiresAt: r.expiresAt,
+                      })),
+                      `${selectedClass?.name ?? 'Class'} · ${month} portal codes`,
+                    )
+                  }
+                >
+                  <Printer className="h-3.5 w-3.5" /> Print slips
+                </Button>
+              ) : null}
+            </div>
+            {rows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No active students in this class.</p>
+            ) : (
+              <ul className="max-h-[50dvh] divide-y divide-border/70 overflow-y-auto rounded-xl border border-border/70">
+                {rows.map((r) => (
+                  <li
+                    key={r.studentId}
+                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium">{r.name}</span>
+                      <span className="block text-xs text-muted-foreground">{r.studentNumber}</span>
+                    </span>
+                    {r.code ? (
+                      <span className="font-mono text-base font-semibold tracking-[0.14em]">
+                        {r.code}
+                      </span>
+                    ) : (
+                      <span className="text-right text-xs text-warning">{r.skipped}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
   )
 }

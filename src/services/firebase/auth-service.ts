@@ -15,6 +15,7 @@ import { demoCredentials } from '@/mocks/data'
 import type { AuthUser } from '@/types'
 import type { AuthService } from '@/services/api/contracts'
 import { getFirebaseApp, getFirebaseAuth } from '@/services/firebase/app'
+import { isStudentNumberIdentifier, studentPortalEmail } from '@/lib/student-portal'
 import {
   getOrCreateUserProfile,
   updateUserProfile,
@@ -26,10 +27,11 @@ import {
  */
 export class FirebaseAuthService implements AuthService {
   async login(email: string, password: string, _remember = true): Promise<AuthUser> {
+    const isStudent = isStudentNumberIdentifier(email)
     const cred = await signInWithEmailAndPassword(
       getFirebaseAuth(),
-      email.trim().toLowerCase(),
-      password,
+      isStudent ? studentPortalEmail(email) : email.trim().toLowerCase(),
+      isStudent ? password.trim() : password,
     )
     try {
       const { apiFetch } = await import('@/services/api/http-client')

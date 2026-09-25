@@ -2,9 +2,9 @@ import { toast } from 'sonner'
 import { AlertTriangle, Check, Info, X } from 'lucide-react'
 import { VisteLoader } from '@/components/shared/loader'
 
-type ToastMessages = {
+type ToastMessages<T = unknown> = {
   loading: string
-  success: string
+  success: string | ((data: T) => string)
   error?: string
 }
 
@@ -70,7 +70,7 @@ export const notify = {
   /** Shows loading → success/error for any async process. */
   async process<T>(
     work: Promise<T> | (() => Promise<T>),
-    messages: ToastMessages,
+    messages: ToastMessages<T>,
   ): Promise<T> {
     const promise = typeof work === 'function' ? work() : work
     toast.promise(promise, {

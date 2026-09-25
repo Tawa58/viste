@@ -28,6 +28,10 @@ export const POST = withApiHandler(async (request, { requestId }) => {
   }
 
   const result = await clearTemporaryPasswordFlagService(session)
+  if (session.role === 'STUDENT' && session.profile.studentId) {
+    const { markStudentCodeChanged } = await import('@/server/services/student-portal-service')
+    await markStudentCodeChanged(session.profile.studentId)
+  }
   await writeAuditLog({
     actorId: session.uid,
     actorRole: session.role,

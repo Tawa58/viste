@@ -50,6 +50,11 @@ export interface StudentService {
     },
   ): Promise<import('@/types').StudentExemption>
   deactivateExemption?(studentId: string, exemptionId: string): Promise<import('@/types').StudentExemption>
+  getPortalAccess?(studentId: string): Promise<import('@/types').StudentPortalAccess>
+  /** Issue or regenerate this month's portal code (fee-cleared students only). */
+  issuePortalCode?(studentId: string): Promise<import('@/types').StudentPortalAccess>
+  revokePortalAccess?(studentId: string): Promise<import('@/types').StudentPortalAccess>
+  issuePortalCodesForClass?(classId: string): Promise<import('@/types').StudentPortalBatchRow[]>
 }
 
 export interface DashboardService {

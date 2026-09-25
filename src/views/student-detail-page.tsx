@@ -13,6 +13,7 @@ import {
   type GuardianFormValues,
   type StudentFormValues,
 } from '@/components/shared/student-editor-form'
+import { StudentPortalAccessCard } from '@/components/shared/student-portal-access-card'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -490,6 +491,10 @@ export function StudentDetailPage() {
               <li>{enrolledSubjects.length} enrolled subjects</li>
             </ul>
           </section>
+
+          {fullAccess ? (
+            <StudentPortalAccessCard studentId={student.id} studentName={fullName(student)} />
+          ) : null}
         </TabsContent>
 
         <TabsContent value="academic" className="space-y-6 pt-2">

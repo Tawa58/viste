@@ -194,6 +194,12 @@ export async function verifyBearerToken(request: Request): Promise<SessionContex
         if (err && typeof err === 'object' && 'statusCode' in err) throw err
       }
     }
+    if (profile.role === 'STUDENT' && profile.studentId) {
+      const { assertStudentPortalActive } = await import(
+        '@/server/services/student-portal-service'
+      )
+      await assertStudentPortalActive(profile.studentId)
+    }
     const permissions = resolveEffectivePermissions(profile.role, overrides)
     return {
       uid: decoded.uid,

@@ -24,9 +24,10 @@ import { USE_MOCK_API } from '@/services/api/client'
 import { ApiClientError } from '@/services/api/http-client'
 import { notify } from '@/lib/notify'
 import { cn } from '@/lib/utils'
+import { isStudentNumberIdentifier } from '@/lib/student-portal'
 
 const loginSchema = z.object({
-  email: z.string().min(1, 'Email or username is required'),
+  email: z.string().min(1, 'Email or student number is required'),
   password: z.string().min(1, 'Password is required'),
   remember: z.boolean(),
 })
@@ -133,6 +134,12 @@ export function LoginPage() {
       form.setError('email', { message: 'Enter your email first' })
       return
     }
+    if (isStudentNumberIdentifier(email)) {
+      notify.info(
+        'Students: get a new portal code from the school office. Codes are issued monthly once fees are cleared.',
+      )
+      return
+    }
     setResetting(true)
     try {
       await notify.process(() => requestPasswordReset(email), {
@@ -173,7 +180,7 @@ export function LoginPage() {
               <p className="text-xs text-muted-foreground">
                 {USE_MOCK_API
                   ? 'Using local demo users for UI development.'
-                  : 'Sign in with the email and password issued by your school.'}
+                  : 'Staff sign in with their email. Students use their student number and portal code.'}
               </p>
             </div>
           </div>
@@ -196,13 +203,14 @@ export function LoginPage() {
             <CardContent>
               <form className="space-y-4" onSubmit={handleSubmit}>
                 <Field>
-                  <Label htmlFor="email">Email / username</Label>
+                  <Label htmlFor="email">Email or student number</Label>
                   <Input
                     id="email"
                     autoComplete="username"
+                    autoCapitalize="none"
                     disabled={busy}
                     {...form.register('email')}
-                    placeholder="you@viste.school"
+                    placeholder="you@viste.school or VHS-2026-001"
                   />
                   {form.formState.errors.email && (
                     <p className="text-xs text-destructive">
@@ -212,7 +220,7 @@ export function LoginPage() {
                 </Field>
 
                 <Field>
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">Password / portal code</Label>
                   <div className="relative">
                     <Input
                       id="password"
