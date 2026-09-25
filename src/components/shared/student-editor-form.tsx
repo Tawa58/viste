@@ -189,7 +189,7 @@ export function StudentEditorForm({
             />
           </Field>
           <Field>
-            <Label>Email</Label>
+            <Label>Email (optional)</Label>
             <Input
               type="email"
               value={values.email}
@@ -353,16 +353,18 @@ export function StudentEditorForm({
               <option value="INACTIVE">Inactive</option>
             </Select>
           </Field>
+          {mode === 'edit' ? (
+            <Field>
+              <Label>Email (optional)</Label>
+              <Input
+                type="email"
+                value={values.email}
+                onChange={(e) => setField('email', e.target.value)}
+              />
+            </Field>
+          ) : null}
           <Field>
-            <Label>Email</Label>
-            <Input
-              type="email"
-              value={values.email}
-              onChange={(e) => setField('email', e.target.value)}
-            />
-          </Field>
-          <Field>
-            <Label>Phone</Label>
+            <Label>Phone (optional)</Label>
             <Input value={values.phone} onChange={(e) => setField('phone', e.target.value)} />
           </Field>
           <Field className="sm:col-span-2">

@@ -20,7 +20,11 @@ export const studentCreateSchema = z.object({
   lastName: z.string().min(1).max(100),
   dateOfBirth: isoDateSchema,
   gender: z.enum(['Male', 'Female']),
-  email: emailSchema.optional().or(z.literal('')),
+  // Students often have no email — blank/whitespace is treated as "not provided".
+  email: z.preprocess(
+    (v) => (typeof v === 'string' && !v.trim() ? '' : v),
+    emailSchema.optional().or(z.literal('')),
+  ),
   phone: z.string().max(40).optional(),
   address: z.string().min(1).max(500),
   admissionDate: isoDateSchema,
