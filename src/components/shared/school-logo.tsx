@@ -18,7 +18,11 @@ export function SchoolLogo({
       src="/viste-logo.png"
       alt=""
       aria-hidden
-      className={cn('shrink-0 rounded-md object-cover', sizeClass[size], className)}
+      className={cn(
+        'shrink-0 rounded-md bg-white object-contain p-0.5',
+        sizeClass[size],
+        className,
+      )}
     />
   )
 }

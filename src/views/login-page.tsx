@@ -146,13 +146,13 @@ export function LoginPage() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-background">
+    <div className="relative min-h-dvh overflow-hidden bg-background">
       <div className="pointer-events-none absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2748%27 height=%2748%27 viewBox=%270 0 48 48%27%3E%3Cpath fill=%27%230b3d5c%27 fill-opacity=%270.035%27 d=%27M0 0h1v48H0zm47 0h1v48h-1zM0 0h48v1H0zm0 47h48v1H0z%27/%3E%3C/svg%3E')]" />
       <div className="absolute right-4 top-4 z-10">
         <ThemeToggle />
       </div>
 
-      <div className="relative mx-auto grid min-h-screen max-w-6xl items-center gap-10 px-4 py-10 lg:grid-cols-2">
+      <div className="relative mx-auto grid min-h-dvh max-w-6xl items-center gap-10 px-3 pb-8 pt-16 sm:px-4 sm:py-10 lg:grid-cols-2">
         <FadeIn className="hidden lg:block">
           <BrandMark />
           <h1 className="mt-8 max-w-xl font-display text-4xl font-semibold tracking-tight text-foreground xl:text-5xl">

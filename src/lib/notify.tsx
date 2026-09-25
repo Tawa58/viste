@@ -1,11 +1,5 @@
-import type { ReactNode } from 'react'
 import { toast } from 'sonner'
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Info,
-  XCircle,
-} from 'lucide-react'
+import { AlertTriangle, Check, Info, X } from 'lucide-react'
 import { VisteLoader } from '@/components/shared/loader'
 
 type ToastMessages = {
@@ -14,58 +8,59 @@ type ToastMessages = {
   error?: string
 }
 
-function iconWrap(icon: ReactNode, tone: 'success' | 'error' | 'info' | 'warning' | 'loading') {
+type ToastTone = 'success' | 'error' | 'info' | 'warning' | 'loading'
+
+/** Large round status icon — same look as the login feedback card. */
+export function toastIcon(tone: ToastTone) {
+  if (tone === 'loading') {
+    return (
+      <span className="relative flex h-14 w-14 items-center justify-center">
+        <span className="auth-loader-halo absolute inset-0 rounded-full bg-accent/20" />
+        <VisteLoader size="xl" label="Loading" className="relative text-accent" />
+      </span>
+    )
+  }
+
   const tones = {
-    success: 'bg-success/12 text-success',
-    error: 'bg-destructive/12 text-destructive',
-    info: 'bg-primary/10 text-primary',
-    warning: 'bg-warning/12 text-warning',
-    loading: 'bg-muted text-accent',
+    success: 'bg-success/15 text-success ring-success/30',
+    error: 'bg-destructive/12 text-destructive ring-destructive/30',
+    info: 'bg-primary/10 text-primary ring-primary/25',
+    warning: 'bg-warning/12 text-warning ring-warning/30',
   } as const
+  const Icon = { success: Check, error: X, info: Info, warning: AlertTriangle }[tone]
 
   return (
     <span
-      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${tones[tone]}`}
+      className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ring-1 ${tones[tone]}`}
     >
-      {icon}
+      <Icon
+        className="auth-mark h-8 w-8 stroke-[2.5]"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </span>
   )
 }
 
 export const notify = {
   success(message: string, description?: string) {
-    return toast.success(message, {
-      description,
-      icon: iconWrap(<CheckCircle2 className="h-4 w-4" />, 'success'),
-    })
+    return toast.success(message, { description, icon: toastIcon('success') })
   },
 
   error(message: string, description?: string) {
-    return toast.error(message, {
-      description,
-      icon: iconWrap(<XCircle className="h-4 w-4" />, 'error'),
-    })
+    return toast.error(message, { description, icon: toastIcon('error') })
   },
 
   info(message: string, description?: string) {
-    return toast(message, {
-      description,
-      icon: iconWrap(<Info className="h-4 w-4" />, 'info'),
-    })
+    return toast.info(message, { description, icon: toastIcon('info') })
   },
 
   warning(message: string, description?: string) {
-    return toast.warning(message, {
-      description,
-      icon: iconWrap(<AlertTriangle className="h-4 w-4" />, 'warning'),
-    })
+    return toast.warning(message, { description, icon: toastIcon('warning') })
   },
 
   loading(message: string, description?: string) {
-    return toast.loading(message, {
-      description,
-      icon: iconWrap(<VisteLoader size="sm" label="Loading" />, 'loading'),
-    })
+    return toast.loading(message, { description, icon: toastIcon('loading') })
   },
 
   dismiss(id?: string | number) {

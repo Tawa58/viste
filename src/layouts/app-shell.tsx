@@ -323,24 +323,50 @@ export function AppShell() {
               onClick={() => setMobileOpen(false)}
             />
             <motion.div
-              className="absolute inset-y-0 left-0 flex w-[300px] flex-col bg-sidebar shadow-elevated"
-              initial={{ x: -320 }}
+              className="absolute inset-y-0 left-0 flex w-[min(300px,86vw)] flex-col bg-sidebar pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-elevated"
+              initial={{ x: '-100%' }}
               animate={{ x: 0 }}
-              exit={{ x: -320 }}
+              exit={{ x: '-100%' }}
               transition={{ type: 'spring', stiffness: 320, damping: 32 }}
             >
-              <div className="flex items-center justify-between px-4 py-4">
+              <div className="flex items-center justify-between gap-2 px-4 py-4">
                 <BrandMark />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-sidebar-foreground hover:bg-sidebar-accent"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  <X />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <ThemeToggle />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-sidebar-foreground hover:bg-sidebar-accent"
+                    onClick={() => setMobileOpen(false)}
+                    aria-label="Close menu"
+                  >
+                    <X />
+                  </Button>
+                </div>
               </div>
               <SidebarNav collapsed={false} groups={roleNav} />
+              <div className="border-t border-sidebar-border p-3">
+                <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-card p-2.5 shadow-card">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{user?.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {user?.role.replaceAll('_', ' ')}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground"
+                    onClick={() => {
+                      setMobileOpen(false)
+                      setLogoutOpen(true)
+                    }}
+                    aria-label="Sign out"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}
@@ -352,8 +378,8 @@ export function AppShell() {
           collapsed ? 'lg:pl-[80px]' : 'lg:pl-[272px]',
         )}
       >
-        <header className="sticky top-0 z-30 border-b border-border/70 bg-card/90 backdrop-blur-xl">
-          <div className="flex items-center gap-3 px-4 py-2.5 sm:px-6">
+        <header className="sticky top-0 z-30 border-b border-border/70 bg-card/90 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
+          <div className="flex items-center gap-1.5 px-2 py-2 sm:gap-3 sm:px-6 sm:py-2.5">
             <Button
               variant="ghost"
               size="icon"
@@ -364,22 +390,22 @@ export function AppShell() {
               <Menu />
             </Button>
 
-            <div className="flex min-w-0 flex-1 items-center gap-2.5">
-              <SchoolLogo size="sm" />
+            <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
+              <SchoolLogo size="sm" className="hidden min-[380px]:block" />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">Viste High School</p>
                 <p className="truncate text-xs text-muted-foreground">{pageTitle}</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1 sm:gap-1.5">
+            <div className="flex shrink-0 items-center gap-0.5 sm:gap-1.5">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" aria-label="Search">
                     <Search />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-80 p-2">
+                <DropdownMenuContent align="end" className="w-[min(20rem,calc(100vw-1rem))] p-2">
                   <DropdownMenuLabel className="px-2 pb-2">Search</DropdownMenuLabel>
                   <div className="relative px-1 pb-1">
                     <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -398,7 +424,9 @@ export function AppShell() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <ThemeToggle />
+              <span className="hidden sm:contents">
+                <ThemeToggle />
+              </span>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -416,7 +444,10 @@ export function AppShell() {
                     ) : null}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="max-h-[70vh] w-96 overflow-y-auto">
+                <DropdownMenuContent
+                  align="end"
+                  className="max-h-[70dvh] w-[min(24rem,calc(100vw-1rem))] overflow-y-auto"
+                >
                   <div className="flex items-center justify-between gap-2 px-2 py-1.5">
                     <DropdownMenuLabel className="p-0">Notifications</DropdownMenuLabel>
                     {canSeeAdminNotifications && unreadCount > 0 ? (
@@ -463,7 +494,7 @@ export function AppShell() {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="gap-2 px-2">
+                  <Button variant="ghost" className="gap-2 px-1.5 sm:px-2" aria-label="Account menu">
                     <ResolvedAvatar
                       name={user?.name ?? 'User'}
                       src={user?.avatarUrl}
@@ -508,13 +539,13 @@ export function AppShell() {
           </div>
         </header>
 
-        <main className="px-4 py-6 sm:px-6 lg:px-8">
+        <main className="min-w-0 px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 lg:px-8">
           <PageTransition key={location.pathname}>
             <Outlet />
           </PageTransition>
         </main>
 
-        <footer className="border-t border-border px-4 py-4 text-center text-xs text-muted-foreground sm:px-6">
+        <footer className="border-t border-border px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-center text-xs text-muted-foreground sm:px-6">
           Viste High School Management System ·{' '}
           <Link to="/settings" className="underline-offset-2 hover:underline">
             Settings

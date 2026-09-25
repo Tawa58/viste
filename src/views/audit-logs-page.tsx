@@ -152,7 +152,7 @@ export function AuditLogsPage() {
         }
       />
 
-      <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-3 grid grid-cols-2 gap-2 xl:grid-cols-4">
         <StatCard label="Sign-ins" value={String(stats.logins)} icon={LogIn} compact />
         <StatCard label="Sign-outs" value={String(stats.logouts)} icon={LogOut} compact />
         <StatCard label="Actions" value={String(stats.actions)} icon={KeyRound} compact />

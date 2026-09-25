@@ -277,7 +277,7 @@ export function SubjectsPage() {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit subject' : 'Create subject'}</DialogTitle>
           </DialogHeader>

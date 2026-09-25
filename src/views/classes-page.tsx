@@ -651,7 +651,7 @@ export function ClassesPage() {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="flex max-h-[min(90vh,720px)] w-[calc(100%-1.5rem)] max-w-4xl flex-col gap-0 overflow-hidden p-0 sm:w-[calc(100%-2rem)]">
+        <DialogContent className="flex max-h-[min(90dvh,720px)] w-[calc(100%-1.5rem)] max-w-4xl flex-col gap-0 overflow-hidden p-0 sm:w-[calc(100%-2rem)]">
           <DialogHeader className="shrink-0 border-b border-border px-6 py-4">
             <DialogTitle>{editing ? 'Edit class' : 'Create class'}</DialogTitle>
             <DialogDescription>

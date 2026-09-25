@@ -426,7 +426,7 @@ export function TeachersPage() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Add staff member</DialogTitle>
             <DialogDescription>
@@ -578,7 +578,7 @@ export function TeachersPage() {
       </Dialog>
 
       <Dialog open={credOpen} onOpenChange={setCredOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Teacher login sheet</DialogTitle>
             <DialogDescription>
@@ -634,7 +634,7 @@ export function TeachersPage() {
           if (!next) setAccessTarget(null)
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               Access

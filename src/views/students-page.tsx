@@ -393,13 +393,13 @@ export function StudentsPage() {
       />
 
       <div className="overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-b from-card to-card/80 shadow-card">
-        <div className="space-y-4 border-b border-border/70 bg-muted/25 p-4 sm:p-5">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="space-y-4 border-b border-border/70 bg-muted/25 p-3 sm:p-5">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
             <SearchInput
               value={search}
               onChange={setSearch}
               placeholder="Search name or admission number…"
-              className="md:col-span-2"
+              className="col-span-2"
             />
             <Select value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
               <option value="all">All classes</option>
@@ -462,8 +462,8 @@ export function StudentsPage() {
           />
         ) : (
           <div>
-            <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-3 sm:px-5">
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex items-center justify-between gap-2 border-b border-border/70 px-3 py-3 sm:gap-3 sm:px-5">
+              <label className="flex shrink-0 items-center gap-2 whitespace-nowrap text-sm text-muted-foreground">
                 <Checkbox
                   checked={allPageSelected}
                   onCheckedChange={(checked) => {
@@ -480,8 +480,10 @@ export function StudentsPage() {
                 />
                 Select page
               </label>
-              <div className="flex items-center gap-3">
-                <p className="text-sm text-muted-foreground">{filtered.length} students</p>
+              <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                <p className="whitespace-nowrap text-sm text-muted-foreground">
+                  {filtered.length} students
+                </p>
                 <Select
                   value={sort}
                   onChange={(e) => setSort(e.target.value as 'name' | 'number')}
@@ -539,7 +541,7 @@ export function StudentsPage() {
                             <span className="truncate">{fullName(s)}</span>
                           </Link>
                         </DataTableCell>
-                        <DataTableCell className="text-muted-foreground">
+                        <DataTableCell className="whitespace-nowrap text-muted-foreground">
                           {s.admissionNumber}
                         </DataTableCell>
                         <DataTableCell>{classLabel}</DataTableCell>
@@ -596,7 +598,7 @@ export function StudentsPage() {
       </div>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit student' : 'Register student'}</DialogTitle>
             <DialogDescription>

@@ -376,7 +376,7 @@ export function TransportPage() {
         }
       />
 
-      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
         <StatCard label="Active routes" value={String(stats.routes)} icon={MapPin} compact />
         <StatCard label="Fleet vehicles" value={String(stats.fleet)} icon={Bus} compact />
         <StatCard label="Riders" value={String(stats.riders)} icon={Users} compact />
@@ -551,7 +551,7 @@ export function TransportPage() {
       </Tabs>
 
       <Dialog open={routeOpen} onOpenChange={setRouteOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>New transport route</DialogTitle>
           </DialogHeader>

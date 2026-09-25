@@ -105,7 +105,7 @@ export function FeesPage() {
         This UI uses mock payment data only. Gateway integration comes later with Spring Boot.
       </Alert>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-4">
         <StatCard label="Total billed" value={formatCurrency(totals.billed)} icon={Receipt} />
         <StatCard
           label="Total collected"

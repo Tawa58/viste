@@ -11,11 +11,11 @@ export function DataTableShell({
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-2xl border border-border/80 bg-card shadow-card',
+        'min-w-0 max-w-full overflow-hidden rounded-2xl border border-border/80 bg-card shadow-card',
         className,
       )}
     >
-      <div className="overflow-x-auto">{children}</div>
+      <div className="overflow-x-auto overscroll-x-contain">{children}</div>
     </div>
   )
 }
@@ -58,9 +58,9 @@ export function DataTableRow({ className, ...props }: ComponentProps<'tr'>) {
 }
 
 export function DataTableCell({ className, ...props }: ComponentProps<'td'>) {
-  return <td className={cn('px-4 py-3.5 align-middle', className)} {...props} />
+  return <td className={cn('px-3 py-3 align-middle sm:px-4 sm:py-3.5', className)} {...props} />
 }
 
 export function DataTableHeaderCell({ className, ...props }: ComponentProps<'th'>) {
-  return <th className={cn('px-4 py-3 font-semibold', className)} {...props} />
+  return <th className={cn('px-3 py-3 font-semibold sm:px-4', className)} {...props} />
 }

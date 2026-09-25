@@ -234,7 +234,7 @@ export function InventoryPage() {
         }
       />
 
-      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
         <StatCard label="Assets on record" value={String(totals.count)} icon={Package} compact />
         <StatCard
           label="Active asset value"
@@ -361,7 +361,7 @@ export function InventoryPage() {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit asset' : 'Register asset'}</DialogTitle>
           </DialogHeader>

@@ -319,3 +319,56 @@
   --normal-border: transparent;
   --normal-text: inherit;
 }
+
+/*
+ * Toasts appear in the middle of the screen like the login feedback card.
+ * Overrides Sonner's top-center offsets (desktop and its <=600px block).
+ */
+[data-sonner-toaster][data-y-position='top'][data-x-position='center'] {
+  --width: min(22rem, calc(100vw - 2rem)) !important;
+  top: calc(50dvh - var(--front-toast-height, 0px) / 2) !important;
+  left: 50% !important;
+  right: auto !important;
+  width: var(--width) !important;
+  transform: translateX(-50%) !important;
+}
+
+[data-sonner-toaster][data-y-position='top'][data-x-position='center'] [data-sonner-toast] {
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+}
+
+/* ---------- Mobile-first safety rails ---------- */
+html,
+body {
+  overflow-x: clip;
+}
+
+body {
+  overflow-wrap: break-word;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Grid children may shrink below their content (wide tables scroll inside instead). */
+@layer base {
+  :where(.grid) > * {
+    min-width: 0;
+  }
+}
+
+/* iOS Safari zooms into inputs under 16px — keep form controls at 16px on phones. */
+@media (max-width: 639px) {
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* Inputs/selects have fixed heights — drop vertical padding so 16px text isn't clipped. */
+  input:not([type='checkbox']):not([type='radio']),
+  select {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+}
